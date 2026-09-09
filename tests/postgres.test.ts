@@ -1,0 +1,132 @@
+import { sampleBlocks } from "./fixtures";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import crypto from "node:crypto";
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+import { db, assertDatabase } from "../lib/db";
+import { migrate } from "../scripts/migrate";
+import {
+  writeRevision,
+  loadRevision,
+  persistDraft,
+  publishRevision,
+} from "../lib/repository";
+import { type LessonDraft } from "../lib/content";
+const suite = process.env.TEST_POSTGRES === "1" ? describe : describe.skip;
+suite("real PostgreSQL adapter on a disposable cluster", () => {
+  let pg: import("embedded-postgres").default;
+  let dir: string;
+  const a = crypto.randomUUID(),
+    c = crypto.randomUUID(),
+    l = crypto.randomUUID(),
+    r = crypto.randomUUID();
+  const draft: LessonDraft = {
+    title: "Postgres test",
+    slug: "pg-test",
+    description: "",
+    track: "Python",
+    level: "year 1",
+    mode: "lesson",
+    programmingLanguage: "Python",
+    tags: ["pg"],
+    presentation: "guided",
+    runtimeScope: "per-step",
+    version: 0,
+    steps: [
+      {
+        id: "named-step",
+        title: "Step",
+        blocks: sampleBlocks().map((b) => ({ ...b, id: `named-${b.type}` })),
+      },
+    ],
+  };
+  beforeAll(async () => {
+    const { default: EmbeddedPostgres } = await import("embedded-postgres");
+    dir = mkdtempSync(join(tmpdir(), "teachcode-pg-"));
+    pg = new EmbeddedPostgres({
+      databaseDir: join(dir, "cluster"),
+      port: 15439,
+      user: "testuser",
+      password: crypto.randomBytes(20).toString("hex"),
+      persistent: false,
+      onLog: () => {},
+      onError: () => {},
+    });
+    await pg.initialise();
+    await pg.start();
+    const client = pg.getPgClient();
+    await client.connect();
+    // Simulate pre-existing shared identity. CMS migration must not alter these tables.
+    await client.query(
+      "CREATE TABLE profiles(id uuid PRIMARY KEY,email text,display_name text,role text,password_hash text); CREATE TABLE auth_sessions(token text PRIMARY KEY,user_id uuid REFERENCES profiles(id),created_at timestamptz NOT NULL,expires_at timestamptz NOT NULL)",
+    );
+    const config = (client as any).connectionParameters;
+    process.env.DATABASE_MODE = "postgres";
+    process.env.DATABASE_URL = `postgresql://${config.user}:${config.password}@localhost:15439/${config.database}`;
+    await client.end();
+    await migrate();
+    await db().query("INSERT INTO profiles VALUES($1,$2,$3,$4,$5)", [
+      a,
+      "test@hku.hk",
+      "Test",
+      "admin",
+      "unused",
+    ]);
+    await db().query(
+      "INSERT INTO cms_courses(id,slug,title,created_by) VALUES($1,$2,$3,$4)",
+      [c, "pg", "PG", a],
+    );
+    await db().query(
+      "INSERT INTO cms_lessons(id,course_id,slug,title,updated_by) VALUES($1,$2,$3,$4,$5)",
+      [l, c, draft.slug, draft.title, a],
+    );
+    await db().query(
+      "INSERT INTO cms_lesson_revisions(id,lesson_id,revision_number,state,created_by) VALUES($1,$2,1,'draft',$3)",
+      [r, l, a],
+    );
+    await db().query(
+      "UPDATE cms_lessons SET draft_revision_id=$1 WHERE id=$2",
+      [r, l],
+    );
+    await db().transaction((client) => writeRevision(client, r, draft, a));
+  }, 60000);
+  afterAll(async () => {
+    await db().end();
+    await pg?.stop();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    delete process.env.DATABASE_MODE;
+    delete process.env.DATABASE_URL;
+  }, 30000);
+  it("validates the user_id session schema and idempotent constraints", async () => {
+    await assertDatabase();
+    await migrate();
+    await db().query(readFileSync("db/migrations/001_cms_schema.sql", "utf8"));
+    expect(
+      (
+        await db().query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name='auth_sessions' ORDER BY ordinal_position",
+        )
+      ).rows.map((r) => r.column_name),
+    ).toEqual(["token", "user_id", "created_at", "expires_at"]);
+  });
+  it("hydrates normalized details and preserves immutable publications", async () => {
+    expect(
+      (await loadRevision(db(), {}, r)).steps[0].blocks.map((b) => b.id),
+    ).toEqual(draft.steps[0].blocks.map((b) => b.id));
+    const result = await publishRevision(c, l, draft, a);
+    await persistDraft(c, l, { ...draft, version: 1, title: "Changed" }, a);
+    expect((await loadRevision(db(), {}, result.revisionId)).title).toBe(
+      draft.title,
+    );
+  });
+  it("serializes conflicting draft versions on one pooled transaction connection", async () => {
+    const results = await Promise.allSettled([
+      persistDraft(c, l, { ...draft, version: 2 }, a),
+      persistDraft(c, l, { ...draft, version: 2 }, a),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+  });
+});

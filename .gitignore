@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.next-e2e/
+.next-build/
+next-env.d.ts
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.tsbuildinfo
+data/
+test-results/
+playwright-report/
+coverage/
+*.log
+.DS_Store
+*:Zone.Identifier

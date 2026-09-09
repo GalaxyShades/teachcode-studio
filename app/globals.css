@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  * {
+    @apply border-zinc-200;
+  }
+  body {
+    @apply bg-zinc-50 text-zinc-900 antialiased;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    @apply focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2;
+  }
+}
+@layer components {
+  .card {
+    @apply rounded-xl border bg-white shadow-sm;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition;
+  }
+  .btn-primary {
+    @apply btn bg-teal-600 text-white hover:bg-teal-700;
+  }
+  .btn-secondary {
+    @apply btn border bg-white hover:bg-zinc-50;
+  }
+  .field {
+    @apply mt-1 w-full rounded-lg border px-3 py-2 text-sm;
+  }
+  .label {
+    @apply text-sm font-medium text-zinc-700;
+  }
+}
+@layer base {
+  a,
+  summary {
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700;
+  }
+  button:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+}
+@layer components {
+  .btn-primary {
+    @apply bg-teal-700 hover:bg-teal-800;
+  }
+  .markdown p {
+    @apply my-3;
+  }
+  .markdown h1,
+  .markdown h2,
+  .markdown h3 {
+    @apply my-3 text-xl font-bold;
+  }
+  .markdown ul {
+    @apply list-disc pl-6;
+  }
+  .markdown ol {
+    @apply list-decimal pl-6;
+  }
+  .markdown blockquote {
+    @apply border-l-4 pl-4 italic;
+  }
+  .markdown pre {
+    @apply overflow-auto rounded bg-zinc-950 p-4 text-zinc-100;
+  }
+  .markdown table {
+    @apply block overflow-auto border-collapse;
+  }
+  .markdown td,
+  .markdown th {
+    @apply border p-2;
+  }
+  .markdown a {
+    @apply text-teal-800 underline;
+  }
+}
+
+.hljs-keyword,
+.hljs-built_in {
+  color: #7dd3fc;
+}
+.hljs-string {
+  color: #86efac;
+}
+.hljs-number,
+.hljs-literal {
+  color: #fcd34d;
+}
+.hljs-comment {
+  color: #a1a1aa;
+}

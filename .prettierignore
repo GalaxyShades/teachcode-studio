@@ -1,0 +1,8 @@
+node_modules
+.next
+.next-e2e
+data
+content
+package-lock.json
+test-results
+playwright-report
