@@ -16,9 +16,11 @@ export default async function Courses({
   );
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="font-semibold text-teal-600">TeachCode</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-teal-800">
+            TeachCode Studio
+          </p>
           <h1 className="text-3xl font-bold">Course content</h1>
         </div>
         <div className="flex gap-2">
@@ -30,6 +32,10 @@ export default async function Courses({
           <SignOut />
         </div>
       </header>
+      <p className="mt-3 max-w-2xl text-zinc-600">
+        Create lessons, bring your teaching materials to life, and preview the
+        learner experience.
+      </p>
       <form className="mt-6 flex items-end gap-2">
         <label className="label flex-1">
           Search courses
@@ -42,7 +48,7 @@ export default async function Courses({
           <Link
             key={c.id}
             href={`/courses/${c.id}`}
-            className="card p-5 hover:border-teal-600"
+            className="card p-6 transition hover:-translate-y-0.5 hover:border-teal-600 hover:shadow-md"
           >
             <span className="rounded bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700">
               {c.status}
@@ -58,7 +64,11 @@ export default async function Courses({
         ))}
       </section>
       {!courses.length && (
-        <p className="mt-10 text-zinc-600">No courses are assigned to you.</p>
+        <p className="mt-10 text-zinc-600">
+          {q
+            ? "No courses match your search. Try another keyword or clear the search."
+            : "No courses are assigned to you."}
+        </p>
       )}
     </main>
   );

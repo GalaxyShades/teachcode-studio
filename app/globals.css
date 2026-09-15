@@ -56,6 +56,39 @@
   .markdown h3 {
     @apply my-3 text-xl font-bold;
   }
+  .markdown h1 {
+    @apply text-3xl;
+  }
+  .markdown h2 {
+    @apply text-2xl;
+  }
+  .markdown h4,
+  .markdown h5,
+  .markdown h6 {
+    @apply my-3 font-semibold;
+  }
+  .markdown {
+    @apply break-words leading-relaxed;
+  }
+  .markdown img {
+    @apply my-4 h-auto max-w-full rounded-lg;
+  }
+  .markdown hr {
+    @apply my-6;
+  }
+  .markdown :not(pre) > code {
+    @apply rounded bg-zinc-100 px-1 py-0.5 text-sm;
+  }
+  .markdown li > ul,
+  .markdown li > ol {
+    @apply my-1;
+  }
+  .markdown .contains-task-list {
+    @apply list-none pl-0;
+  }
+  .markdown .task-list-item input {
+    @apply mr-2;
+  }
   .markdown ul {
     @apply list-disc pl-6;
   }

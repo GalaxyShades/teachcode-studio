@@ -1,4 +1,4 @@
-:::lesson{title="Component reference" slug="component-reference" description="A reference lesson demonstrating all supported card types. Replace it with your authored lesson." track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"reference\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
+:::lesson{title="Component reference" slug="component-reference" description="Explore all eleven lesson cards, then practice with a short Python exercise." track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"reference\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
 :::
 
 :::step{id="b0ec6715-3589-48d0-9e3a-6b6ac8c84671" title="Read and explore"}
@@ -14,6 +14,51 @@ A **variable** gives a value a name. Use `print()` to display it.
 | Name | Value |
 | --- | --- |
 | greeting | Hello |
+
+### Formatting toolkit
+
+Use **bold**, *italic*, ***bold italic***, ~~strikethrough~~, and `inline code`.
+Escape punctuation with \*literal asterisks\*.
+
+#### Ordered and nested lists
+
+1. Read the example.
+2. Try it yourself.
+   - Change the greeting.
+   - Predict the output.
+
+##### Progress checklist
+
+- [x] Read the explanation
+- [ ] Complete the exercise
+
+###### A helpful reminder
+
+> Names describe values. Choose a name that explains its purpose.
+>
+> Keep your first example small.
+
+[Python documentation][python-docs] · <https://www.python.org>
+
+[python-docs]: https://docs.python.org/3/tutorial/
+
+A deliberate line break follows here.\
+This stays in the same paragraph.
+
+---
+
+```python
+message = "Hello, learner!"
+print(message)
+```
+
+Markdown images use `![Description](https://your-site/image.png)`.
+Use the Figure card below for an image with a caption.
+
+Supported: headings 1–6 (use `#` for level 1), paragraphs, emphasis, lists,
+checklists, quotes, links, images, tables, code fences, inline code, escapes,
+and horizontal rules. Raw HTML, math rendering, Mermaid diagrams, and custom
+Markdown extensions are not enabled.
 :::
 :::
 

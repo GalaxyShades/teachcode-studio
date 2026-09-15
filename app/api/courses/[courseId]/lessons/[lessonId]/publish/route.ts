@@ -7,13 +7,14 @@ export async function POST(req: Request, { params }: C) {
   try {
     sameOrigin(req);
     const p = await params;
-    return NextResponse.json(
-      await publishDraft(
-        p.courseId,
-        p.lessonId,
-        LessonSchema.parse(await req.json()),
-      ),
+    const result = await publishDraft(
+      p.courseId,
+      p.lessonId,
+      LessonSchema.parse(await req.json()),
     );
+    return NextResponse.json(result, {
+      status: "error" in result ? result.status : 200,
+    });
   } catch (e) {
     return apiError(e);
   }

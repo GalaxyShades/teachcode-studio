@@ -358,6 +358,15 @@ async function save(
     ])
   ).rows[0];
   if (rev?.immutable) throw new CmsError(409, "Draft revision is immutable.");
+  const duplicate = await c.query(
+    "SELECT id FROM cms_lessons WHERE course_id=$1 AND slug=$2 AND id<>$3",
+    [courseId, draft.slug, lessonId],
+  );
+  if (duplicate.rows.length)
+    throw new CmsError(
+      409,
+      "Another lesson uses this slug. Choose a unique Slug in Lesson details or change the Markdown lesson slug, then Save draft.",
+    );
   await writeRevision(c, l.draft_revision_id, draft, userId);
   await c.query(
     "UPDATE cms_lessons SET title=$1,slug=$2,description=$3,track=$4,level=$5,mode=$6,programming_language=$7,tags=$8,presentation=$9,runtime_scope=$10,updated_by=$11,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=$12",

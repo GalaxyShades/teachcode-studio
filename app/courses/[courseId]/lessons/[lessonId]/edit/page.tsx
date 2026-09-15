@@ -1,5 +1,6 @@
 import LessonEditor from "@/components/LessonEditor";
 import { requireCourse, getDraft } from "@/lib/cms";
+import { authoringResources } from "@/lib/authoring-resources";
 export default async function Edit({
   params,
 }: {
@@ -12,6 +13,7 @@ export default async function Edit({
       courseId={courseId}
       lessonId={lessonId}
       initial={draft}
+      resources={authoringResources()}
       canPublish={(await requireCourse(courseId)).role === "admin"}
     />
   );

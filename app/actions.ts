@@ -35,21 +35,31 @@ export async function saveDraft(
   lessonId: string,
   draft: LessonDraft,
 ) {
-  const u = await requireCourse(courseId);
-  return {
-    ...(await persistDraft(courseId, lessonId, draft, u.id)),
-    editor: u.display_name,
-  };
+  try {
+    const u = await requireCourse(courseId);
+    return {
+      ...(await persistDraft(courseId, lessonId, draft, u.id)),
+      editor: u.display_name,
+    };
+  } catch (e) {
+    if (e instanceof CmsError) return { error: e.message, status: e.status };
+    throw e;
+  }
 }
 export async function publishDraft(
   courseId: string,
   lessonId: string,
   draft: LessonDraft,
 ) {
-  const u = await requireAdmin(courseId);
-  const result = await publishRevision(courseId, lessonId, draft, u.id);
-  revalidatePath("/published", "layout");
-  return { ...result, editor: u.display_name };
+  try {
+    const u = await requireAdmin(courseId);
+    const result = await publishRevision(courseId, lessonId, draft, u.id);
+    revalidatePath("/published", "layout");
+    return { ...result, editor: u.display_name };
+  } catch (e) {
+    if (e instanceof CmsError) return { error: e.message, status: e.status };
+    throw e;
+  }
 }
 export async function unpublishDraft(
   courseId: string,

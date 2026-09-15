@@ -16,13 +16,14 @@ export async function PUT(req: Request, { params }: C) {
   try {
     sameOrigin(req);
     const p = await params;
-    return NextResponse.json(
-      await saveDraft(
-        p.courseId,
-        p.lessonId,
-        LessonSchema.parse(await req.json()),
-      ),
+    const result = await saveDraft(
+      p.courseId,
+      p.lessonId,
+      LessonSchema.parse(await req.json()),
     );
+    return NextResponse.json(result, {
+      status: "error" in result ? result.status : 200,
+    });
   } catch (e) {
     return apiError(e);
   }

@@ -1,6 +1,12 @@
 # TeachCode Content Studio
 
-A standalone course authoring app. **SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. Integration with the legacy TeachCode student app is a separate follow-up. YAML migration is out of scope.
+A standalone course authoring app for turning teaching materials into interactive lessons. Author with compact cards or Markdown, bring slides and documents through your AI app, and preview the learner experience before publishing.
+
+![TeachCode lesson editor](docs/screenshots/02-editor.png)
+
+**For a quick walkthrough:** use the [five-minute demo and screenshot guide](docs/demo.md).
+
+**SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. Integration with the legacy TeachCode student app is a separate follow-up. YAML migration is out of scope.
 
 ## Local setup
 
@@ -29,6 +35,15 @@ Open a course and lesson, or create one as admin. Edit metadata, steps and typed
 
 Use [component-reference.md](content/component-reference.md) as your **Markdown syntax reference**, then write and import your own Python lessons. This sample is not the original Python Launchpad source. The local seed contains a reference lesson demonstrating all eleven components.
 
+### Slides or document → AI → lesson
+
+1. Open a lesson and select **Templates & AI prompt**.
+2. Select **Copy prompt**. Paste it into your AI app, then paste your document at the source marker or attach your slides/document. The copied prompt includes the dialect rules and complete syntax example.
+3. Copy the generated lesson into Studio’s **Markdown** tab, or save it as `.md` and choose **Import Markdown**. Start with a new lesson if you want to preserve existing content: import replaces the current lesson and autosaves it.
+4. Review any validation messages, check generated facts and answers, edit in **Rich Editor**, and open **Show preview** (or **Preview** on mobile). Publish when ready.
+
+The same toolkit offers **Complete Markdown template**, with copy and download controls. It covers all eleven card types, nested fields, headings, emphasis, links, lists, checklists, quotes, tables, code, and other supported formatting. Raw HTML, math rendering, and Mermaid are not enabled. The [prompt brief](content/ai-authoring-prompt.md) is maintained alongside the [dialect guide](docs/markdown.md); the UI combines both with the template into one copyable prompt. No AI account or API key is needed in Studio.
+
 Draft changes autosave after a one-second debounce. Explicit Save Draft is also available. Version checks reject stale writers. Publishing creates a separate immutable revision and marks the course published. Later draft edits, including slug changes, leave the published snapshot and its URL intact. Unpublishing a course hides its lessons; archiving or unpublishing a lesson removes public access.
 
 ## Verification
@@ -42,6 +57,7 @@ npm run build
 npx playwright install chromium
 npm run test:e2e
 TEST_RUNTIMES=1 npm run test:e2e
+npm run demo:screenshots
 ```
 
 SQLite and browser tests use disposable databases. `TEST_POSTGRES=1` starts a disposable real PostgreSQL cluster with fixture identity tables; it does not connect to the shared database. Runtime smoke tests are opt-in because they download Python/R browser runtimes from public CDNs. CI runs lint, typecheck, unit/database tests, build and browser/API smoke tests.
@@ -49,6 +65,7 @@ SQLite and browser tests use disposable databases. `TEST_POSTGRES=1` starts a di
 ## Guides
 
 - [Database setup, migrations and rollback](docs/database.md)
+- [Local demo script and screenshots](docs/demo.md)
 - [Markdown dialect and nested fields](docs/markdown.md)
 - [API and authentication](docs/api.md)
 - [Architecture and schema](docs/architecture.md)
