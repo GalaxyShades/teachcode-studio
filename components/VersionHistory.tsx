@@ -9,10 +9,12 @@ type Version = {
 };
 export function VersionHistory({
   endpoint,
+  status,
   busy,
   onRestore,
 }: {
   endpoint: string;
+  status: string;
   busy: boolean;
   onRestore: (id: string) => Promise<void>;
 }) {
@@ -43,11 +45,18 @@ export function VersionHistory({
     }
   }
   return (
-    <div className="mt-3">
-      <div className="flex justify-end">
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p
+          role="status"
+          aria-live="polite"
+          className="min-w-0 break-words text-sm text-zinc-600"
+        >
+          {status}
+        </p>
         <button
           type="button"
-          className="btn-secondary"
+          className="btn gap-1.5 px-1 text-zinc-600 hover:bg-zinc-100 hover:text-teal-900"
           disabled={busy || loading}
           aria-expanded={open}
           aria-controls={panelId}
@@ -56,6 +65,19 @@ export function VersionHistory({
             if (!open) void load();
           }}
         >
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
           Version history
         </button>
       </div>

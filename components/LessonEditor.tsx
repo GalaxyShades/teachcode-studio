@@ -617,8 +617,10 @@ export default function LessonEditor({
             >
               ← Course
             </a>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h1 className="text-2xl font-bold">{draft.title}</h1>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+              <h1 className="min-w-0 basis-full break-words text-2xl font-bold sm:flex-1 sm:basis-0">
+                {draft.title}
+              </h1>
               <div className="flex flex-wrap gap-2">
                 <button
                   className="btn-secondary"
@@ -668,14 +670,8 @@ export default function LessonEditor({
                 )}
               </div>
             </div>
-            <p
-              role="status"
-              aria-live="polite"
-              className="my-2 break-words text-right text-sm"
-            >
-              {status}
-            </p>
             <VersionHistory
+              status={status}
               endpoint={`/api/courses/${courseId}/lessons/${lessonId}/history`}
               busy={busy}
               onRestore={restore}
