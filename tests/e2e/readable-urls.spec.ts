@@ -17,7 +17,15 @@ test("readable editor routes survive saves, renaming and legacy links", async ({
   const { id: courseId } = await created.json();
   await page.goto(`/courses/${courseId}`);
   await expect(page).toHaveURL("/courses/readable-urls");
-  await page.getByRole("button", { name: "New lesson", exact: true }).click();
+  await page
+    .getByRole("button", { name: "＋ Add chapter", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Create chapter", exact: true })
+    .click();
+  await page
+    .getByRole("link", { name: "Untitled chapter", exact: true })
+    .click();
   await expect(page).toHaveURL(
     "/courses/readable-urls/lessons/new-lesson/edit",
   );
@@ -25,7 +33,7 @@ test("readable editor routes survive saves, renaming and legacy links", async ({
     await page.request.get(`/api/courses/${courseId}/lessons`)
   ).json();
   const lessonId = lessons[0].id;
-  await page.getByText("Lesson details", { exact: true }).click();
+  await page.getByText("Chapter details", { exact: true }).click();
   await page.getByLabel("Slug", { exact: true }).fill("first-steps");
   await expect(page).toHaveURL(
     "/courses/readable-urls/lessons/first-steps/edit",
@@ -43,11 +51,11 @@ test("readable editor routes survive saves, renaming and legacy links", async ({
     "/courses/readable-urls/lessons/first-steps/preview",
   );
   await expect(
-    page.getByRole("heading", { name: "Untitled lesson" }),
+    page.getByRole("heading", { name: "Untitled chapter" }),
   ).toBeVisible();
   await page.goto("/courses/readable-urls");
   await expect(
-    page.getByRole("link", { name: "Untitled lesson", exact: true }),
+    page.getByRole("link", { name: "Untitled chapter", exact: true }),
   ).toHaveAttribute("href", "/courses/readable-urls/lessons/first-steps/edit");
   await page.getByText("Course settings", { exact: true }).click();
   await page.getByLabel("Slug", { exact: true }).fill("teaching-basics");

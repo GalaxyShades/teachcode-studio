@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { getCourse } from "@/lib/cms";
-import { newLessonAction } from "@/app/actions";
 import { CourseManager } from "@/components/CourseManager";
 import { resolveEditorCourse } from "@/lib/editor-routes";
 import { coursePath } from "@/lib/paths";
@@ -27,11 +26,6 @@ export default async function Course({
           <p className="mt-2">{course.description}</p>
           <span className="text-sm">{course.status}</span>
         </div>
-        {user.role === "admin" && (
-          <form action={newLessonAction.bind(null, courseId)}>
-            <button className="btn-primary">New lesson</button>
-          </form>
-        )}
       </div>
       <CourseManager
         course={course as any}

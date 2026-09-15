@@ -16,9 +16,9 @@ export default async function NewLesson({
   if (`/courses/${key}/lessons/new` !== canonical) redirect(canonical);
   return (
     <main className="p-6">
-      <h1>Create lesson</h1>
+      <h1>Create chapter</h1>
       <form action={newLessonAction.bind(null, courseId)}>
-        <button className="btn-primary">Create draft lesson</button>
+        <button className="btn-primary">Create draft chapter</button>
       </form>
     </main>
   );

@@ -37,3 +37,13 @@ Public content includes ordered steps and visible learner blocks. It omits the m
 Public API responses are `Cache-Control: no-store`; Studio public pages render dynamically. Publishing/unpublishing also revalidates the public layout. Exact origins listed in `ALLOWED_CORS_ORIGINS` receive read-only CORS headers with `Vary: Origin`. Other origins receive no CORS permission. This does not restrict direct access to public content.
 
 The learner page resolves `/published/courses/:courseSlug/lessons/:publishedLessonSlug` using the selected revision’s slug. Updating a draft slug does not change the published URL until the next publication. Existing student-app integration is separately scoped.
+
+## Course outline
+
+`PUT /api/courses/:courseId/outline` saves the full lesson/chapter outline as one
+admin-only transaction. The body is `{ "lessons": ["group-id"], "chapters": [{ "id": "chapter-id", "lessonId": "group-id" }] }`.
+Use `null` for a chapter without a lesson. Every current group and chapter must
+appear exactly once; stale, duplicate, or foreign IDs return 409 without partial
+changes. Existing `/modules` endpoints manage the lesson groups, and `/lessons`
+endpoints manage chapters. `POST /lessons` also accepts an optional `moduleId` to
+create a chapter directly inside the chosen lesson.

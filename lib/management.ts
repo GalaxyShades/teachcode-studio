@@ -35,6 +35,62 @@ async function lockCourse(c: import("./db").Queryable, courseId: string) {
     [courseId],
   );
 }
+export async function saveOutline(courseId: string, input: unknown) {
+  await requireAdmin(courseId);
+  const p = z
+    .object({
+      lessons: z.array(z.string()),
+      chapters: z.array(
+        z.object({ id: z.string(), lessonId: z.string().nullable() }),
+      ),
+    })
+    .parse(input);
+  await db().transaction(async (c) => {
+    await lockCourse(c, courseId);
+    const groups = (
+      await c.query("SELECT id FROM cms_modules WHERE course_id=$1", [courseId])
+    ).rows.map((r) => r.id);
+    const chapters = (
+      await c.query("SELECT id FROM cms_lessons WHERE course_id=$1", [courseId])
+    ).rows.map((r) => r.id);
+    const exact = (received: string[], existing: string[]) =>
+      received.length === existing.length &&
+      new Set(received).size === existing.length &&
+      received.every((id) => existing.includes(id));
+    if (
+      !exact(p.lessons, groups) ||
+      !exact(
+        p.chapters.map((ch) => ch.id),
+        chapters,
+      ) ||
+      p.chapters.some(
+        (ch) => ch.lessonId !== null && !groups.includes(ch.lessonId),
+      )
+    )
+      throw new CmsError(
+        409,
+        "The course outline changed. Reload and try again.",
+      );
+    await c.query(
+      "UPDATE cms_modules SET position=-position-1000000 WHERE course_id=$1",
+      [courseId],
+    );
+    await c.query(
+      "UPDATE cms_lessons SET position=-position-1000000 WHERE course_id=$1",
+      [courseId],
+    );
+    for (const [i, id] of p.lessons.entries())
+      await c.query(
+        "UPDATE cms_modules SET position=$1 WHERE id=$2 AND course_id=$3",
+        [i, id, courseId],
+      );
+    for (const [i, chapter] of p.chapters.entries())
+      await c.query(
+        "UPDATE cms_lessons SET position=$1,module_id=$2 WHERE id=$3 AND course_id=$4",
+        [i, chapter.lessonId, chapter.id, courseId],
+      );
+  });
+}
 export async function editModule(courseId: string, input: unknown) {
   await requireAdmin(courseId);
   const p = ModuleInput.parse(input);
@@ -49,7 +105,7 @@ export async function editModule(courseId: string, input: unknown) {
           )
         ).rowCount
       )
-        throw new CmsError(404, "Module not found");
+        throw new CmsError(404, "Lesson not found");
     } else {
       const n = (
         await c.query(
@@ -76,7 +132,7 @@ export async function deleteModule(courseId: string, id: string) {
         )
       ).rowCount
     )
-      throw new CmsError(409, "Move lessons out before deleting this module");
+      throw new CmsError(409, "Move chapters out before deleting this lesson");
     if (
       !(
         await c.query("DELETE FROM cms_modules WHERE id=$1 AND course_id=$2", [
@@ -85,7 +141,7 @@ export async function deleteModule(courseId: string, id: string) {
         ])
       ).rowCount
     )
-      throw new CmsError(404, "Module not found");
+      throw new CmsError(404, "Lesson not found");
   });
 }
 export async function reorder(courseId: string, input: unknown) {
@@ -134,7 +190,7 @@ export async function moveLesson(
         )
       ).rowCount
     )
-      throw new CmsError(404, "Module not found");
+      throw new CmsError(404, "Lesson not found");
     if (
       !(
         await c.query(

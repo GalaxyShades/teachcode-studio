@@ -13,9 +13,9 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
   await page
     .getByLabel("Import Markdown")
     .setInputFiles("content/component-reference.md");
-  const source = await page.getByLabel("Lesson Markdown").inputValue();
+  const source = await page.getByLabel("Chapter Markdown").inputValue();
   await page
-    .getByLabel("Lesson Markdown")
+    .getByLabel("Chapter Markdown")
     .fill(
       source
         .replace('slug="component-reference"', 'slug="simple-editor"')

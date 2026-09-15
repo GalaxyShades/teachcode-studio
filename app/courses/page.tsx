@@ -59,7 +59,7 @@ export default async function Courses({
               {c.description || "No description yet"}
             </p>
             <p className="mt-4 text-xs text-zinc-500">
-              {c.lesson_count} lessons · {c.slug}
+              {c.lesson_count} chapters · {c.slug}
             </p>
           </Link>
         ))}

@@ -365,7 +365,7 @@ async function save(
   if (duplicate.rows.length)
     throw new CmsError(
       409,
-      "Another lesson uses this slug. Choose a unique Slug in Lesson details or change the Markdown lesson slug, then Save draft.",
+      "Another chapter uses this slug. Choose a unique Slug in Chapter details or change the Markdown lesson slug, then Save draft.",
     );
   await writeRevision(c, l.draft_revision_id, draft, userId);
   await c.query(

@@ -9,6 +9,7 @@ vi.mock("../lib/auth", () => ({ currentUser: vi.fn(), requireUser: vi.fn() }));
 import { currentUser, requireUser } from "../lib/auth";
 import { resolveEditorCourse, resolveEditorLesson } from "../lib/editor-routes";
 import { createLesson } from "../lib/cms";
+import { editModule, saveOutline } from "../lib/management";
 import { db, assertDatabase } from "../lib/db";
 import { migrate } from "../scripts/migrate";
 import {
@@ -163,5 +164,76 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
       )
     ).rows.map((lesson) => lesson.slug);
     expect(names).toEqual(["new-lesson", "new-lesson-2", "new-lesson-3"]);
+  });
+  it("saves nested outline ordering and assignments atomically", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      id: a,
+      email: "test@hku.hk",
+      display_name: "Test",
+      role: "admin",
+    });
+    await editModule(c, { title: "First lesson" });
+    await editModule(c, { title: "Second lesson" });
+    const groups = (
+      await db().query(
+        "SELECT id FROM cms_modules WHERE course_id=$1 ORDER BY position",
+        [c],
+      )
+    ).rows.map((m) => m.id);
+    const chapters = (
+      await db().query(
+        "SELECT id FROM cms_lessons WHERE course_id=$1 ORDER BY id",
+        [c],
+      )
+    ).rows.map((ch, i) => ({ id: ch.id, lessonId: groups[i % 2] }));
+    const outline = {
+      lessons: [...groups].reverse(),
+      chapters: [...chapters].reverse(),
+    };
+    await saveOutline(c, outline);
+    const read = async () => ({
+      lessons: (
+        await db().query(
+          "SELECT id FROM cms_modules WHERE course_id=$1 ORDER BY position",
+          [c],
+        )
+      ).rows.map((m) => m.id),
+      chapters: (
+        await db().query(
+          "SELECT id,module_id FROM cms_lessons WHERE course_id=$1 ORDER BY position",
+          [c],
+        )
+      ).rows.map((ch) => ({ id: ch.id, lessonId: ch.module_id })),
+    });
+    expect(await read()).toEqual(outline);
+    await expect(
+      saveOutline(c, { ...outline, chapters: chapters.slice(1) }),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      saveOutline(c, {
+        ...outline,
+        chapters: chapters.map((ch) => ({
+          ...ch,
+          lessonId: crypto.randomUUID(),
+        })),
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await read()).toEqual(outline);
+    const created = await createLesson(c, groups[1]);
+    expect(
+      (
+        await db().query(
+          "SELECT id FROM cms_lessons WHERE course_id=$1 ORDER BY position DESC LIMIT 1",
+          [c],
+        )
+      ).rows[0].id,
+    ).toBe(created);
+    expect(
+      (
+        await db().query("SELECT module_id FROM cms_lessons WHERE id=$1", [
+          created,
+        ])
+      ).rows[0].module_id,
+    ).toBe(groups[1]);
   });
 });

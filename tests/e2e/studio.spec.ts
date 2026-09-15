@@ -30,16 +30,16 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
       .first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "Markdown", exact: true }).click();
-  const source = await page.getByLabel("Lesson Markdown").inputValue();
+  const source = await page.getByLabel("Chapter Markdown").inputValue();
   expect(source).toContain(":::code-exercise");
-  await page.getByLabel("Lesson Markdown").fill(source + "\n:::bad");
+  await page.getByLabel("Chapter Markdown").fill(source + "\n:::bad");
   await expect(
     page.getByRole("alert").filter({ hasText: "Unclosed" }),
   ).toContainText("Unclosed");
   await expect(
     page.getByRole("button", { name: "Publish", exact: true }),
   ).toBeDisabled();
-  await page.getByLabel("Lesson Markdown").fill(source);
+  await page.getByLabel("Chapter Markdown").fill(source);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("status").first()).toContainText("Saved");
   const response = await page.request.get(base + "/draft");
@@ -215,13 +215,13 @@ test("editor imports files, adds and reorders cards, autosaves and switches on m
   await page
     .getByLabel("Import Markdown")
     .setInputFiles("content/component-reference.md");
-  await expect(page.getByLabel("Lesson Markdown")).toHaveValue(
+  await expect(page.getByLabel("Chapter Markdown")).toHaveValue(
     /:::worked-example/,
   );
   // Use a new slug so the imported reference does not collide with the seeded lesson.
-  const text = await page.getByLabel("Lesson Markdown").inputValue();
+  const text = await page.getByLabel("Chapter Markdown").inputValue();
   await page
-    .getByLabel("Lesson Markdown")
+    .getByLabel("Chapter Markdown")
     .fill(
       text.replace('slug="component-reference"', 'slug="imported-reference"'),
     );

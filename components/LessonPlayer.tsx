@@ -7,7 +7,7 @@ export function LessonPlayer({ draft }: { draft: LessonDraft }) {
   const step = draft.steps[index];
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-8">
-      <p className="font-semibold text-teal-800">TeachCode lesson</p>
+      <p className="font-semibold text-teal-800">TeachCode chapter</p>
       <h1 className="my-3 text-3xl font-bold">{draft.title}</h1>
       <div className="flex flex-wrap gap-2">
         {[draft.track, draft.level, draft.mode, ...draft.tags].map((s, i) => (
@@ -20,7 +20,7 @@ export function LessonPlayer({ draft }: { draft: LessonDraft }) {
         ))}
       </div>
       <p className="my-4 whitespace-pre-wrap">{draft.description}</p>
-      <nav aria-label="Lesson steps" className="my-5 flex flex-wrap gap-2">
+      <nav aria-label="Chapter steps" className="my-5 flex flex-wrap gap-2">
         {draft.steps.map((s, i) => (
           <button
             key={s.id}
@@ -39,7 +39,7 @@ export function LessonPlayer({ draft }: { draft: LessonDraft }) {
         className="my-3 w-full"
         value={index + 1}
         max={draft.steps.length}
-        aria-label="Lesson progress"
+        aria-label="Chapter progress"
       />
       <section className="card p-5">
         <h2 className="mb-4 text-xl font-bold">{step?.title}</h2>

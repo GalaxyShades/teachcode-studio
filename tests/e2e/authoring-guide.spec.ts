@@ -89,7 +89,7 @@ test("toolkit copies, downloads, handles denied clipboard, and imports on mobile
   await page
     .getByLabel("Import Markdown")
     .setInputFiles((await download.path())!);
-  await expect(page.getByLabel("Lesson Markdown")).toHaveValue(template);
+  await expect(page.getByLabel("Chapter Markdown")).toHaveValue(template);
   await expect(
     page.getByRole("alert").filter({ hasText: "Fix these issues" }),
   ).toHaveCount(0);
@@ -104,14 +104,14 @@ test("toolkit copies, downloads, handles denied clipboard, and imports on mobile
     .toBe(11);
   // Duplicate imported slugs give recoverable feedback and preserve the last saved model.
   await page
-    .getByLabel("Lesson Markdown")
+    .getByLabel("Chapter Markdown")
     .fill(
       template.replace(`slug="${initial.slug}"`, 'slug="component-reference"'),
     );
   await expect(page.getByRole("status").first()).toContainText(
-    "Another lesson uses this slug",
+    "Another chapter uses this slug",
   );
-  await page.getByLabel("Lesson Markdown").fill(template);
+  await page.getByLabel("Chapter Markdown").fill(template);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("status").first()).toContainText("Saved");
   await page.getByRole("button", { name: "Rich Editor", exact: true }).click();

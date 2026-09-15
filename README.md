@@ -29,22 +29,26 @@ Never provision these credentials in a shared environment. Seeding is restricted
 
 ## Authoring
 
+Courses use one nested **Lessons & chapters** outline: each lesson contains its chapters. Drag a lesson card to reorder the whole lesson, or drag a chapter within its lesson or into another lesson. **Add lesson** and **Add chapter** sit below the outline; chapter creation lets you choose its lesson. **Edit lesson** reveals the title and empty-lesson deletion controls. Click a chapter title to edit its content. Keyboard users can focus a card, press Space, use arrow keys, then press Space to drop (Escape cancels). Assigned staff see the same hierarchy; admins manage its structure.
+
+The existing database/API names (`modules` for lesson groups, `lessons` for chapters) and Markdown `:::lesson` syntax remain compatible with saved content and links.
+
 Editor links use readable slugs, for example `/courses/python-foundations/lessons/component-reference/edit` (or `/preview`). Old UUID links redirect to the current readable URL. Saving a lesson slug updates the address bar after the save succeeds; changing a course slug redirects to its new address. Title changes alone leave URLs intact. Old slug bookmarks need updating after a slug rename; UUID bookmarks remain stable. APIs continue using internal IDs.
 
-Open a course and lesson, or create one as admin. Edit metadata, steps and typed cards in Rich Editor. Use **Import Markdown** or paste into the Markdown tab. Invalid source stays visible and is saved alongside the last valid model; publication is blocked until it is fixed. Rich Editor shows one step at a time with compact cards. Click **Edit** to open a card, drag its surface to reorder, or use the card menu’s keyboard-accessible move actions. Add a **Markdown text** card for formatted prose; other cards use focused fields. Preview is optional. Raw HTML is not rendered.
+Open a course and chapter, or create one as admin. Edit metadata, steps and typed cards in Rich Editor. Use **Import Markdown** or paste into the Markdown tab. Invalid source stays visible and is saved alongside the last valid model; publication is blocked until it is fixed. Rich Editor shows one step at a time with compact cards. Click **Edit** to open a card, drag its surface to reorder, or use the card menu’s keyboard-accessible move actions. Add a **Markdown text** card for formatted prose; other cards use focused fields. Preview is optional. Raw HTML is not rendered.
 
 Use [component-reference.md](content/component-reference.md) as your **Markdown syntax reference**, then write and import your own Python lessons. This sample is not the original Python Launchpad source. The local seed contains a reference lesson demonstrating all eleven components.
 
-### Slides or document → AI → lesson
+### Slides or document → AI → chapter
 
-1. Open a lesson and select **Templates & AI prompt**.
+1. Open a chapter and select **Templates & AI prompt**.
 2. Select **Copy prompt**. Paste it into your AI app, then paste your document at the source marker or attach your slides/document. The copied prompt includes the dialect rules and complete syntax example.
-3. Copy the generated lesson into Studio’s **Markdown** tab, or save it as `.md` and choose **Import Markdown**. Start with a new lesson if you want to preserve existing content: import replaces the current lesson and autosaves it.
+3. Copy the generated lesson into Studio’s **Markdown** tab, or save it as `.md` and choose **Import Markdown**. Start with a new chapter if you want to preserve existing content: import replaces the current chapter and autosaves it.
 4. Review any validation messages, check generated facts and answers, edit in **Rich Editor**, and open **Show preview** (or **Preview** on mobile). Publish when ready.
 
 The same toolkit offers **Complete Markdown template**, with copy and download controls. It covers all eleven card types, nested fields, headings, emphasis, links, lists, checklists, quotes, tables, code, and other supported formatting. Raw HTML, math rendering, and Mermaid are not enabled. The [prompt brief](content/ai-authoring-prompt.md) is maintained alongside the [dialect guide](docs/markdown.md); the UI combines both with the template into one copyable prompt. No AI account or API key is needed in Studio.
 
-Draft changes autosave after a one-second debounce. Explicit Save Draft is also available. Version checks reject stale writers. Publishing creates a separate immutable revision and marks the course published. Later draft edits, including slug changes, leave the published snapshot and its URL intact. Unpublishing a course hides its lessons; archiving or unpublishing a lesson removes public access.
+Draft changes autosave after a one-second debounce. Explicit Save Draft is also available. Version checks reject stale writers. Publishing creates a separate immutable revision and marks the course published. Later draft edits, including slug changes, leave the published snapshot and its URL intact. Unpublishing a course hides its lessons; archiving or unpublishing a chapter removes public access.
 
 ## Verification
 

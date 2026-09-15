@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import { SortableList } from "./SortableList";
-import { lessonPath } from "@/lib/paths";
+import { CourseOutline } from "./CourseOutline";
 type Item = { id: string; title: string; [key: string]: any };
 export function CourseManager({
   course,
@@ -44,99 +43,23 @@ export function CourseManager({
     }
   }
   async function refresh() {
-    const r = await fetch(base);
-    if (r.ok) {
+    try {
+      const r = await fetch(base);
+      if (!r.ok)
+        throw new Error(
+          "Could not reload the outline. Refresh the page to see the latest saved content.",
+        );
       const c = await r.json();
       setModules(c.modules);
       setLessons(c.lessons);
       setStaff(c.staff);
+    } catch (e) {
+      setStatus(
+        e instanceof Error
+          ? e.message
+          : "Could not reload the outline. Refresh the page.",
+      );
     }
-  }
-  async function order(kind: "modules" | "lessons", next: Item[]) {
-    if (
-      await request("/reorder", "PUT", { kind, ids: next.map((x) => x.id) })
-    ) {
-      if (kind === "modules") setModules(next);
-      else setLessons(next);
-      setStatus(`${kind} reordered`);
-    }
-  }
-  function bump(
-    kind: "modules" | "lessons",
-    items: Item[],
-    i: number,
-    d: number,
-  ) {
-    const next = [...items];
-    [next[i], next[i + d]] = [next[i + d], next[i]];
-    void order(kind, next);
-  }
-  function lessonRow(l: Item) {
-    const i = lessons.findIndex((x) => x.id === l.id);
-    return (
-      <div className="my-2 rounded border p-3">
-        <a
-          className="font-semibold text-teal-800 underline"
-          href={lessonPath(
-            { id: course.id, slug: course.slug },
-            { slug: l.slug },
-          )}
-        >
-          {l.title}
-        </a>
-        <p className="text-sm">
-          {l.status} · Updated {String(l.updated_at)}
-        </p>
-        {admin && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              disabled={busy || !i}
-              className="btn-secondary"
-              onClick={() => bump("lessons", lessons, i, -1)}
-            >
-              ↑ Lesson
-            </button>
-            <button
-              disabled={busy || i === lessons.length - 1}
-              className="btn-secondary"
-              onClick={() => bump("lessons", lessons, i, 1)}
-            >
-              ↓ Lesson
-            </button>
-            <label>
-              Module
-              <select
-                className="field"
-                value={l.module_id ?? ""}
-                onChange={async (e) => {
-                  if (
-                    await request(`/lessons/${l.id}`, "PATCH", {
-                      moduleId: e.target.value || null,
-                    })
-                  )
-                    await refresh();
-                }}
-              >
-                <option value="">Unassigned</option>
-                {modules.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
-        {l.status === "published" && (
-          <a
-            className="text-sm text-teal-800 underline"
-            href={`/published/courses/${course.slug}/lessons/${l.slug}`}
-          >
-            View public lesson
-          </a>
-        )}
-      </div>
-    );
   }
   return (
     <>
@@ -199,123 +122,15 @@ export function CourseManager({
           </form>
         </details>
       )}
-      <section className="card mt-5 p-4">
-        <h2 className="text-xl font-bold">Modules</h2>
-        {admin ? (
-          <>
-            <SortableList
-              items={modules}
-              onChange={(next) => order("modules", next)}
-              render={(m, i) => (
-                <article className="my-3 rounded border p-3">
-                  <form
-                    className="flex flex-wrap items-end gap-2"
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      const f = new FormData(e.currentTarget);
-                      if (
-                        await request("/modules", "POST", {
-                          id: m.id,
-                          title: String(f.get("title")),
-                        })
-                      )
-                        await refresh();
-                    }}
-                  >
-                    <label className="label flex-1">
-                      Module title
-                      <input
-                        className="field"
-                        name="title"
-                        defaultValue={m.title}
-                        required
-                      />
-                    </label>
-                    <button className="btn-secondary" disabled={busy}>
-                      Rename
-                    </button>
-                  </form>
-                  <div className="my-2 flex gap-2">
-                    <button
-                      className="btn-secondary"
-                      disabled={busy || !i}
-                      onClick={() => bump("modules", modules, i, -1)}
-                    >
-                      ↑ Module
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      disabled={busy || i === modules.length - 1}
-                      onClick={() => bump("modules", modules, i, 1)}
-                    >
-                      ↓ Module
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      disabled={busy}
-                      onClick={async () => {
-                        if (
-                          window.confirm("Delete this empty module?") &&
-                          (await request("/modules", "DELETE", { id: m.id }))
-                        )
-                          await refresh();
-                      }}
-                    >
-                      Delete module
-                    </button>
-                  </div>
-                  <p className="text-sm">
-                    {lessons.filter((l) => l.module_id === m.id).length} lessons
-                  </p>
-                </article>
-              )}
-            />
-            <form
-              className="mt-3 flex items-end gap-2"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                if (
-                  await request("/modules", "POST", {
-                    title: String(new FormData(form).get("title")),
-                  })
-                ) {
-                  form.reset();
-                  await refresh();
-                }
-              }}
-            >
-              <label className="label flex-1">
-                New module
-                <input name="title" className="field" required />
-              </label>
-              <button className="btn-primary" disabled={busy}>
-                Add module
-              </button>
-            </form>
-          </>
-        ) : (
-          modules.map((m) => (
-            <h3 className="my-3 font-semibold" key={m.id}>
-              {m.title}
-            </h3>
-          ))
-        )}
-        {!modules.length && <p>No modules yet.</p>}
-      </section>
-      <section className="card mt-5 p-4">
-        <h2 className="text-xl font-bold">Lessons</h2>
-        {admin ? (
-          <SortableList
-            items={lessons}
-            onChange={(next) => order("lessons", next)}
-            render={lessonRow}
-          />
-        ) : (
-          lessons.map((l) => <div key={l.id}>{lessonRow(l)}</div>)
-        )}
-        {!lessons.length && <p className="mt-3">No lessons yet.</p>}
-      </section>
+      <CourseOutline
+        course={course}
+        modules={modules}
+        chapters={lessons}
+        admin={admin}
+        busy={busy}
+        perform={request}
+        refresh={refresh}
+      />
       {admin && (
         <section className="card mt-5 p-4">
           <h2 className="text-xl font-bold">Staff assignments</h2>

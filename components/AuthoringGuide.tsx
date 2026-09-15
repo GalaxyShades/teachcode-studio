@@ -28,13 +28,13 @@ export function AuthoringGuide({
                 Authoring toolkit
               </p>
               <Dialog.Title className="text-2xl font-bold">
-                From source to lesson
+                From source to chapter
               </Dialog.Title>
             </div>
             <Dialog.Close className="btn-secondary">Close</Dialog.Close>
           </div>
           <Dialog.Description className="mt-2 text-sm text-zinc-600">
-            Turn your slides or document into an editable lesson using your
+            Turn your slides or document into an editable chapter using your
             preferred AI app.
           </Dialog.Description>
           <ol className="my-5 grid gap-3 text-sm sm:grid-cols-3">
@@ -79,7 +79,7 @@ export function AuthoringGuide({
           <p className="my-3 text-sm text-zinc-600">
             {resource === "prompt"
               ? "Copy everything below. Add your source at the end, or attach it in your AI app. Review generated facts and answers before publishing."
-              : "A valid, importable example of every card and supported Markdown formatting. Download it, adapt it, then use Import Markdown. Import replaces the current lesson content; start with a new lesson to keep an existing draft."}
+              : "A valid, importable example of every card and supported Markdown formatting. Download it, adapt it, then use Import Markdown. Import replaces the current chapter content; start with a new chapter to keep an existing draft."}
           </p>
           <textarea
             ref={source}

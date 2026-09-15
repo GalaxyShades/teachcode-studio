@@ -82,7 +82,7 @@ export async function createCourse(form: FormData) {
       [courseId, slug, title, String(form.get("description") || ""), u.id],
     );
     await c.query(
-      "INSERT INTO cms_modules(id,course_id,title,position) VALUES($1,$2,'Module 1',0)",
+      "INSERT INTO cms_modules(id,course_id,title,position) VALUES($1,$2,'Getting started',0)",
       [crypto.randomUUID(), courseId],
     );
   });
@@ -90,7 +90,7 @@ export async function createCourse(form: FormData) {
 }
 export function emptyDraft(): LessonDraft {
   return {
-    title: "Untitled lesson",
+    title: "Untitled chapter",
     slug: "untitled",
     description: "",
     track: "Python",
@@ -104,7 +104,7 @@ export function emptyDraft(): LessonDraft {
     steps: [{ id: crypto.randomUUID(), title: "Step 1", blocks: [] }],
   };
 }
-export async function createLesson(courseId: string) {
+export async function createLesson(courseId: string, moduleId?: string | null) {
   const u = await requireAdmin(courseId),
     lessonId = crypto.randomUUID(),
     revisionId = crypto.randomUUID();
@@ -130,13 +130,37 @@ export async function createLesson(courseId: string) {
         [courseId],
       )
     ).rows[0];
+    if (
+      moduleId &&
+      !(
+        await c.query(
+          "SELECT id FROM cms_modules WHERE id=$1 AND course_id=$2",
+          [moduleId, courseId],
+        )
+      ).rowCount
+    )
+      throw new CmsError(404, "Lesson not found");
     const draft = {
       ...emptyDraft(),
       slug,
     };
+    const position = (
+      await c.query(
+        "SELECT coalesce(max(position),-1)+1 n FROM cms_lessons WHERE course_id=$1",
+        [courseId],
+      )
+    ).rows[0].n;
     await c.query(
-      "INSERT INTO cms_lessons(id,course_id,module_id,slug,title,updated_by) VALUES($1,$2,$3,$4,$5,$6)",
-      [lessonId, courseId, module?.id ?? null, draft.slug, draft.title, u.id],
+      "INSERT INTO cms_lessons(id,course_id,module_id,slug,title,updated_by,position) VALUES($1,$2,$3,$4,$5,$6,$7)",
+      [
+        lessonId,
+        courseId,
+        moduleId === undefined ? (module?.id ?? null) : moduleId,
+        draft.slug,
+        draft.title,
+        u.id,
+        position,
+      ],
     );
     await c.query(
       "INSERT INTO cms_lesson_revisions(id,lesson_id,revision_number,state,created_by) VALUES($1,$2,1,'draft',$3)",

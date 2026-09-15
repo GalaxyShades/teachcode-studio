@@ -558,7 +558,7 @@ export default function LessonEditor({
         <fieldset
           disabled={!ready}
           className="min-w-0"
-          aria-label="Lesson editor"
+          aria-label="Chapter editor"
         >
           <header
             className={`mx-auto mb-5 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
@@ -588,7 +588,7 @@ export default function LessonEditor({
                     >
                       Publish
                     </button>
-                    <ActionMenu label="Lesson actions">
+                    <ActionMenu label="Chapter actions">
                       <button
                         className="btn-secondary"
                         disabled={busy}
@@ -637,7 +637,8 @@ export default function LessonEditor({
                 Have slides or a document?
               </h2>
               <p className="mt-1 text-sm text-zinc-600">
-                Start with a template or turn your source into a lesson with AI.
+                Start with a template or turn your source into a chapter with
+                AI.
               </p>
             </div>
             <AuthoringGuide
@@ -760,7 +761,7 @@ export default function LessonEditor({
               </nav>
               {tab === "markdown" ? (
                 <label className="label mt-4 block">
-                  Lesson Markdown
+                  Chapter Markdown
                   <textarea
                     className="field h-[650px] font-mono"
                     value={markdown}
@@ -772,12 +773,12 @@ export default function LessonEditor({
                 <>
                   <details className="mt-4">
                     <summary className="cursor-pointer font-semibold">
-                      Lesson details
+                      Chapter details
                     </summary>
                     <Fields value={draft} path="metadata" onChange={change} />
                   </details>
                   <nav
-                    aria-label="Lesson steps"
+                    aria-label="Chapter steps"
                     className="my-5 flex flex-wrap items-center gap-2"
                   >
                     {draft.steps.map((step, index) => (
