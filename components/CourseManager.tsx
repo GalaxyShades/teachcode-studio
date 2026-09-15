@@ -66,65 +66,6 @@ export function CourseManager({
       <p role="status" className="my-3 text-right text-sm empty:my-0">
         {status}
       </p>
-      {admin && (
-        <details className="card group ml-auto mt-4 w-fit p-3 open:w-full sm:p-4">
-          <summary className="cursor-pointer text-sm font-medium text-zinc-700">
-            Course settings
-          </summary>
-          <form
-            className="mt-4"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const data = Object.fromEntries(new FormData(e.currentTarget));
-              if (await request("", "PATCH", data))
-                window.location.assign(`/courses/${course.id}`);
-            }}
-          >
-            <label className="label block">
-              Title
-              <input
-                className="field"
-                name="title"
-                defaultValue={course.title}
-                required
-              />
-            </label>
-            <label className="label block">
-              Slug
-              <input
-                className="field"
-                name="slug"
-                defaultValue={course.slug}
-                required
-                pattern="[a-z0-9-]+"
-              />
-            </label>
-            <label className="label block">
-              Description
-              <textarea
-                className="field"
-                name="description"
-                defaultValue={course.description}
-              />
-            </label>
-            <label className="label block">
-              Status
-              <select
-                className="field"
-                name="status"
-                defaultValue={course.status}
-              >
-                {["draft", "published", "archived"].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-            </label>
-            <button disabled={busy} className="btn-primary mt-3">
-              Save course
-            </button>
-          </form>
-        </details>
-      )}
       <CourseOutline
         course={course}
         modules={modules}
