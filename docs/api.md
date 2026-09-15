@@ -45,5 +45,5 @@ admin-only transaction. The body is `{ "lessons": ["group-id"], "chapters": [{ "
 Use `null` for a chapter without a lesson. Every current group and chapter must
 appear exactly once; stale, duplicate, or foreign IDs return 409 without partial
 changes. Existing `/modules` endpoints manage the lesson groups, and `/lessons`
-endpoints manage chapters. `POST /lessons` also accepts an optional `moduleId` to
-create a chapter directly inside the chosen lesson.
+endpoints manage chapters. `POST /lessons` also accepts an optional `moduleId` and `title` to
+create a named chapter directly inside the chosen lesson. Titles are trimmed and must contain 1–200 characters when supplied.

@@ -20,6 +20,7 @@ test("readable editor routes survive saves, renaming and legacy links", async ({
   await page
     .getByRole("button", { name: "＋ Add chapter", exact: true })
     .click();
+  await page.getByLabel("Chapter name").fill("Untitled chapter");
   await page
     .getByRole("button", { name: "Create chapter", exact: true })
     .click();

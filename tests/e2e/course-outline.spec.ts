@@ -99,10 +99,10 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   await expect
     .poll(async () => (await state()).modules.map((m: { id: string }) => m.id))
     .toEqual([first, second]);
-  await page
+  await lesson(second)
     .getByRole("button", { name: "＋ Add chapter", exact: true })
     .click();
-  await page.getByLabel("Add chapter to").selectOption(second);
+  await page.getByLabel("Chapter name").fill("  Practice with data  ");
   await page
     .getByRole("button", { name: "Create chapter", exact: true })
     .click();
@@ -112,6 +112,26 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   await expect(
     lesson(second).locator('[data-outline-item^="chapter:"]').first(),
   ).toHaveAttribute("data-outline-item", `chapter:${a}`);
+  await expect(
+    lesson(second).getByRole("link", {
+      name: "Practice with data",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    lesson(second).getByRole("link", {
+      name: "Practice with data",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(
+    (
+      await page.request.post(`/api/courses/${id}/lessons`, {
+        data: { moduleId: second, title: "   " },
+      })
+    ).status(),
+  ).toBe(400);
   // Reject malformed/stale and cross-course outlines without partial assignment changes.
   const saved = await state();
   const payload = {

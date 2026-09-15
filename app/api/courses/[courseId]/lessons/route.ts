@@ -17,10 +17,19 @@ export async function POST(req: Request, { params }: C) {
     sameOrigin(req);
     const text = await req.text();
     const body = z
-      .object({ moduleId: z.string().nullable().optional() })
+      .object({
+        moduleId: z.string().nullable().optional(),
+        title: z.string().trim().min(1).max(200).optional(),
+      })
       .parse(text ? JSON.parse(text) : {});
     return NextResponse.json(
-      { id: await createLesson((await params).courseId, body.moduleId) },
+      {
+        id: await createLesson(
+          (await params).courseId,
+          body.moduleId,
+          body.title,
+        ),
+      },
       { status: 201 },
     );
   } catch (e) {

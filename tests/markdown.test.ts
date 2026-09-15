@@ -31,6 +31,26 @@ function normalize(d: LessonDraft) {
   };
 }
 describe("strict Markdown", () => {
+  it("defaults worked examples to runnable while preserving explicit false", () => {
+    const example = defaults["worked-example"]();
+    expect(example.runnable).toBe(true);
+    const source = serializeLessonMarkdown({
+      ...base,
+      steps: [{ ...base.steps[0], blocks: [example] }],
+    });
+    expect(source).toContain("runnable=true");
+    for (const [markdown, expected] of [
+      [source.replace(" runnable=true", ""), true],
+      [source.replace("runnable=true", "runnable=false"), false],
+    ] as const) {
+      const parsed = parseLessonMarkdown(markdown, base);
+      expect(parsed.errors).toEqual([]);
+      expect(parsed.draft?.steps[0].blocks[0]).toMatchObject({
+        type: "worked-example",
+        runnable: expected,
+      });
+    }
+  });
   for (const type of blockTypes)
     it(`round trips ${type}`, () => {
       const draft = {
@@ -100,8 +120,14 @@ it("preserves fenced Markdown and directives in every nested text field", () => 
 });
 
 it("preserves code fences in direct text component bodies", () => {
- const markdown = "```python\nprint(1)\n```";
- const parsed = parseLessonMarkdown(':::step{id="s" title="S"}\n:::text\n'+markdown+'\n:::\n:::', base);
- expect(parsed.errors).toEqual([]);
- expect(parsed.draft?.steps[0].blocks[0]).toMatchObject({type:"text",markdown});
+  const markdown = "```python\nprint(1)\n```";
+  const parsed = parseLessonMarkdown(
+    ':::step{id="s" title="S"}\n:::text\n' + markdown + "\n:::\n:::",
+    base,
+  );
+  expect(parsed.errors).toEqual([]);
+  expect(parsed.draft?.steps[0].blocks[0]).toMatchObject({
+    type: "text",
+    markdown,
+  });
 });

@@ -144,7 +144,8 @@ export function CourseOutline({
   useEffect(() => setReady(true), []);
   const lock = useRef(false);
   const [pending, setPending] = useState(false),
-    [adding, setAdding] = useState<"lesson" | "chapter" | null>(null),
+    [adding, setAdding] = useState<"lesson" | null>(null),
+    [addingChapter, setAddingChapter] = useState<string | null>(null),
     [editing, setEditing] = useState<string | null>(null);
   const disabled = busy || pending || !admin || !ready;
   const sensors = useSensors(
@@ -393,6 +394,72 @@ export function CourseOutline({
                   )}
                   <div className="px-3 pb-3 sm:px-5 sm:pb-5">
                     {chapterRows(m.id)}
+                    {admin && (
+                      <div className="mt-3" data-no-drag>
+                        {addingChapter === m.id ? (
+                          <form
+                            className="flex flex-wrap items-end gap-2"
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const input = e.currentTarget.elements.namedItem(
+                                "title",
+                              ) as HTMLInputElement;
+                              const title = input.value.trim();
+                              if (!title) {
+                                input.setCustomValidity(
+                                  "Enter a chapter name.",
+                                );
+                                input.reportValidity();
+                                return;
+                              }
+                              if (
+                                await run("/lessons", "POST", {
+                                  moduleId: m.id,
+                                  title,
+                                })
+                              )
+                                setAddingChapter(null);
+                            }}
+                          >
+                            <label className="label min-w-0 flex-1">
+                              Chapter name
+                              <input
+                                autoFocus
+                                className="field"
+                                name="title"
+                                placeholder="e.g. Your first program"
+                                required
+                                maxLength={200}
+                                disabled={disabled}
+                                onInput={(e) =>
+                                  e.currentTarget.setCustomValidity("")
+                                }
+                              />
+                            </label>
+                            <button className="btn-primary" disabled={disabled}>
+                              Create chapter
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              disabled={disabled}
+                              onClick={() => setAddingChapter(null)}
+                            >
+                              Cancel
+                            </button>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={disabled}
+                            onClick={() => setAddingChapter(m.id)}
+                          >
+                            ＋ Add chapter
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </article>
               </Surface>
@@ -424,13 +491,6 @@ export function CourseOutline({
             >
               ＋ Add lesson
             </button>
-            <button
-              className="btn-secondary"
-              disabled={disabled || !modules.length}
-              onClick={() => setAdding(adding === "chapter" ? null : "chapter")}
-            >
-              ＋ Add chapter
-            </button>
           </div>
           {adding === "lesson" && (
             <form
@@ -456,33 +516,6 @@ export function CourseOutline({
               </label>
               <button className="btn-primary" disabled={disabled}>
                 Create lesson
-              </button>
-            </form>
-          )}
-          {adding === "chapter" && (
-            <form
-              className="mt-4 flex flex-wrap items-end gap-2"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const moduleId = String(
-                  new FormData(e.currentTarget).get("moduleId"),
-                );
-                if (await run("/lessons", "POST", { moduleId }))
-                  setAdding(null);
-              }}
-            >
-              <label className="label min-w-0 flex-1">
-                Add chapter to
-                <select className="field" name="moduleId" disabled={disabled}>
-                  {modules.map((m, index) => (
-                    <option key={m.id} value={m.id}>
-                      Lesson {index + 1}: {m.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="btn-primary" disabled={disabled}>
-                Create chapter
               </button>
             </form>
           )}

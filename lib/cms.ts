@@ -104,7 +104,16 @@ export function emptyDraft(): LessonDraft {
     steps: [{ id: crypto.randomUUID(), title: "Step 1", blocks: [] }],
   };
 }
-export async function createLesson(courseId: string, moduleId?: string | null) {
+export async function createLesson(
+  courseId: string,
+  moduleId?: string | null,
+  title?: string,
+) {
+  if (title !== undefined && (!title.trim() || title.trim().length > 200))
+    throw new CmsError(
+      400,
+      "Chapter name must be between 1 and 200 characters",
+    );
   const u = await requireAdmin(courseId),
     lessonId = crypto.randomUUID(),
     revisionId = crypto.randomUUID();
@@ -142,6 +151,7 @@ export async function createLesson(courseId: string, moduleId?: string | null) {
       throw new CmsError(404, "Lesson not found");
     const draft = {
       ...emptyDraft(),
+      ...(title === undefined ? {} : { title: title.trim() }),
       slug,
     };
     const position = (

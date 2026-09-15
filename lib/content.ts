@@ -171,7 +171,7 @@ export const defaults: { [K in BlockType]: () => Extract<Block, { type: K }> } =
       language: "python",
       code: "print('Hello')",
       explanation: "",
-      runnable: false,
+      runnable: true,
     }),
     figure: () => ({
       id: uid(),
