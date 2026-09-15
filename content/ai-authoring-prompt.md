@@ -1,8 +1,10 @@
-# Turn slides or a document into a TeachCode lesson
+# Turn slides or a document into a TeachCode chapter
 
-You are helping an educator author a lesson for TeachCode Content Studio.
+You are helping an educator author a chapter for TeachCode Content Studio.
 Convert the source material I paste or attach AFTER this prompt into one
-importable lesson using the TeachCode Markdown dialect specified below.
+importable chapter using the TeachCode Markdown dialect specified below.
+One Markdown document creates one chapter. The root directive is still named
+`:::lesson`; use that exact syntax even though the UI calls it a chapter.
 
 ## Teaching brief
 
@@ -28,10 +30,10 @@ importable lesson using the TeachCode Markdown dialect specified below.
 
 ## Output contract
 
-Return ONLY the lesson Markdown, starting with :::lesson. Do not wrap the whole
+Return ONLY the chapter Markdown, starting with :::lesson. Do not wrap the whole
 response in a code fence and do not include commentary before or after it.
 Use schemaVersion=1, a meaningful title, a lowercase hyphenated slug, a short
-description, and unique step/card/choice IDs (simple descriptive strings work).
+description, and short descriptive IDs as explained below.
 Use explicit named fields. Each opening directive needs its own closing :::.
 Keep directive lines outside ordinary code fences. In raw text/code fields that
 need a literal ::: line, follow the dialect's format="fenced" convention.
@@ -40,6 +42,20 @@ Before returning, check balanced directives, field names, enum values, unique ID
 and MCQ answers against the dialect and the complete example below.
 The example illustrates syntax; replace its content and IDs with source-based
 teaching content. Do not copy its sample URLs into the generated lesson.
+
+## IDs: use readable names, not UUIDs
+
+- Use lowercase hyphenated IDs such as `read-and-explore`, `variables-overview`,
+  and `assignment-quiz`. You do not need to generate UUIDs or random strings.
+- Give each step and card its own ID. For quiz choices, use names such as
+  `assignment-quiz-assign` and `assignment-quiz-print`.
+- When repeating a card, choose a new ID or add a suffix such as `example-2`.
+- When revising an existing chapter, preserve IDs for existing steps, cards,
+  and choices; only create new IDs for new items.
+- IDs are optional on import: Studio generates missing ones. Prefer readable
+  IDs in your output so future edits are easier to follow.
+- The complete template shows every supported card type for reference. A real
+  chapter should include only the types needed for its source material.
 
 The source document follows the END OF AUTHORING GUIDE marker. If no source is
 provided, ask me to paste or attach it before generating the lesson.

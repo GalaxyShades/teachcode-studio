@@ -1,8 +1,8 @@
 :::lesson{title="Component reference" slug="component-reference" description="Explore all eleven lesson cards, then practice with a short Python exercise." track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"reference\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
 :::
 
-:::step{id="b0ec6715-3589-48d0-9e3a-6b6ac8c84671" title="Read and explore"}
-:::text{id="141a65f6-d8ee-4b0f-8806-a66b1276cf5b" visible=true advanced=false}
+:::step{id="read-and-explore" title="Read and explore"}
+:::text{id="variables-overview" visible=true advanced=false}
 :::markdown{format="raw"}
 ## Variables
 
@@ -62,7 +62,7 @@ Markdown extensions are not enabled.
 :::
 :::
 
-:::task{id="5e6375b2-1d7e-4da5-9728-4d6961430a66" visible=true advanced=false}
+:::task{id="create-a-greeting" visible=true advanced=false}
 :::statement{format="raw"}
 Create a variable named `greeting`, then display it.
 :::
@@ -76,7 +76,7 @@ Display a value in the output panel.
 :::
 :::
 
-:::quick-reference{id="cbd64c47-eb1c-4127-97a6-bbd9646bf18b" visible=true advanced=false}
+:::quick-reference{id="python-essentials" visible=true advanced=false}
 :::title{format="raw"}
 Python essentials
 :::
@@ -90,7 +90,7 @@ print(greeting)
 :::
 :::
 
-:::worked-example{id="2d3fd187-6ecb-4814-a7e5-0590db5b1682" visible=true advanced=false runnable=true}
+:::worked-example{id="first-greeting-example" visible=true advanced=false runnable=true}
 :::title{format="raw"}
 A first greeting
 :::
@@ -109,7 +109,7 @@ Hello
 :::
 :::
 
-:::figure{id="7c2f6a21-e5d0-4df1-a6ee-01db3b2570e1" visible=true advanced=false}
+:::figure{id="variable-diagram" visible=true advanced=false}
 :::imageUrl{format="raw"}
 https://placehold.co/800x450
 :::
@@ -124,15 +124,15 @@ Use the caption to explain the diagram.
 :::
 :::
 
-:::mcq{id="bde5a538-3a8b-4909-a2f7-d7481a1d54ae" visible=true advanced=false multiple=false}
+:::mcq{id="assignment-quiz" visible=true advanced=false multiple=false}
 :::question{format="raw"}
 Which line assigns a value to a variable?
 :::
 :::choices
-:::choice{id="ea50642c-bec4-4198-aa89-f7c6661b65da" correct=true format="raw"}
+:::choice{id="assignment-quiz-assign" correct=true format="raw"}
 greeting = "Hello"
 :::
-:::choice{id="1f18a4ec-879a-4884-8a43-f68dcfa60fea" correct=false format="raw"}
+:::choice{id="assignment-quiz-print" correct=false format="raw"}
 print("Hello")
 :::
 :::
@@ -142,8 +142,8 @@ The equals sign assigns the string to greeting.
 :::
 :::
 
-:::step{id="56d8281b-cbe2-4975-9094-1cff1d9859f9" title="Practice and reflect"}
-:::code-exercise{id="efd512e1-d2f5-4839-8ded-d67861a77d4c" visible=true advanced=false}
+:::step{id="practice-and-reflect" title="Practice and reflect"}
+:::code-exercise{id="greeting-exercise" visible=true advanced=false}
 :::language{format="raw"}
 python
 :::
@@ -179,7 +179,7 @@ Print the stored value.
 :::
 :::
 
-:::reflection{id="12b0e08b-6f36-4c6d-9004-c59bc1088b88" visible=true advanced=false}
+:::reflection{id="assignment-reflection" visible=true advanced=false}
 :::prompt{format="raw"}
 How does assigning a value differ from displaying it?
 :::
@@ -196,7 +196,7 @@ Accept clear explanations in the learner’s own words.
 :::
 :::
 
-:::tutor-config{id="b08763e5-dd38-4623-aa76-894c6bed6b94" visible=true advanced=false llmAllowed=false copyingAllowed=false}
+:::tutor-config{id="greeting-hints" visible=true advanced=false llmAllowed=false copyingAllowed=false}
 :::mode{format="raw"}
 hint
 :::
@@ -209,7 +209,7 @@ Ask the learner to explain their current code. Offer one hint at a time. Do not 
 :::
 :::
 
-:::data-asset{id="5261b017-648b-463e-81e1-ee35dadb26ae" visible=true advanced=false}
+:::data-asset{id="practice-data" visible=true advanced=false}
 :::url{format="raw"}
 https://example.edu/example.csv
 :::
@@ -224,7 +224,7 @@ Replace this example URL with your own downloadable data. Runtime files are not 
 :::
 :::
 
-:::code-review{id="f7eda9f3-ac7d-42bc-98bd-244dc56841a9" visible=true advanced=false}
+:::code-review{id="greeting-review" visible=true advanced=false}
 :::title{format="raw"}
 Greeting review
 :::

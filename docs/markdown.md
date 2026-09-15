@@ -4,7 +4,7 @@ Use [the complete reference](../content/component-reference.md), which the parse
 
 ## Structure
 
-Directives open on a line of their own and close with `:::` on a line of its own. A document contains one optional `lesson` metadata directive and one or more `step` directives. Each step contains component directives. Strings in attributes use JSON quoting and escapes (`\"`, `\\`, `\n`); booleans are `true`/`false`. IDs are stable strings. Duplicate step or card IDs block publication. If IDs are omitted during import, the editor assigns IDs; subsequent serialization retains them.
+Directives open on a line of their own and close with `:::` on a line of its own. A document contains one optional `lesson` metadata directive and one or more `step` directives. Each step contains component directives. Strings in attributes use JSON quoting and escapes (`\"`, `\\`, `\n`); booleans are `true`/`false`. IDs are stable strings, not necessarily UUIDs. Prefer descriptive names such as `variables-overview`, `greeting-exercise`, and `assignment-quiz-assign`. Keep existing IDs when editing; use new IDs when adding or duplicating items. Duplicate step or card IDs block publication. If IDs are omitted during import, the editor assigns IDs; subsequent serialization retains them.
 
 ```text
 :::lesson{title="My Python lesson" slug="my-python-lesson" description="Learning outcomes" track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"intro\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
