@@ -17,6 +17,7 @@ import {
   loadRevision,
   persistDraft,
   publishRevision,
+  restoreRevision,
   publishedLesson,
 } from "../lib/repository";
 import { verifyPassword, authenticate, sessionUser } from "../lib/auth";
@@ -238,6 +239,31 @@ describe("SQLite repository", () => {
     expect((await loadRevision(db(), {}, ids[2])).title).toBe("Publication 2");
     await expect(
       publishRevision(cid, lid, { ...draft, version: version - 1 }, admin),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await retained()).toEqual(ids.slice(-5));
+    await expect(
+      restoreRevision(cid, lid, ids[0], version, admin),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      restoreRevision(cid, lid, initial.draft_revision_id, version, admin),
+    ).rejects.toMatchObject({ status: 404 });
+    const restored = await restoreRevision(cid, lid, ids[2], version, admin);
+    expect(restored.draft.title).toBe("Publication 2");
+    expect(restored.draft.version).toBe(version + 1);
+    expect(
+      (await loadRevision(db(), {}, initial.draft_revision_id)).title,
+    ).toBe("Publication 2");
+    expect(
+      (
+        await db().query(
+          "SELECT published_revision_id FROM cms_lessons WHERE id=$1",
+          [lid],
+        )
+      ).rows[0].published_revision_id,
+    ).toBe(ids[6]);
+    expect((await loadRevision(db(), {}, ids[6])).title).toBe("Publication 6");
+    await expect(
+      restoreRevision(cid, lid, ids[3], version, admin),
     ).rejects.toMatchObject({ status: 409 });
     expect(await retained()).toEqual(ids.slice(-5));
   });

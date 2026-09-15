@@ -94,7 +94,15 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   await expect(lesson(second)).toHaveAttribute("tabindex", "0");
   await lesson(second).focus();
   await page.keyboard.press("Space");
+  await expect(lesson(second)).toHaveAttribute("data-dragging", "true");
   await page.keyboard.press("ArrowDown");
+  await expect
+    .poll(() =>
+      lesson(second).evaluate(
+        (el) => new DOMMatrix(getComputedStyle(el).transform).m42,
+      ),
+    )
+    .toBeGreaterThan(0);
   await page.keyboard.press("Space");
   await expect
     .poll(async () => (await state()).modules.map((m: { id: string }) => m.id))

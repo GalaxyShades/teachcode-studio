@@ -452,6 +452,34 @@ export async function publishRevision(
     return { ...result, revisionId: rid };
   });
 }
+export async function restoreRevision(
+  courseId: string,
+  lessonId: string,
+  revisionId: string,
+  version: number,
+  userId: string,
+) {
+  return db().transaction(async (c) => {
+    const lesson = await lockedLesson(c, courseId, lessonId);
+    if (lesson.version !== version)
+      throw new CmsError(409, "This chapter changed. Reload before restoring.");
+    const revision = (
+      await c.query(
+        "SELECT id FROM cms_lesson_revisions WHERE id=$1 AND lesson_id=$2 AND state='published'",
+        [revisionId, lessonId],
+      )
+    ).rows[0];
+    if (!revision)
+      throw new CmsError(
+        404,
+        "This published version is no longer available. Refresh version history.",
+      );
+    const draft = await loadRevision(c, lesson, revisionId);
+    const result = await save(c, courseId, lessonId, draft, userId);
+    return { ...result, draft: { ...draft, version: result.version } };
+  });
+}
+
 export async function publishedLesson(courseId: string, lessonId: string) {
   const l = (
     await db().query(

@@ -20,6 +20,7 @@ import { saveDraft, publishDraft, unpublishDraft } from "@/app/actions";
 import { BlockRenderer } from "./BlockRenderer";
 import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
+import { VersionHistory } from "./VersionHistory";
 import { AuthoringGuide } from "./AuthoringGuide";
 import { coursePath, lessonPath } from "@/lib/paths";
 const advancedKeys = new Set([
@@ -378,6 +379,7 @@ export default function LessonEditor({
   resources: { template: string; prompt: string };
 }) {
   const [ready, setReady] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   useEffect(() => setReady(true), []);
   const [draft, setDraft] = useState(initial),
     latest = useRef(initial),
@@ -472,6 +474,52 @@ export default function LessonEditor({
       setBusy(false);
     }
   }
+  async function restore(revisionId: string) {
+    if (saving.current)
+      throw new Error(
+        "Wait for the current save to finish, then restore again.",
+      );
+    saving.current = true;
+    setRestoring(true);
+    setBusy(true);
+    try {
+      const response = await fetch(
+        `/api/courses/${courseId}/lessons/${lessonId}/history`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revisionId, version: latest.current.version }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Restore failed");
+      const next: LessonDraft = result.draft;
+      latest.current = next;
+      dirty.current = false;
+      paused.current = false;
+      setDraft(next);
+      setMarkdown(next.sourceMarkdown || serializeLessonMarkdown(next));
+      setParseErrors([]);
+      setActiveStepId(next.steps[0]?.id);
+      setCollapsed(
+        new Set(next.steps.flatMap((s) => s.blocks.map((b) => b.id))),
+      );
+      setPicker(null);
+      window.history.replaceState(
+        null,
+        "",
+        lessonPath({ id: courseId, slug: courseSlug }, next),
+      );
+      setStatus("Restored to draft · Publish to make these changes public");
+    } catch (e) {
+      paused.current = true;
+      throw e;
+    } finally {
+      saving.current = false;
+      setRestoring(false);
+      setBusy(false);
+    }
+  }
   useEffect(() => {
     const timer = setTimeout(() => {
       if (dirty.current && !saving.current && !paused.current) void save();
@@ -556,7 +604,7 @@ export default function LessonEditor({
     <ValidationContext.Provider value={errors}>
       <main className="p-4" aria-busy={!ready}>
         <fieldset
-          disabled={!ready}
+          disabled={!ready || restoring}
           className="min-w-0"
           aria-label="Chapter editor"
         >
@@ -627,6 +675,11 @@ export default function LessonEditor({
             >
               {status}
             </p>
+            <VersionHistory
+              endpoint={`/api/courses/${courseId}/lessons/${lessonId}/history`}
+              busy={busy}
+              onRestore={restore}
+            />
           </header>
           <section
             className={`mx-auto mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-teal-100 bg-teal-50/70 p-4 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}

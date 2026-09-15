@@ -17,6 +17,7 @@ import {
   loadRevision,
   persistDraft,
   publishRevision,
+  restoreRevision,
 } from "../lib/repository";
 import { type LessonDraft } from "../lib/content";
 const suite = process.env.TEST_POSTGRES === "1" ? describe : describe.skip;
@@ -291,6 +292,31 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
     expect((await loadRevision(db(), {}, ids[2])).title).toBe("Publication 2");
     await expect(
       publishRevision(c, l, { ...draft, version: version - 1 }, a),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await retained()).toEqual(ids.slice(-5));
+    await expect(
+      restoreRevision(c, l, ids[0], version, a),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      restoreRevision(c, l, initial.draft_revision_id, version, a),
+    ).rejects.toMatchObject({ status: 404 });
+    const restored = await restoreRevision(c, l, ids[2], version, a);
+    expect(restored.draft.title).toBe("Publication 2");
+    expect(restored.draft.version).toBe(version + 1);
+    expect(
+      (await loadRevision(db(), {}, initial.draft_revision_id)).title,
+    ).toBe("Publication 2");
+    expect(
+      (
+        await db().query(
+          "SELECT published_revision_id FROM cms_lessons WHERE id=$1",
+          [l],
+        )
+      ).rows[0].published_revision_id,
+    ).toBe(ids[6]);
+    expect((await loadRevision(db(), {}, ids[6])).title).toBe("Publication 6");
+    await expect(
+      restoreRevision(c, l, ids[3], version, a),
     ).rejects.toMatchObject({ status: 409 });
     expect(await retained()).toEqual(ids.slice(-5));
   });

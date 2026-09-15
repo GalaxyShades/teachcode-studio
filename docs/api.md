@@ -47,3 +47,9 @@ appear exactly once; stale, duplicate, or foreign IDs return 409 without partial
 changes. Existing `/modules` endpoints manage the lesson groups, and `/lessons`
 endpoints manage chapters. `POST /lessons` also accepts an optional `moduleId` and `title` to
 create a named chapter directly inside the chosen lesson. Titles are trimmed and must contain 1–200 characters when supplied.
+
+## Version history
+
+`GET /api/courses/:courseId/lessons/:lessonId/history` lists up to five recent published snapshots and the current published revision ID. Assigned staff and admins may read history.
+
+`POST` to the same path with `{ "revisionId": "...", "version": 3 }` restores a retained publication into the current draft. It requires chapter editing access, rejects stale versions with 409 and unavailable snapshots with 404, and returns the saved draft and new version. Publication and archive status remain unchanged. Publishing prunes snapshots beyond the five most recent, including their normalized content.
