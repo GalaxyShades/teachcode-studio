@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { db } from "./db";
+import { db, isSqlite } from "./db";
 import { requireUser, type User } from "./auth";
 import { CmsError, loadRevision, writeRevision } from "./repository";
 import { type LessonDraft } from "./content";
@@ -109,6 +109,21 @@ export async function createLesson(courseId: string) {
     lessonId = crypto.randomUUID(),
     revisionId = crypto.randomUUID();
   await db().transaction(async (c) => {
+    // Serialize name allocation for concurrent lesson creation in this course.
+    await c.query(
+      "SELECT id FROM cms_courses WHERE id=$1" +
+        (isSqlite() ? "" : " FOR UPDATE"),
+      [courseId],
+    );
+    const used = new Set(
+      (
+        await c.query("SELECT slug FROM cms_lessons WHERE course_id=$1", [
+          courseId,
+        ])
+      ).rows.map((lesson) => lesson.slug),
+    );
+    let slug = "new-lesson";
+    for (let n = 2; used.has(slug); n++) slug = `new-lesson-${n}`;
     const module = (
       await c.query(
         "SELECT id FROM cms_modules WHERE course_id=$1 ORDER BY position",
@@ -117,7 +132,7 @@ export async function createLesson(courseId: string) {
     ).rows[0];
     const draft = {
       ...emptyDraft(),
-      slug: `new-lesson-${lessonId.slice(0, 8)}`,
+      slug,
     };
     await c.query(
       "INSERT INTO cms_lessons(id,course_id,module_id,slug,title,updated_by) VALUES($1,$2,$3,$4,$5,$6)",

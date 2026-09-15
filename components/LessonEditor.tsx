@@ -21,6 +21,7 @@ import { BlockRenderer } from "./BlockRenderer";
 import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
 import { AuthoringGuide } from "./AuthoringGuide";
+import { coursePath, lessonPath } from "@/lib/paths";
 const advancedKeys = new Set([
   "explanation",
   "visible",
@@ -363,12 +364,14 @@ function withOptionalFields(b: Block): Block {
 }
 export default function LessonEditor({
   courseId,
+  courseSlug,
   lessonId,
   initial,
   canPublish,
   resources,
 }: {
   courseId: string;
+  courseSlug: string;
   lessonId: string;
   initial: LessonDraft;
   canPublish: boolean;
@@ -447,6 +450,11 @@ export default function LessonEditor({
         snapshot,
       );
       if ("error" in result) throw new Error(result.error);
+      window.history.replaceState(
+        null,
+        "",
+        lessonPath({ id: courseId, slug: courseSlug }, snapshot),
+      );
       const next = { ...latest.current, version: result.version };
       latest.current = next;
       setDraft(next);
@@ -556,7 +564,7 @@ export default function LessonEditor({
             className={`mx-auto mb-5 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
           >
             <a
-              href={`/courses/${courseId}`}
+              href={coursePath({ id: courseId, slug: courseSlug })}
               className="text-teal-800 underline"
             >
               ← Course
@@ -598,7 +606,10 @@ export default function LessonEditor({
                         onClick={() =>
                           setRemove(() => async () => {
                             await unpublishDraft(courseId, lessonId, true);
-                            window.location.href = `/courses/${courseId}`;
+                            window.location.href = coursePath({
+                              id: courseId,
+                              slug: courseSlug,
+                            });
                           })
                         }
                       >

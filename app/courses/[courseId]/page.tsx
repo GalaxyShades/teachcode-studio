@@ -2,13 +2,20 @@ import Link from "next/link";
 import { getCourse } from "@/lib/cms";
 import { newLessonAction } from "@/app/actions";
 import { CourseManager } from "@/components/CourseManager";
+import { resolveEditorCourse } from "@/lib/editor-routes";
+import { coursePath } from "@/lib/paths";
+import { redirect } from "next/navigation";
 export default async function Course({
   params,
 }: {
   params: Promise<{ courseId: string }>;
 }) {
-  const { courseId } = await params,
-    { course, modules, lessons, staff, user } = await getCourse(courseId);
+  const { courseId: key } = await params;
+  const resolved = await resolveEditorCourse(key);
+  if (`/courses/${key}` !== coursePath(resolved))
+    redirect(coursePath(resolved));
+  const courseId = resolved.id;
+  const { course, modules, lessons, staff, user } = await getCourse(courseId);
   return (
     <main className="mx-auto max-w-6xl p-6">
       <Link href="/courses" className="text-teal-800 underline">

@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import crypto from "node:crypto";
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+vi.mock("../lib/auth", () => ({ currentUser: vi.fn(), requireUser: vi.fn() }));
+import { currentUser, requireUser } from "../lib/auth";
+import { resolveEditorCourse, resolveEditorLesson } from "../lib/editor-routes";
+import { createLesson } from "../lib/cms";
 import { db, assertDatabase } from "../lib/db";
 import { migrate } from "../scripts/migrate";
 import {
@@ -128,5 +132,36 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+  });
+  it("resolves readable routes against UUID columns and allocates concurrent lesson names", async () => {
+    const user = {
+      id: a,
+      email: "test@hku.hk",
+      display_name: "Test",
+      role: "admin" as const,
+    };
+    vi.mocked(currentUser).mockResolvedValue(user);
+    vi.mocked(requireUser).mockResolvedValue(user);
+    expect(await resolveEditorCourse("pg")).toEqual({ id: c, slug: "pg" });
+    expect(await resolveEditorCourse(c)).toEqual({ id: c, slug: "pg" });
+    expect(await resolveEditorLesson(c, "pg-test")).toEqual({
+      id: l,
+      slug: "pg-test",
+    });
+    expect(await resolveEditorLesson(c, l)).toEqual({ id: l, slug: "pg-test" });
+    await expect(resolveEditorCourse("missing-course")).rejects.toThrow();
+    const ids = await Promise.all([
+      createLesson(c),
+      createLesson(c),
+      createLesson(c),
+    ]);
+    expect(new Set(ids).size).toBe(3);
+    const names = (
+      await db().query(
+        "SELECT slug FROM cms_lessons WHERE course_id=$1 AND slug LIKE 'new-lesson%' ORDER BY slug",
+        [c],
+      )
+    ).rows.map((lesson) => lesson.slug);
+    expect(names).toEqual(["new-lesson", "new-lesson-2", "new-lesson-3"]);
   });
 });

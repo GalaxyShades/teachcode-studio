@@ -20,7 +20,9 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   ).toBeVisible();
   await page.getByRole("heading", { name: "Python Foundations" }).click();
   await page
-    .locator('a[href="/courses/' + course + "/lessons/" + lesson + '/edit"]')
+    .locator(
+      'a[href="/courses/python-foundations/lessons/component-reference/edit"]',
+    )
     .click();
   await expect(
     page

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { SortableList } from "./SortableList";
+import { lessonPath } from "@/lib/paths";
 type Item = { id: string; title: string; [key: string]: any };
 export function CourseManager({
   course,
@@ -76,7 +77,10 @@ export function CourseManager({
       <div className="my-2 rounded border p-3">
         <a
           className="font-semibold text-teal-800 underline"
-          href={`/courses/${course.id}/lessons/${l.id}/edit`}
+          href={lessonPath(
+            { id: course.id, slug: course.slug },
+            { slug: l.slug },
+          )}
         >
           {l.title}
         </a>
@@ -146,7 +150,8 @@ export function CourseManager({
             onSubmit={async (e) => {
               e.preventDefault();
               const data = Object.fromEntries(new FormData(e.currentTarget));
-              if (await request("", "PATCH", data)) window.location.reload();
+              if (await request("", "PATCH", data))
+                window.location.assign(`/courses/${course.id}`);
             }}
           >
             <label className="label block">

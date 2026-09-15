@@ -31,6 +31,8 @@ Never provision these credentials in a shared environment. Seeding is restricted
 
 ## Authoring
 
+Editor links use readable slugs, for example `/courses/python-foundations/lessons/component-reference/edit` (or `/preview`). Old UUID links redirect to the current readable URL. Saving a lesson slug updates the address bar after the save succeeds; changing a course slug redirects to its new address. Title changes alone leave URLs intact. Old slug bookmarks need updating after a slug rename; UUID bookmarks remain stable. APIs continue using internal IDs.
+
 Open a course and lesson, or create one as admin. Edit metadata, steps and typed cards in Rich Editor. Use **Import Markdown** or paste into the Markdown tab. Invalid source stays visible and is saved alongside the last valid model; publication is blocked until it is fixed. Rich Editor shows one step at a time with compact cards. Click **Edit** to open a card, drag its surface to reorder, or use the card menu’s keyboard-accessible move actions. Add a **Markdown text** card for formatted prose; other cards use focused fields. Preview is optional. Raw HTML is not rendered.
 
 Use [component-reference.md](content/component-reference.md) as your **Markdown syntax reference**, then write and import your own Python lessons. This sample is not the original Python Launchpad source. The local seed contains a reference lesson demonstrating all eleven components.

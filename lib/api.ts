@@ -28,7 +28,12 @@ export function apiError(e: unknown) {
 }
 export function sameOrigin(req: Request) {
   const origin = req.headers.get("origin");
-  if (origin && origin !== new URL(req.url).origin)
+  const expected = new URL(req.url);
+  // Next normalizes loopback URLs to localhost; the browser retains the Host
+  // it actually connected to (for example 127.0.0.1:3100).
+  const host = req.headers.get("host");
+  if (host) expected.host = host;
+  if (origin && origin !== expected.origin)
     throw new CmsError(403, "Cross-origin mutations are not allowed");
 }
 export function cors(req: Request) {

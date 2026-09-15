@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { coursesForUser } from "@/lib/cms";
 import { redirect } from "next/navigation";
 import { SignOut } from "@/components/SignOut";
+import { coursePath } from "@/lib/paths";
 export default async function Courses({
   searchParams,
 }: {
@@ -47,7 +48,7 @@ export default async function Courses({
         {courses.map((c) => (
           <Link
             key={c.id}
-            href={`/courses/${c.id}`}
+            href={coursePath({ id: c.id, slug: c.slug })}
             className="card p-6 transition hover:-translate-y-0.5 hover:border-teal-600 hover:shadow-md"
           >
             <span className="rounded bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700">
