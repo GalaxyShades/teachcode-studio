@@ -183,4 +183,62 @@ describe("SQLite repository", () => {
     );
     expect(await sessionUser("expired")).toBeNull();
   });
+  it("retains five latest publications and cascades removed snapshot content", async () => {
+    const initial = (
+      await db().query("SELECT * FROM cms_lessons WHERE id=$1", [lid])
+    ).rows[0];
+    let version = initial.version;
+    const ids: string[] = [];
+    for (let n = 0; n < 7; n++) {
+      const result = await publishRevision(
+        cid,
+        lid,
+        { ...draft, title: `Publication ${n}`, version },
+        admin,
+      );
+      version = result.version;
+      ids.push(result.revisionId);
+    }
+    const retained = async () =>
+      (
+        await db().query(
+          "SELECT id FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published' ORDER BY revision_number",
+          [lid],
+        )
+      ).rows.map((row) => row.id);
+    expect(await retained()).toEqual(ids.slice(-5));
+    for (const id of ids.slice(0, 2)) {
+      expect(
+        (
+          await db().query(
+            "SELECT id FROM cms_content_blocks WHERE revision_id=$1",
+            [id],
+          )
+        ).rowCount,
+      ).toBe(0);
+      expect(
+        (
+          await db().query(
+            "SELECT id FROM cms_lesson_steps WHERE revision_id=$1",
+            [id],
+          )
+        ).rowCount,
+      ).toBe(0);
+    }
+    expect(
+      (await loadRevision(db(), {}, initial.draft_revision_id)).title,
+    ).toBe("Publication 6");
+    const current = (
+      await db().query(
+        "SELECT published_revision_id FROM cms_lessons WHERE id=$1",
+        [lid],
+      )
+    ).rows[0];
+    expect(current.published_revision_id).toBe(ids[6]);
+    expect((await loadRevision(db(), {}, ids[2])).title).toBe("Publication 2");
+    await expect(
+      publishRevision(cid, lid, { ...draft, version: version - 1 }, admin),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await retained()).toEqual(ids.slice(-5));
+  });
 });

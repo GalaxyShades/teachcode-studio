@@ -443,6 +443,12 @@ export async function publishRevision(
       "UPDATE cms_lessons SET published_revision_id=$1,status='published' WHERE id=$2",
       [rid, lessonId],
     );
+    // Keep five published snapshots per chapter. Cascades remove their content
+    // too; pruning shares the publication transaction and chapter lock.
+    await c.query(
+      "DELETE FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published' AND id NOT IN (SELECT id FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published' ORDER BY revision_number DESC LIMIT 5)",
+      [lessonId],
+    );
     return { ...result, revisionId: rid };
   });
 }

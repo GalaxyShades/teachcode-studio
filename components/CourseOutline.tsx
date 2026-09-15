@@ -221,12 +221,12 @@ export function CourseOutline({
                 label={`Chapter ${index + 1}: ${ch.title}`}
                 disabled={disabled}
               >
-                <article className="rounded-xl border bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                <article className="relative rounded-xl border bg-white p-4">
+                  <div className="pr-24">
                     <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                       Chapter {index + 1}
                     </p>
-                    <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-800">
+                    <span className="absolute right-4 top-4 rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-800">
                       {ch.status}
                     </span>
                   </div>
@@ -483,9 +483,9 @@ export function CourseOutline({
       )}
       {admin && (
         <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-white p-4">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex justify-center">
             <button
-              className="btn-secondary"
+              className="btn-primary min-h-14 w-full px-8 py-4 text-base sm:w-auto sm:min-w-64"
               disabled={disabled}
               onClick={() => setAdding(adding === "lesson" ? null : "lesson")}
             >

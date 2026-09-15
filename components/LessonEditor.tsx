@@ -623,7 +623,7 @@ export default function LessonEditor({
             <p
               role="status"
               aria-live="polite"
-              className="my-2 break-words text-sm"
+              className="my-2 break-words text-right text-sm"
             >
               {status}
             </p>

@@ -236,4 +236,62 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
       ).rows[0].module_id,
     ).toBe(groups[1]);
   });
+  it("retains five latest publications and cascades removed snapshot content", async () => {
+    const initial = (
+      await db().query("SELECT * FROM cms_lessons WHERE id=$1", [l])
+    ).rows[0];
+    let version = initial.version;
+    const ids: string[] = [];
+    for (let n = 0; n < 7; n++) {
+      const result = await publishRevision(
+        c,
+        l,
+        { ...draft, title: `Publication ${n}`, version },
+        a,
+      );
+      version = result.version;
+      ids.push(result.revisionId);
+    }
+    const retained = async () =>
+      (
+        await db().query(
+          "SELECT id FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published' ORDER BY revision_number",
+          [l],
+        )
+      ).rows.map((row) => row.id);
+    expect(await retained()).toEqual(ids.slice(-5));
+    for (const id of ids.slice(0, 2)) {
+      expect(
+        (
+          await db().query(
+            "SELECT id FROM cms_content_blocks WHERE revision_id=$1",
+            [id],
+          )
+        ).rowCount,
+      ).toBe(0);
+      expect(
+        (
+          await db().query(
+            "SELECT id FROM cms_lesson_steps WHERE revision_id=$1",
+            [id],
+          )
+        ).rowCount,
+      ).toBe(0);
+    }
+    expect(
+      (await loadRevision(db(), {}, initial.draft_revision_id)).title,
+    ).toBe("Publication 6");
+    const current = (
+      await db().query(
+        "SELECT published_revision_id FROM cms_lessons WHERE id=$1",
+        [l],
+      )
+    ).rows[0];
+    expect(current.published_revision_id).toBe(ids[6]);
+    expect((await loadRevision(db(), {}, ids[2])).title).toBe("Publication 2");
+    await expect(
+      publishRevision(c, l, { ...draft, version: version - 1 }, a),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await retained()).toEqual(ids.slice(-5));
+  });
 });
