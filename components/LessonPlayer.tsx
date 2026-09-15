@@ -39,7 +39,7 @@ export function LessonPlayer({ draft }: { draft: LessonDraft }) {
         className="my-3 w-full"
         value={index + 1}
         max={draft.steps.length}
-        aria-label="Chapter progress"
+        aria-label="Chapter position"
       />
       <section className="card p-5">
         <h2 className="mb-4 text-xl font-bold">{step?.title}</h2>

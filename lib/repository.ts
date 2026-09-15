@@ -481,14 +481,23 @@ export async function restoreRevision(
 }
 
 export async function publishedLesson(courseId: string, lessonId: string) {
-  const l = (
-    await db().query(
-      "SELECT l.* FROM cms_lessons l JOIN cms_courses c ON c.id=l.course_id WHERE l.id=$1 AND l.course_id=$2 AND l.published_revision_id IS NOT NULL AND l.status='published' AND c.status='published'",
-      [lessonId, courseId],
-    )
-  ).rows[0];
-  if (!l) throw new CmsError(404, "Published lesson not found");
-  return publicDraft(await loadRevision(db(), l, l.published_revision_id));
+  return db().transaction(async (c) => {
+    // Keep the selected publication available while loading its content.
+    const l = (
+      await c.query(
+        "SELECT l.* FROM cms_lessons l JOIN cms_courses c ON c.id=l.course_id WHERE l.id=$1 AND l.course_id=$2 AND l.published_revision_id IS NOT NULL AND l.status='published' AND c.status='published'" +
+          (isSqlite() ? "" : " FOR SHARE OF l"),
+        [lessonId, courseId],
+      )
+    ).rows[0];
+    if (!l) throw new CmsError(404, "Published lesson not found");
+    return {
+      ...publicDraft(await loadRevision(c, l, l.published_revision_id)),
+      courseId,
+      chapterId: lessonId,
+      revisionId: l.published_revision_id as string,
+    };
+  });
 }
 export function publicDraft(draft: LessonDraft): LessonDraft {
   return {

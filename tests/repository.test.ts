@@ -1,3 +1,4 @@
+import { publishedCourses, publishedCourse } from "../lib/published-catalog";
 import { sampleBlocks } from "./fixtures";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -266,5 +267,32 @@ describe("SQLite repository", () => {
       restoreRevision(cid, lid, ids[3], version, admin),
     ).rejects.toMatchObject({ status: 409 });
     expect(await retained()).toEqual(ids.slice(-5));
+    expect((await publishedCourses()).some((row) => row.id === cid)).toBe(true);
+    expect(await publishedLesson(cid, lid)).toMatchObject({
+      title: "Publication 6",
+      courseId: cid,
+      chapterId: lid,
+      revisionId: ids[6],
+    });
+    const catalogue = await publishedCourse(cid);
+    const visibleChapters = [
+      ...catalogue.lessons.flatMap((group) => group.chapters),
+      ...catalogue.unassignedChapters,
+    ];
+    expect(visibleChapters.find((ch) => ch.id === lid)).toMatchObject({
+      title: "Publication 6",
+      revisionId: ids[6],
+    });
+    expect(JSON.stringify(catalogue)).not.toContain("Publication 2");
+    await db().query("UPDATE cms_courses SET status='draft' WHERE id=$1", [
+      cid,
+    ]);
+    expect((await publishedCourses()).some((row) => row.id === cid)).toBe(
+      false,
+    );
+    await expect(publishedCourse(cid)).rejects.toMatchObject({ status: 404 });
+    await db().query("UPDATE cms_courses SET status='published' WHERE id=$1", [
+      cid,
+    ]);
   });
 });

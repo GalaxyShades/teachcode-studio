@@ -1,5 +1,9 @@
 # HTTP API
 
+The UI calls parent groups **lessons** and content documents **chapters**. For compatibility, API paths and response keys still use `modules` for those groups and `lessons` for chapters. API path parameters use internal IDs, while UI links use readable slugs.
+
+Authoring endpoints under `/api/courses` require an admin or assigned-staff session. The public API lists published courses, retrieves their lesson/chapter outlines, and serves individual published chapters. Studio does not currently provide API-key or service-account authentication.
+
 All authenticated endpoints use the HTTP-only `teachcode_cms_session` cookie. Login rotates the current browser session; logout revokes the database token. Sessions expire after seven days. Cookies use SameSite=Lax and Secure in production. Only admin/staff roles receive CMS sessions. All mutations check authorization on the server, and cross-origin mutation requests are rejected.
 
 Bodies are JSON and validated with Zod. Errors return `{ "error": "message" }`, optionally `issues` for validation. Statuses: 400 invalid input, 401 unauthenticated, 403 forbidden, 404 missing resource, 409 version/uniqueness/order conflict, 500 unexpected server/setup error. No endpoint executes learner code on the server.
@@ -37,6 +41,20 @@ Public content includes ordered steps and visible learner blocks. It omits the m
 Public API responses are `Cache-Control: no-store`; Studio public pages render dynamically. Publishing/unpublishing also revalidates the public layout. Exact origins listed in `ALLOWED_CORS_ORIGINS` receive read-only CORS headers with `Vary: Origin`. Other origins receive no CORS permission. This does not restrict direct access to public content.
 
 The learner page resolves `/published/courses/:courseSlug/lessons/:publishedLessonSlug` using the selected revision’s slug. Updating a draft slug does not change the published URL until the next publication. Existing student-app integration is separately scoped.
+
+## Published content for the student app
+
+Studio owns authoring, content validation, publication, and content delivery. The student app owns student authentication, enrolment, attempts, completion rules, scores, progress, and analytics. Studio's public player only keeps temporary UI state; its step-position indicator is not a completion record. It does not write student progress.
+
+1. `GET /api/published/courses` lists published courses with at least one published chapter.
+2. `GET /api/published/courses/:courseId` returns course details and ordered `lessons`, each containing `chapters`; chapters without a lesson appear in `unassignedChapters`. Draft/archived chapters and empty lesson groups are excluded.
+3. Follow a chapter's `contentUrl`, or request `GET /api/published/courses/:courseId/lessons/:chapterId`, to fetch its public content.
+
+Chapter metadata comes from the published snapshot, so draft title/slug changes do not appear in this catalogue. Course/lesson names and ordering are live course structure. All these reads support the configured CORS allowlist and use `Cache-Control: no-store`.
+
+Each chapter includes `courseId`, `chapterId`, and `revisionId` alongside its content. The student app should store progress against its own student ID plus the stable chapter/step/card IDs, and record `revisionId` with attempts. A changed revision signals republishing; the student app decides whether completion remains valid. Titles and slugs are display labels, not progress keys. Studio retains five published versions; the student app must retain any historical assessment records it needs. The public API serves the current publication only, not arbitrary old revisions.
+
+These content endpoints are public, not enrolment-gated, and do not provide secure grading. Student-only content access or server-side grading would need a separately designed authenticated integration. Correct answers for demo MCQs are client-visible; private author checks are omitted.
 
 ## Course outline
 

@@ -4,7 +4,7 @@ A standalone course authoring app for turning teaching materials into interactiv
 
 ![TeachCode lesson editor](docs/screenshots/02-editor.png)
 
-**SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. Integration with the legacy TeachCode student app is a separate follow-up. YAML migration is out of scope.
+**SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. The [published-content API](docs/api.md#published-content-for-the-student-app) provides course listings, lesson/chapter outlines, and chapter content. Studio owns content; the student app owns student identity, attempts, completion, scores, and progress. Wiring the legacy student app to these endpoints is a separate follow-up. YAML migration is out of scope.
 
 ## Local setup
 
@@ -17,7 +17,11 @@ npm run db:init:sqlite
 npm run dev
 ```
 
-Open http://localhost:3000/login. Local-only accounts all use `password`:
+Open http://localhost:3000/login. Development uses port 3000 explicitly, so a second `npm run dev` fails instead of silently opening port 3001. Keep one development server per checkout. Development output lives in `.next-dev`, production output in `.next`, and browser tests in `.next-e2e`.
+
+If a development browser reports a missing Webpack module or `Cannot read properties of undefined (reading 'call')`, stop the development servers, remove only `.next-dev` (older checkouts used `.next`), restart `npm run dev`, and hard-refresh the browser. This clears generated build files; do not reset the database. An intentionally separate development instance needs both a different port and its own `NEXT_DIST_DIR`.
+
+Local-only accounts all use `password`:
 
 | Account             | Access                                           |
 | ------------------- | ------------------------------------------------ |

@@ -1,3 +1,4 @@
+import { publishedCourses, publishedCourse } from "../lib/published-catalog";
 import { sampleBlocks } from "./fixtures";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
@@ -17,6 +18,7 @@ import {
   loadRevision,
   persistDraft,
   publishRevision,
+  publishedLesson,
   restoreRevision,
 } from "../lib/repository";
 import { type LessonDraft } from "../lib/content";
@@ -319,5 +321,28 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
       restoreRevision(c, l, ids[3], version, a),
     ).rejects.toMatchObject({ status: 409 });
     expect(await retained()).toEqual(ids.slice(-5));
+    expect((await publishedCourses()).some((row) => row.id === c)).toBe(true);
+    expect(await publishedLesson(c, l)).toMatchObject({
+      title: "Publication 6",
+      courseId: c,
+      chapterId: l,
+      revisionId: ids[6],
+    });
+    const catalogue = await publishedCourse(c);
+    const visibleChapters = [
+      ...catalogue.lessons.flatMap((group) => group.chapters),
+      ...catalogue.unassignedChapters,
+    ];
+    expect(visibleChapters.find((ch) => ch.id === l)).toMatchObject({
+      title: "Publication 6",
+      revisionId: ids[6],
+    });
+    expect(JSON.stringify(catalogue)).not.toContain("Publication 2");
+    await db().query("UPDATE cms_courses SET status='draft' WHERE id=$1", [c]);
+    expect((await publishedCourses()).some((row) => row.id === c)).toBe(false);
+    await expect(publishedCourse(c)).rejects.toMatchObject({ status: 404 });
+    await db().query("UPDATE cms_courses SET status='published' WHERE id=$1", [
+      c,
+    ]);
   });
 });
