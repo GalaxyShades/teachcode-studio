@@ -16,8 +16,7 @@
     "db:reset:sqlite": "node scripts/reset-local-sqlite.mjs",
     "test:e2e": "playwright test",
     "test:postgres": "TEST_POSTGRES=1 vitest run tests/postgres.test.ts",
-    "format": "prettier --write app components lib scripts tests *.ts *.mjs *.json docs README.md .github",
-    "demo:screenshots": "CAPTURE_DEMO=1 playwright test tests/e2e/demo.spec.ts"
+    "format": "prettier --write app components lib scripts tests *.ts *.mjs *.json docs README.md .github"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

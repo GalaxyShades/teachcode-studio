@@ -4,8 +4,6 @@ A standalone course authoring app for turning teaching materials into interactiv
 
 ![TeachCode lesson editor](docs/screenshots/02-editor.png)
 
-**For a quick walkthrough:** use the [five-minute demo and screenshot guide](docs/demo.md).
-
 **SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. Integration with the legacy TeachCode student app is a separate follow-up. YAML migration is out of scope.
 
 ## Local setup
@@ -59,7 +57,6 @@ npm run build
 npx playwright install chromium
 npm run test:e2e
 TEST_RUNTIMES=1 npm run test:e2e
-npm run demo:screenshots
 ```
 
 SQLite and browser tests use disposable databases. `TEST_POSTGRES=1` starts a disposable real PostgreSQL cluster with fixture identity tables; it does not connect to the shared database. Runtime smoke tests are opt-in because they download Python/R browser runtimes from public CDNs. CI runs lint, typecheck, unit/database tests, build and browser/API smoke tests.
@@ -67,7 +64,6 @@ SQLite and browser tests use disposable databases. `TEST_POSTGRES=1` starts a di
 ## Guides
 
 - [Database setup, migrations and rollback](docs/database.md)
-- [Local demo script and screenshots](docs/demo.md)
 - [Markdown dialect and nested fields](docs/markdown.md)
 - [API and authentication](docs/api.md)
 - [Architecture and schema](docs/architecture.md)
