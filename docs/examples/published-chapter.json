@@ -1,0 +1,42 @@
+{
+  "title": "Your first Python program",
+  "slug": "first-python-program",
+  "description": "Use print to display a message.",
+  "track": "Python",
+  "level": "year 1",
+  "mode": "lesson",
+  "programmingLanguage": "Python",
+  "tags": [
+    "beginner"
+  ],
+  "presentation": "guided",
+  "runtimeScope": "per-step",
+  "steps": [
+    {
+      "id": "first-program",
+      "title": "Say hello",
+      "blocks": [
+        {
+          "id": "intro",
+          "visible": true,
+          "type": "text",
+          "markdown": "Use **print** to display text."
+        },
+        {
+          "id": "hello-example",
+          "visible": true,
+          "type": "worked-example",
+          "language": "python",
+          "code": "print('Hello')",
+          "explanation": "The program displays Hello.",
+          "runnable": true,
+          "expectedOutput": "Hello"
+        }
+      ]
+    }
+  ],
+  "apiVersion": 1,
+  "courseId": "a1000000-0000-4000-8000-000000000001",
+  "chapterId": "a1000000-0000-4000-8000-000000000002",
+  "revisionId": "a1000000-0000-4000-8000-000000000003"
+}

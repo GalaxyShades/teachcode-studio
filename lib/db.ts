@@ -176,3 +176,14 @@ export async function assertDatabase(identityOnly = false) {
       throw new Error("CMS tables missing. Run npm run db:migrate.");
   }
 }
+
+/** A coherent read across publication/outline changes without locking PostgreSQL writers. */
+export function readSnapshot<T>(read: (client: Queryable) => Promise<T>) {
+  return db().transaction(async (client) => {
+    if (!isSqlite())
+      await client.query(
+        "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      );
+    return read(client);
+  });
+}

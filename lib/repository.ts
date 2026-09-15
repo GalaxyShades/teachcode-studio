@@ -1,7 +1,9 @@
+import { PublicDraftSchema, CONTENT_API_VERSION } from "./public-contract";
 import crypto from "node:crypto";
 import { parseLessonMarkdown } from "./markdown";
 import {
   db,
+  readSnapshot,
   arrayRead,
   arrayValue,
   isSqlite,
@@ -481,17 +483,17 @@ export async function restoreRevision(
 }
 
 export async function publishedLesson(courseId: string, lessonId: string) {
-  return db().transaction(async (c) => {
+  return readSnapshot(async (c) => {
     // Keep the selected publication available while loading its content.
     const l = (
       await c.query(
-        "SELECT l.* FROM cms_lessons l JOIN cms_courses c ON c.id=l.course_id WHERE l.id=$1 AND l.course_id=$2 AND l.published_revision_id IS NOT NULL AND l.status='published' AND c.status='published'" +
-          (isSqlite() ? "" : " FOR SHARE OF l"),
+        "SELECT l.* FROM cms_lessons l JOIN cms_courses c ON c.id=l.course_id WHERE l.id=$1 AND l.course_id=$2 AND l.published_revision_id IS NOT NULL AND l.status='published' AND c.status='published'",
         [lessonId, courseId],
       )
     ).rows[0];
     if (!l) throw new CmsError(404, "Published lesson not found");
     return {
+      apiVersion: CONTENT_API_VERSION,
       ...publicDraft(await loadRevision(c, l, l.published_revision_id)),
       courseId,
       chapterId: lessonId,
@@ -500,7 +502,7 @@ export async function publishedLesson(courseId: string, lessonId: string) {
   });
 }
 export function publicDraft(draft: LessonDraft): LessonDraft {
-  return {
+  return PublicDraftSchema.parse({
     ...draft,
     version: undefined,
     sourceMarkdown: "",
@@ -529,5 +531,5 @@ export function publicDraft(draft: LessonDraft): LessonDraft {
           return b;
         }),
     })),
-  };
+  });
 }

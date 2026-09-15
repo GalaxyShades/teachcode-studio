@@ -86,7 +86,7 @@ test("published history restores only the draft and enforces permissions and con
   const publicDraft = async () =>
     await (
       await page.request.get(
-        `/api/published/courses/${course}/lessons/${chapter}`,
+        `/api/v1/content/courses/${course}/chapters/${chapter}`,
       )
     ).json();
   expect((await publicDraft()).title).toBe("Snapshot 7");
@@ -111,7 +111,7 @@ test("published history restores only the draft and enforces permissions and con
   expect(
     (
       await page.request.get(
-        `/api/published/courses/${course}/lessons/${chapter}`,
+        `/api/v1/content/courses/${course}/chapters/${chapter}`,
       )
     ).status(),
   ).toBe(404);

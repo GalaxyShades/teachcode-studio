@@ -11,7 +11,7 @@ import { currentUser, requireUser } from "../lib/auth";
 import { resolveEditorCourse, resolveEditorLesson } from "../lib/editor-routes";
 import { createLesson } from "../lib/cms";
 import { editModule, saveOutline } from "../lib/management";
-import { db, assertDatabase } from "../lib/db";
+import { db, assertDatabase, readSnapshot } from "../lib/db";
 import { migrate } from "../scripts/migrate";
 import {
   writeRevision,
@@ -344,5 +344,66 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
     await db().query("UPDATE cms_courses SET status='published' WHERE id=$1", [
       c,
     ]);
+  });
+  it("keeps multiquery content reads coherent while another connection updates the outline", async () => {
+    const original = (
+      await db().query("SELECT title FROM cms_courses WHERE id=$1", [c])
+    ).rows[0].title;
+    try {
+      await readSnapshot(async (client) => {
+        const first = (
+          await client.query("SELECT title FROM cms_courses WHERE id=$1", [c])
+        ).rows[0].title;
+        await db().query("UPDATE cms_courses SET title=$1 WHERE id=$2", [
+          "Concurrent outline edit",
+          c,
+        ]);
+        const second = (
+          await client.query("SELECT title FROM cms_courses WHERE id=$1", [c])
+        ).rows[0].title;
+        expect(second).toBe(first);
+      });
+      expect(
+        (await db().query("SELECT title FROM cms_courses WHERE id=$1", [c]))
+          .rows[0].title,
+      ).toBe("Concurrent outline edit");
+    } finally {
+      await db().query("UPDATE cms_courses SET title=$1 WHERE id=$2", [
+        original,
+        c,
+      ]);
+    }
+  });
+  it("finishes hydrating a publication even when another connection prunes it", async () => {
+    let prunedId = "";
+    await readSnapshot(async (client) => {
+      const selected = (
+        await client.query("SELECT * FROM cms_lessons WHERE id=$1", [l])
+      ).rows[0];
+      prunedId = selected.published_revision_id;
+      const before = await loadRevision(client, selected, prunedId);
+      let version = selected.version;
+      for (let n = 0; n < 5; n++) {
+        const result = await publishRevision(
+          c,
+          l,
+          { ...draft, title: `Concurrent publication ${n}`, version },
+          a,
+        );
+        version = result.version;
+      }
+      // Cascaded deletes have committed on other connections; this request still sees its snapshot.
+      expect(await loadRevision(client, selected, prunedId)).toEqual(before);
+    });
+    expect(
+      (
+        await db().query("SELECT id FROM cms_lesson_revisions WHERE id=$1", [
+          prunedId,
+        ])
+      ).rowCount,
+    ).toBe(0);
+    expect((await publishedLesson(c, l)).title).toBe(
+      "Concurrent publication 4",
+    );
   });
 });

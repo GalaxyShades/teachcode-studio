@@ -1,0 +1,1784 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TeachCode published content API",
+    "version": "1.0.0",
+    "description": "Public read-only content delivery. Course → lessons → chapters → steps → blocks. Student identity, progress, and grading belong to the consuming app. All requests read current publications; no historical revision endpoint."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Studio origin"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/api/v1/content/courses": {
+      "parameters": [],
+      "get": {
+        "operationId": "listPublishedCourses",
+        "summary": "List published courses with available chapters",
+        "responses": {
+          "200": {
+            "description": "Current published content",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseList"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: retryable server failure; internal details are withheld",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "operationId": "listPublishedCoursesOptions",
+        "summary": "Read-only CORS preflight",
+        "responses": {
+          "204": {
+            "description": "No body; exact allowed origins receive Access-Control-Allow-Origin",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/content/courses/{courseId}": {
+      "parameters": [
+        {
+          "name": "courseId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "Internal ID returned by the API; not a slug."
+        }
+      ],
+      "get": {
+        "operationId": "getPublishedCourse",
+        "summary": "Read the ordered lesson and chapter outline",
+        "responses": {
+          "200": {
+            "description": "Current published content",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseOutline"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ID: malformed UUID",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/chapter pairing",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: retryable server failure; internal details are withheld",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "operationId": "getPublishedCourseOptions",
+        "summary": "Read-only CORS preflight",
+        "responses": {
+          "204": {
+            "description": "No body; exact allowed origins receive Access-Control-Allow-Origin",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/content/courses/{courseId}/chapters/{chapterId}": {
+      "parameters": [
+        {
+          "name": "courseId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "Internal ID returned by the API; not a slug."
+        },
+        {
+          "name": "chapterId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "Internal ID returned by the API; not a slug."
+        }
+      ],
+      "get": {
+        "operationId": "getPublishedChapter",
+        "summary": "Read the current published chapter content",
+        "responses": {
+          "200": {
+            "description": "Current published content",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chapter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ID: malformed UUID",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/chapter pairing",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: retryable server failure; internal details are withheld",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "operationId": "getPublishedChapterOptions",
+        "summary": "Read-only CORS preflight",
+        "responses": {
+          "204": {
+            "description": "No body; exact allowed origins receive Access-Control-Allow-Origin",
+            "headers": {
+              "X-Content-API-Version": {
+                "description": "Content contract major version.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "1"
+                  ]
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Origin"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CourseList": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "slug",
+            "title",
+            "description"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "CourseOutline": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "chapters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "lessonId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "nullable": true
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "revisionId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "contentUrl": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "lessonId",
+                      "slug",
+                      "title",
+                      "description",
+                      "revisionId",
+                      "contentUrl"
+                    ],
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "chapters"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "unassignedChapters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "lessonId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "nullable": true
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "revisionId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "contentUrl": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "lessonId",
+                "slug",
+                "title",
+                "description",
+                "revisionId",
+                "contentUrl"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "description",
+          "lessons",
+          "unassignedChapters"
+        ],
+        "additionalProperties": true
+      },
+      "Chapter": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "track": {
+            "type": "string",
+            "enum": [
+              "Python",
+              "R",
+              "literacy"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "year 1",
+              "year 2",
+              "advanced"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "lesson",
+              "exercise",
+              "quiz"
+            ]
+          },
+          "programmingLanguage": {
+            "type": "string",
+            "enum": [
+              "Python",
+              "R",
+              ""
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "presentation": {
+            "type": "string"
+          },
+          "runtimeScope": {
+            "type": "string",
+            "enum": [
+              "per-step",
+              "lesson-wide"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "blocks": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "text"
+                            ]
+                          },
+                          "markdown": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "markdown"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "task"
+                            ]
+                          },
+                          "statement": {
+                            "type": "string"
+                          },
+                          "context": {
+                            "type": "string"
+                          },
+                          "functions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "summary": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "summary"
+                              ],
+                              "additionalProperties": true
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "statement",
+                          "context",
+                          "functions"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "quick-reference"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "markdown": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "title",
+                          "markdown"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "worked-example"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "language": {
+                            "type": "string",
+                            "enum": [
+                              "python",
+                              "r"
+                            ]
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "explanation": {
+                            "type": "string"
+                          },
+                          "runnable": {
+                            "type": "boolean"
+                          },
+                          "expectedOutput": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "language",
+                          "code",
+                          "explanation",
+                          "runnable"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "figure"
+                            ]
+                          },
+                          "imageUrl": {
+                            "type": "string"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": "string"
+                          },
+                          "markdown": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "imageUrl",
+                          "alt",
+                          "markdown"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "mcq"
+                            ]
+                          },
+                          "question": {
+                            "type": "string"
+                          },
+                          "multiple": {
+                            "type": "boolean"
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "correct": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "text",
+                                "correct"
+                              ],
+                              "additionalProperties": true
+                            },
+                            "minItems": 2
+                          },
+                          "explanation": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "question",
+                          "multiple",
+                          "choices",
+                          "explanation"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "code-exercise"
+                            ]
+                          },
+                          "language": {
+                            "type": "string",
+                            "enum": [
+                              "python",
+                              "r"
+                            ]
+                          },
+                          "starterCode": {
+                            "type": "string"
+                          },
+                          "execution": {
+                            "type": "string",
+                            "enum": [
+                              "browser",
+                              "server"
+                            ]
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "expectedOutput": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "language",
+                          "starterCode",
+                          "execution",
+                          "prompt"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "reflection"
+                            ]
+                          },
+                          "prompt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "prompt"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "visible": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "advanced": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "data-asset"
+                            ]
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "runtimePath": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "type",
+                          "url",
+                          "filename",
+                          "description"
+                        ],
+                        "additionalProperties": true
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "blocks"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1
+          },
+          "apiVersion": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "courseId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chapterId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "revisionId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "title",
+          "slug",
+          "description",
+          "track",
+          "level",
+          "mode",
+          "programmingLanguage",
+          "tags",
+          "presentation",
+          "runtimeScope",
+          "steps",
+          "apiVersion",
+          "courseId",
+          "chapterId",
+          "revisionId"
+        ],
+        "additionalProperties": true,
+        "example": {
+          "title": "Your first Python program",
+          "slug": "first-python-program",
+          "description": "Use print to display a message.",
+          "track": "Python",
+          "level": "year 1",
+          "mode": "lesson",
+          "programmingLanguage": "Python",
+          "tags": [
+            "beginner"
+          ],
+          "presentation": "guided",
+          "runtimeScope": "per-step",
+          "steps": [
+            {
+              "id": "first-program",
+              "title": "Say hello",
+              "blocks": [
+                {
+                  "id": "intro",
+                  "visible": true,
+                  "type": "text",
+                  "markdown": "Use **print** to display text."
+                },
+                {
+                  "id": "hello-example",
+                  "visible": true,
+                  "type": "worked-example",
+                  "language": "python",
+                  "code": "print('Hello')",
+                  "explanation": "The program displays Hello.",
+                  "runnable": true,
+                  "expectedOutput": "Hello"
+                }
+              ]
+            }
+          ],
+          "apiVersion": 1,
+          "courseId": "a1000000-0000-4000-8000-000000000001",
+          "chapterId": "a1000000-0000-4000-8000-000000000002",
+          "revisionId": "a1000000-0000-4000-8000-000000000003"
+        }
+      },
+      "ContentBlock": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
+              },
+              "markdown": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "markdown"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "task"
+                ]
+              },
+              "statement": {
+                "type": "string"
+              },
+              "context": {
+                "type": "string"
+              },
+              "functions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "summary"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "statement",
+              "context",
+              "functions"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "quick-reference"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "markdown": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "title",
+              "markdown"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "worked-example"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "python",
+                  "r"
+                ]
+              },
+              "code": {
+                "type": "string"
+              },
+              "explanation": {
+                "type": "string"
+              },
+              "runnable": {
+                "type": "boolean"
+              },
+              "expectedOutput": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "language",
+              "code",
+              "explanation",
+              "runnable"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "figure"
+                ]
+              },
+              "imageUrl": {
+                "type": "string"
+              },
+              "alt": {
+                "type": "string"
+              },
+              "caption": {
+                "type": "string"
+              },
+              "markdown": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "imageUrl",
+              "alt",
+              "markdown"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "mcq"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "multiple": {
+                "type": "boolean"
+              },
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "correct": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text",
+                    "correct"
+                  ],
+                  "additionalProperties": true
+                },
+                "minItems": 2
+              },
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "question",
+              "multiple",
+              "choices",
+              "explanation"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "code-exercise"
+                ]
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "python",
+                  "r"
+                ]
+              },
+              "starterCode": {
+                "type": "string"
+              },
+              "execution": {
+                "type": "string",
+                "enum": [
+                  "browser",
+                  "server"
+                ]
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "expectedOutput": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "language",
+              "starterCode",
+              "execution",
+              "prompt"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "reflection"
+                ]
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "prompt"
+            ],
+            "additionalProperties": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "visible": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "advanced": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "data-asset"
+                ]
+              },
+              "url": {
+                "type": "string"
+              },
+              "filename": {
+                "type": "string"
+              },
+              "runtimePath": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "visible",
+              "type",
+              "url",
+              "filename",
+              "description"
+            ],
+            "additionalProperties": true
+          }
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "INVALID_ID",
+              "PUBLISHED_CONTENT_NOT_FOUND",
+              "INTERNAL_ERROR"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ A standalone course authoring app for turning teaching materials into interactiv
 
 ![TeachCode lesson editor](docs/screenshots/02-editor.png)
 
-**SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. The [published-content API](docs/api.md#published-content-for-the-student-app) provides course listings, lesson/chapter outlines, and chapter content. Studio owns content; the student app owns student identity, attempts, completion, scores, and progress. Wiring the legacy student app to these endpoints is a separate follow-up. YAML migration is out of scope.
+**SQLite is an isolated local demo**, never the shared TeachCode database. PostgreSQL is the shared deployment target. Publishing updates this Studio’s public learner route and published-content API immediately. The [published-content API](docs/lesson-content-api.md) provides course listings, lesson/chapter outlines, and chapter content. Studio owns content; the student app owns student identity, attempts, completion, scores, and progress. Wiring the legacy student app to these endpoints is a separate follow-up. YAML migration is out of scope.
 
 ## Local setup
 
@@ -35,7 +35,7 @@ Never provision these credentials in a shared environment. Seeding is restricted
 
 **Course settings** sits beside the course status in the header and opens a focused dialog. Courses use one nested **Lessons & chapters** outline: each lesson contains its chapters. Drag a lesson card to reorder the whole lesson, or drag a chapter within its lesson or into another lesson. **Add lesson** sits below the outline. Each lesson ends with **Add chapter**: enter a chapter name, then create it in that lesson. **Edit lesson** reveals the title and empty-lesson deletion controls. Click a chapter title to edit its content. Keyboard users can focus a card, press Space, use arrow keys, then press Space to drop (Escape cancels). Assigned staff see the same hierarchy; admins manage its structure.
 
-The existing database/API names (`modules` for lesson groups, `lessons` for chapters) and Markdown `:::lesson` syntax remain compatible with saved content and links.
+The internal authoring API/database uses `modules` for lesson groups and `lessons` for chapters; Markdown uses `:::lesson`. The public content API uses `/api/v1/content` with lesson/chapter terminology.
 
 Editor links use readable slugs, for example `/courses/python-foundations/lessons/component-reference/edit` (or `/preview`). Old UUID links redirect to the current readable URL. Saving a lesson slug updates the address bar after the save succeeds; changing a course slug redirects to its new address. Title changes alone leave URLs intact. Old slug bookmarks need updating after a slug rename; UUID bookmarks remain stable. APIs continue using internal IDs.
 
@@ -73,7 +73,9 @@ SQLite and browser tests use disposable databases. `TEST_POSTGRES=1` starts a di
 
 - [Database setup, migrations and rollback](docs/database.md)
 - [Markdown dialect and nested fields](docs/markdown.md)
-- [API and authentication](docs/api.md)
+- [Lesson content API: endpoints, examples, and progress integration](docs/lesson-content-api.md)
+- [Content API OpenAPI specification](docs/content-api.openapi.json)
+- [Authoring API and authentication](docs/api.md)
 - [Architecture and schema](docs/architecture.md)
 - [Execution security and deployment follow-ups](docs/security.md)
 

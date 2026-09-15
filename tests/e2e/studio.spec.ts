@@ -50,7 +50,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   expect(publish.status()).toBe(200);
   const publishedVersion = (await publish.json()).version;
   const publicResponse = await page.request.get(
-    `/api/published/courses/${course}/lessons/${lesson}`,
+    `/api/v1/content/courses/${course}/chapters/${lesson}`,
   );
   expect(publicResponse.status()).toBe(200);
   expect(JSON.stringify(await publicResponse.json())).not.toContain(
@@ -79,7 +79,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
     (
       await (
         await page.request.get(
-          `/api/published/courses/${course}/lessons/${lesson}`,
+          `/api/v1/content/courses/${course}/chapters/${lesson}`,
         )
       ).json()
     ).title,
@@ -88,7 +88,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   expect(
     (
       await page.request.get(
-        `/api/published/courses/${course}/lessons/${lesson}`,
+        `/api/v1/content/courses/${course}/chapters/${lesson}`,
       )
     ).status(),
   ).toBe(404);
