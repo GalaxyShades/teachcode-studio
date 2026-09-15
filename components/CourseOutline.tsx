@@ -241,7 +241,7 @@ export function CourseOutline({
                   </a>
                   {ch.status === "published" && (
                     <a
-                      className="mt-2 block text-sm text-teal-800 underline"
+                      className="mt-2 block text-right text-sm text-teal-800 underline"
                       href={`/published/courses/${course.slug}/lessons/${ch.published_slug ?? ch.slug}`}
                     >
                       View public chapter
@@ -264,14 +264,36 @@ export function CourseOutline({
   }
   return (
     <section className="mt-6" aria-labelledby="course-outline-title">
-      <h2 id="course-outline-title" className="text-xl font-bold">
-        Lessons & chapters
-      </h2>
-      <p className="mb-5 mt-2 text-sm text-zinc-600">
-        {admin
-          ? "Drag lesson cards to reorder. Drag chapters within or between lessons. To use the keyboard, focus a card, press Space, use the arrow keys, then press Space to drop."
-          : "Choose a chapter to open its content."}
-      </p>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="course-outline-title" className="text-xl font-bold">
+            Lessons & chapters
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            {admin
+              ? "Drag cards to reorder or move chapters between lessons."
+              : "Choose a chapter to open its content."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-600">
+          <span>
+            {modules.length} {modules.length === 1 ? "lesson" : "lessons"} ·{" "}
+            {chapters.length} {chapters.length === 1 ? "chapter" : "chapters"}
+          </span>
+          {admin && (
+            <details className="max-w-xs">
+              <summary className="cursor-pointer text-teal-800">
+                Reordering help
+              </summary>
+              <p className="mt-2 rounded-lg border bg-white p-3">
+                Drag a card to move it. On touch screens, press and hold first.
+                For keyboard controls, focus a card, press Space, use the arrow
+                keys, then press Space to drop. Escape cancels.
+              </p>
+            </details>
+          )}
+        </div>
+      </div>
       <DndContext
         id={contextId}
         sensors={sensors}
@@ -449,14 +471,26 @@ export function CourseOutline({
                             </button>
                           </form>
                         ) : (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={disabled}
-                            onClick={() => setAddingChapter(m.id)}
-                          >
-                            ＋ Add chapter
-                          </button>
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                            <span className="text-sm text-zinc-500">
+                              {
+                                chapters.filter((ch) => ch.module_id === m.id)
+                                  .length
+                              }{" "}
+                              {chapters.filter((ch) => ch.module_id === m.id)
+                                .length === 1
+                                ? "chapter"
+                                : "chapters"}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              disabled={disabled}
+                              onClick={() => setAddingChapter(m.id)}
+                            >
+                              ＋ Add chapter
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}

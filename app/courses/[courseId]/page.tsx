@@ -16,16 +16,20 @@ export default async function Course({
   const courseId = resolved.id;
   const { course, modules, lessons, staff, user } = await getCourse(courseId);
   return (
-    <main className="mx-auto max-w-6xl p-6">
+    <main className="mx-auto max-w-5xl p-4 sm:p-6">
       <Link href="/courses" className="text-teal-800 underline">
         ← Courses
       </Link>
-      <div className="mt-4 flex flex-wrap justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">{course.title}</h1>
-          <p className="mt-2">{course.description}</p>
-          <span className="text-sm">{course.status}</span>
+      <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-3xl font-bold">{course.title}</h1>
+          <p className="mt-2 max-w-2xl break-words text-zinc-600">
+            {course.description}
+          </p>
         </div>
+        <span className="rounded-full border border-teal-100 bg-teal-50 px-3 py-1 text-sm font-medium capitalize text-teal-800">
+          {course.status}
+        </span>
       </div>
       <CourseManager
         course={course as any}
