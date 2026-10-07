@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS cms_revision_metadata (
  programming_language text NOT NULL,tags text NOT NULL,presentation text NOT NULL,runtime_scope text NOT NULL,source_markdown text NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS cms_assignment_profile_idx ON cms_course_staff_assignments(profile_id,course_id);
-CREATE INDEX IF NOT EXISTS cms_lessons_course_idx ON cms_lessons(course_id,module_id,position);
+CREATE INDEX IF NOT EXISTS cms_lessons_course_idx ON cms_lessons(course_id,chapter_id,position);
 CREATE INDEX IF NOT EXISTS cms_lessons_published_idx ON cms_lessons(published_revision_id);
 CREATE INDEX IF NOT EXISTS cms_revisions_lesson_idx ON cms_lesson_revisions(lesson_id,revision_number);
 CREATE INDEX IF NOT EXISTS cms_steps_revision_idx ON cms_lesson_steps(revision_id,position);

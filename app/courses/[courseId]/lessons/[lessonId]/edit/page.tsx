@@ -17,13 +17,18 @@ export default async function Edit({
     redirect(canonical);
   const courseId = course.id,
     lessonId = lesson.id;
-  const { draft } = await getDraft(courseId, lessonId);
+  const { draft, courseAssistant, lessonAssistant } = await getDraft(
+    courseId,
+    lessonId,
+  );
   return (
     <LessonEditor
       courseId={courseId}
       courseSlug={course.slug}
       lessonId={lessonId}
       initial={draft}
+      initialCourseAssistant={courseAssistant}
+      initialLessonAssistant={lessonAssistant}
       resources={authoringResources()}
       canPublish={(await requireCourse(courseId)).role === "admin"}
     />

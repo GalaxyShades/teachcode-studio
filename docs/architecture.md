@@ -18,7 +18,9 @@ flowchart LR
 
 `lib/content.ts` is the shared typed schema. `lib/markdown.ts` implements strict directive parsing and serialization. `lib/repository.ts` writes and hydrates normalized component detail rows and creates immutable publication snapshots. `lib/cms.ts` and `lib/management.ts` authorize course access and structure mutations. `lib/auth.ts` is the replaceable shared identity adapter. `lib/db.ts` selects the database implementation and owns transactions.
 
-Every PostgreSQL transaction holds one pool client until commit/rollback. SQLite serializes operations per connection and uses database write locks. Versioned saves lock the lesson row and compare the expected version. Publication saves the draft and copies metadata, steps, blocks and nested detail rows within that same transaction; subsequent draft changes cannot mutate the published revision. Stable component/choice IDs are distinct from physical revision row IDs.
+Every PostgreSQL transaction holds one pool client until commit/rollback. SQLite serializes operations per connection and uses database write locks. Versioned saves lock the lesson row and compare the expected version. Publication saves the draft and copies metadata, the lesson Learning Assistant settings, steps, blocks and nested detail rows within that same transaction; subsequent draft changes cannot mutate the published revision. Course Learning Assistant settings live on the course and apply to every lesson. Stable component/choice IDs are distinct from physical revision row IDs.
+
+A course contains chapters. A chapter groups lessons. A lesson is the editable document: steps, components, a draft revision, and a published revision. Steps and components keep those names.
 
 # Relational schema
 
@@ -27,10 +29,12 @@ erDiagram
   profiles ||--o{ auth_sessions : user_id
   profiles ||--o{ cms_course_staff_assignments : profile_id
   cms_courses ||--o{ cms_course_staff_assignments : course_id
-  cms_courses ||--o{ cms_modules : contains
+  cms_courses ||--o| cms_course_assistants : guides
+  cms_courses ||--o{ cms_chapters : contains
   cms_courses ||--o{ cms_lessons : contains
-  cms_modules ||--o{ cms_lessons : groups
+  cms_chapters ||--o{ cms_lessons : groups
   cms_lessons ||--o{ cms_lesson_revisions : versions
+  cms_lesson_revisions ||--o| cms_lesson_assistants : guides
   cms_lesson_revisions ||--|| cms_revision_metadata : snapshots
   cms_lesson_revisions ||--o{ cms_lesson_steps : orders
   cms_lesson_steps ||--o{ cms_content_blocks : orders
@@ -45,7 +49,6 @@ erDiagram
   cms_content_blocks ||--o| cms_code_exercise_blocks : exercise
   cms_content_blocks ||--o| cms_reflection_blocks : reflection
   cms_reflection_blocks ||--o| cms_reflection_rubrics : rubric
-  cms_content_blocks ||--o| cms_tutor_config_blocks : tutor
   cms_content_blocks ||--o| cms_data_asset_blocks : resource
   cms_content_blocks ||--o| cms_code_review_blocks : review
 ```

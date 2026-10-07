@@ -163,13 +163,6 @@ export function BlockRenderer({ block }: { block: Block }) {
           )}
         </aside>
       );
-    case "tutor-config":
-      return (
-        <aside className="rounded bg-zinc-100 p-3 text-sm">
-          Tutor: {block.mode} ·{" "}
-          {block.llmAllowed ? "LLM allowed" : "LLM disabled"}
-        </aside>
-      );
     case "code-review":
       return (
         <aside>

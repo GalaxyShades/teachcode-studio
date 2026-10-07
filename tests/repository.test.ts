@@ -151,9 +151,19 @@ describe("SQLite repository", () => {
     expect(p.sourceMarkdown).toBe("");
     expect(p.version).toBeUndefined();
     expect(
-      p.steps.flatMap((s) => s.blocks).some((b) => b.type === "tutor-config"),
+      p.steps.flatMap((s) => s.blocks).some((b) => b.type === "code-review"),
     ).toBe(false);
-    expect(JSON.stringify(p)).not.toContain("checkScript");
+    const published = JSON.stringify(p);
+    for (const field of [
+      "checkScript",
+      "additionalPenalties",
+      "issuesToIgnore",
+      "courseAssistant",
+      "lessonAssistant",
+      "llmAllowed",
+      "copyingAllowed",
+    ])
+      expect(published).not.toContain(field);
   });
   it("enforces assigned staff and other-role access rules", async () => {
     const user = (role: string, id = "s") => ({
@@ -271,15 +281,15 @@ describe("SQLite repository", () => {
     expect(await publishedLesson(cid, lid)).toMatchObject({
       title: "Publication 6",
       courseId: cid,
-      chapterId: lid,
+      lessonId: lid,
       revisionId: ids[6],
     });
     const catalogue = await publishedCourse(cid);
-    const visibleChapters = [
-      ...catalogue.lessons.flatMap((group) => group.chapters),
-      ...catalogue.unassignedChapters,
+    const visibleLessons = [
+      ...catalogue.chapters.flatMap((group) => group.lessons),
+      ...catalogue.unassignedLessons,
     ];
-    expect(visibleChapters.find((ch) => ch.id === lid)).toMatchObject({
+    expect(visibleLessons.find((lesson) => lesson.id === lid)).toMatchObject({
       title: "Publication 6",
       revisionId: ids[6],
     });

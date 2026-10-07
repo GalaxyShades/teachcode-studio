@@ -11,7 +11,10 @@ import {
   type Row,
 } from "./db";
 import {
+  AssistantSchema,
   LessonSchema,
+  emptyAssistant,
+  type AssistantSettings,
   type LessonDraft,
   type Block,
   validateDraft,
@@ -83,16 +86,6 @@ export const detail: Record<
     },
   },
   reflection: { table: "reflection", fields: { prompt: "prompt" } },
-  "tutor-config": {
-    table: "tutor_config",
-    fields: {
-      mode: "mode",
-      chips: "chips",
-      constraints: "constraints",
-      llmAllowed: "llm_allowed",
-      copyingAllowed: "copying_allowed",
-    },
-  },
   "data-asset": {
     table: "data_asset",
     fields: {
@@ -112,6 +105,8 @@ export const detail: Record<
       keyIdeas: "key_ideas",
       misconceptions: "misconceptions",
       variants: "acceptable_variants",
+      additionalPenalties: "additional_penalties",
+      issuesToIgnore: "issues_to_ignore",
     },
   },
 };
@@ -121,6 +116,8 @@ const listFields = new Set([
   "keyIdeas",
   "misconceptions",
   "variants",
+  "additionalPenalties",
+  "issuesToIgnore",
 ]);
 const boolFields = new Set([
   "runnable",
@@ -143,6 +140,42 @@ function decode(key: string, value: any) {
   if (boolFields.has(key)) return Boolean(value);
   return value;
 }
+const assistantColumns: Record<keyof AssistantSettings, string> = {
+  mode: "mode",
+  chips: "chips",
+  constraints: "constraints",
+  llmAllowed: "llm_allowed",
+  copyingAllowed: "copying_allowed",
+};
+export async function writeAssistant(
+  c: Queryable,
+  table: "cms_course_assistants" | "cms_lesson_assistants",
+  idColumn: "course_id" | "revision_id",
+  id: string,
+  settings: AssistantSettings,
+) {
+  const parsed = AssistantSchema.parse(settings);
+  await c.query(`DELETE FROM ${table} WHERE ${idColumn}=$1`, [id]);
+  const row: Row = { [idColumn]: id };
+  for (const [key, col] of Object.entries(assistantColumns))
+    row[col] = encode(key, parsed[key as keyof AssistantSettings]);
+  await insert(c, table, row);
+}
+export async function readAssistant(
+  c: Queryable,
+  table: "cms_course_assistants" | "cms_lesson_assistants",
+  idColumn: "course_id" | "revision_id",
+  id: string,
+): Promise<AssistantSettings> {
+  const row = (
+    await c.query(`SELECT * FROM ${table} WHERE ${idColumn}=$1`, [id])
+  ).rows[0];
+  if (!row) return emptyAssistant();
+  const settings: Record<string, unknown> = {};
+  for (const [key, col] of Object.entries(assistantColumns))
+    settings[key] = decode(key, row[col]);
+  return AssistantSchema.parse(settings);
+}
 async function insert(c: Queryable, table: string, row: Row) {
   const cols = Object.keys(row);
   await c.query(
@@ -155,6 +188,7 @@ export async function writeRevision(
   revision: string,
   draft: LessonDraft,
   userId: string,
+  lessonAssistant: AssistantSettings = emptyAssistant(),
 ) {
   await c.query("DELETE FROM cms_lesson_steps WHERE revision_id=$1", [
     revision,
@@ -176,6 +210,13 @@ export async function writeRevision(
     runtime_scope: draft.runtimeScope,
     source_markdown: draft.sourceMarkdown ?? "",
   });
+  await writeAssistant(
+    c,
+    "cms_lesson_assistants",
+    "revision_id",
+    revision,
+    lessonAssistant,
+  );
   for (const [si, s] of draft.steps.entries()) {
     const sid = uid();
     await insert(c, "cms_lesson_steps", {
@@ -346,6 +387,8 @@ async function save(
   lessonId: string,
   input: LessonDraft,
   userId: string,
+  lessonAssistant?: AssistantSettings,
+  courseAssistant?: AssistantSettings,
 ) {
   const draft = LessonSchema.parse(input),
     l = await lockedLesson(c, courseId, lessonId);
@@ -367,9 +410,25 @@ async function save(
   if (duplicate.rows.length)
     throw new CmsError(
       409,
-      "Another chapter uses this slug. Choose a unique Slug in Chapter details or change the Markdown lesson slug, then Save draft.",
+      "Another lesson uses this slug. Choose a unique Slug in Lesson details or change the Markdown lesson slug, then Save draft.",
     );
-  await writeRevision(c, l.draft_revision_id, draft, userId);
+  const lessonSettings =
+    lessonAssistant ??
+    (await readAssistant(
+      c,
+      "cms_lesson_assistants",
+      "revision_id",
+      l.draft_revision_id,
+    ));
+  await writeRevision(c, l.draft_revision_id, draft, userId, lessonSettings);
+  if (courseAssistant)
+    await writeAssistant(
+      c,
+      "cms_course_assistants",
+      "course_id",
+      courseId,
+      courseAssistant,
+    );
   await c.query(
     "UPDATE cms_lessons SET title=$1,slug=$2,description=$3,track=$4,level=$5,mode=$6,programming_language=$7,tags=$8,presentation=$9,runtime_scope=$10,updated_by=$11,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=$12",
     [
@@ -397,6 +456,7 @@ async function save(
     errors: validateDraft(draft),
     savedAt: new Date().toISOString(),
     editor: userId,
+    lessonAssistant: lessonSettings,
   };
 }
 export const persistDraft = (
@@ -404,12 +464,27 @@ export const persistDraft = (
   lessonId: string,
   draft: LessonDraft,
   userId: string,
-) => db().transaction((c) => save(c, courseId, lessonId, draft, userId));
+  lessonAssistant?: AssistantSettings,
+  courseAssistant?: AssistantSettings,
+) =>
+  db().transaction((c) =>
+    save(
+      c,
+      courseId,
+      lessonId,
+      draft,
+      userId,
+      lessonAssistant,
+      courseAssistant,
+    ),
+  );
 export async function publishRevision(
   courseId: string,
   lessonId: string,
   draft: LessonDraft,
   userId: string,
+  lessonAssistant?: AssistantSettings,
+  courseAssistant?: AssistantSettings,
 ) {
   const errors = validateDraft(draft);
   if (draft.sourceMarkdown)
@@ -420,7 +495,15 @@ export async function publishRevision(
     );
   if (errors.length) throw new CmsError(400, errors.join("\n"));
   return db().transaction(async (c) => {
-    const result = await save(c, courseId, lessonId, draft, userId),
+    const result = await save(
+        c,
+        courseId,
+        lessonId,
+        draft,
+        userId,
+        lessonAssistant,
+        courseAssistant,
+      ),
       rid = uid();
     const n = (
       await c.query(
@@ -436,7 +519,7 @@ export async function publishRevision(
       immutable: true,
       created_by: userId,
     });
-    await writeRevision(c, rid, draft, userId);
+    await writeRevision(c, rid, draft, userId, result.lessonAssistant);
     await c.query(
       "UPDATE cms_courses SET status='published',updated_at=CURRENT_TIMESTAMP WHERE id=$1",
       [courseId],
@@ -445,8 +528,8 @@ export async function publishRevision(
       "UPDATE cms_lessons SET published_revision_id=$1,status='published' WHERE id=$2",
       [rid, lessonId],
     );
-    // Keep five published snapshots per chapter. Cascades remove their content
-    // too; pruning shares the publication transaction and chapter lock.
+    // Keep five published snapshots per lesson. Cascades remove their content
+    // too; pruning shares the publication transaction and lesson lock.
     await c.query(
       "DELETE FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published' AND id NOT IN (SELECT id FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published' ORDER BY revision_number DESC LIMIT 5)",
       [lessonId],
@@ -464,7 +547,7 @@ export async function restoreRevision(
   return db().transaction(async (c) => {
     const lesson = await lockedLesson(c, courseId, lessonId);
     if (lesson.version !== version)
-      throw new CmsError(409, "This chapter changed. Reload before restoring.");
+      throw new CmsError(409, "This lesson changed. Reload before restoring.");
     const revision = (
       await c.query(
         "SELECT id FROM cms_lesson_revisions WHERE id=$1 AND lesson_id=$2 AND state='published'",
@@ -477,8 +560,25 @@ export async function restoreRevision(
         "This published version is no longer available. Refresh version history.",
       );
     const draft = await loadRevision(c, lesson, revisionId);
-    const result = await save(c, courseId, lessonId, draft, userId);
-    return { ...result, draft: { ...draft, version: result.version } };
+    const lessonAssistant = await readAssistant(
+      c,
+      "cms_lesson_assistants",
+      "revision_id",
+      revisionId,
+    );
+    const result = await save(
+      c,
+      courseId,
+      lessonId,
+      draft,
+      userId,
+      lessonAssistant,
+    );
+    return {
+      ...result,
+      draft: { ...draft, version: result.version },
+      lessonAssistant,
+    };
   });
 }
 
@@ -496,7 +596,7 @@ export async function publishedLesson(courseId: string, lessonId: string) {
       apiVersion: CONTENT_API_VERSION,
       ...publicDraft(await loadRevision(c, l, l.published_revision_id)),
       courseId,
-      chapterId: lessonId,
+      lessonId,
       revisionId: l.published_revision_id as string,
     };
   });
@@ -511,7 +611,7 @@ export function publicDraft(draft: LessonDraft): LessonDraft {
       blocks: s.blocks
         .filter(
           (b) =>
-            b.visible && b.type !== "tutor-config" && b.type !== "code-review",
+            b.visible && b.type !== "code-review",
         )
         .map((b) => {
           if (b.type === "code-exercise")

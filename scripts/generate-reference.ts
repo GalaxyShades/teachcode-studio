@@ -67,12 +67,6 @@ async function main() {
             variants: "Accept clear explanations in the learner’s own words.",
           };
           break;
-        case "tutor-config":
-          b.mode = "hint";
-          b.chips = "What does assignment do?\nHow do I display a variable?";
-          b.constraints =
-            "Ask the learner to explain their current code. Offer one hint at a time. Do not provide the full solution.";
-          break;
         case "data-asset":
           b.filename = "example.csv";
           b.url = "https://example.edu/example.csv";
@@ -88,6 +82,9 @@ async function main() {
           b.keyIdeas = "Correct assignment and output.";
           b.misconceptions = "Printing the variable name as a literal string.";
           b.variants = "Single or double quotes are acceptable.";
+          b.additionalPenalties =
+            "Deduct marks for missing the greeting variable.";
+          b.issuesToIgnore = "Ignore quote style and extra blank lines.";
           break;
       }
     }

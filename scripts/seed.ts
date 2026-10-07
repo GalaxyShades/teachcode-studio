@@ -70,7 +70,7 @@ async function main() {
         [cid, slug, title, "Isolated local demo course", admin],
       );
       await c.query(
-        "INSERT INTO cms_modules(id,course_id,title,position) VALUES($1,$2,'Getting started',0) ON CONFLICT(id) DO NOTHING",
+        "INSERT INTO cms_chapters(id,course_id,title,position) VALUES($1,$2,'Getting started',0) ON CONFLICT(id) DO NOTHING",
         [mid, cid],
       );
       await c.query(
@@ -84,7 +84,7 @@ async function main() {
       !(await c.query("SELECT id FROM cms_lessons WHERE id=$1", [lid])).rowCount
     ) {
       await c.query(
-        "INSERT INTO cms_lessons(id,course_id,module_id,slug,title,updated_by) VALUES($1,$2,$3,$4,$5,$6)",
+        "INSERT INTO cms_lessons(id,course_id,chapter_id,slug,title,updated_by) VALUES($1,$2,$3,$4,$5,$6)",
         [
           lid,
           "10000000-0000-4000-8000-000000000001",

@@ -10,7 +10,7 @@ import {
 } from "@/lib/cms";
 import { persistDraft, publishRevision, CmsError } from "@/lib/repository";
 import { db } from "@/lib/db";
-import type { LessonDraft } from "@/lib/content";
+import type { AssistantSettings, LessonDraft } from "@/lib/content";
 export async function loginAction(_: unknown, form: FormData) {
   try {
     if (!(await login(String(form.get("email")), String(form.get("password")))))
@@ -34,11 +34,20 @@ export async function saveDraft(
   courseId: string,
   lessonId: string,
   draft: LessonDraft,
+  lessonAssistant?: AssistantSettings,
+  courseAssistant?: AssistantSettings,
 ) {
   try {
     const u = await requireCourse(courseId);
     return {
-      ...(await persistDraft(courseId, lessonId, draft, u.id)),
+      ...(await persistDraft(
+        courseId,
+        lessonId,
+        draft,
+        u.id,
+        lessonAssistant,
+        courseAssistant,
+      )),
       editor: u.display_name,
     };
   } catch (e) {
@@ -50,10 +59,19 @@ export async function publishDraft(
   courseId: string,
   lessonId: string,
   draft: LessonDraft,
+  lessonAssistant?: AssistantSettings,
+  courseAssistant?: AssistantSettings,
 ) {
   try {
     const u = await requireAdmin(courseId);
-    const result = await publishRevision(courseId, lessonId, draft, u.id);
+    const result = await publishRevision(
+      courseId,
+      lessonId,
+      draft,
+      u.id,
+      lessonAssistant,
+      courseAssistant,
+    );
     revalidatePath("/published", "layout");
     return { ...result, editor: u.display_name };
   } catch (e) {

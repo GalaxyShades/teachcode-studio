@@ -9,9 +9,9 @@ export async function PATCH(req: Request, { params }: C) {
     sameOrigin(req);
     const p = await params,
       body = z
-        .object({ moduleId: z.string().nullable() })
+        .object({ chapterId: z.string().nullable() })
         .parse(await req.json());
-    await moveLesson(p.courseId, p.lessonId, body.moduleId);
+    await moveLesson(p.courseId, p.lessonId, body.chapterId);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

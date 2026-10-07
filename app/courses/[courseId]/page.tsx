@@ -15,7 +15,7 @@ export default async function Course({
   if (`/courses/${key}` !== coursePath(resolved))
     redirect(coursePath(resolved));
   const courseId = resolved.id;
-  const { course, modules, lessons, staff, user } = await getCourse(courseId);
+  const { course, chapters, lessons, staff, user } = await getCourse(courseId);
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6">
       <Link href="/courses" className="text-teal-800 underline">
@@ -37,7 +37,7 @@ export default async function Course({
       </header>
       <CourseManager
         course={course as any}
-        initialModules={modules as any}
+        initialChapters={chapters as any}
         initialLessons={lessons as any}
         initialStaff={staff as any}
         admin={user.role === "admin"}

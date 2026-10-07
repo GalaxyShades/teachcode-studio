@@ -12,6 +12,7 @@ import {
   defaults,
   blockTypes,
   validateDraft,
+  type AssistantSettings,
   type Block,
   type LessonDraft,
 } from "@/lib/content";
@@ -23,6 +24,20 @@ import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
 import { VersionHistory } from "./VersionHistory";
 import { AuthoringGuide } from "./AuthoringGuide";
 import { coursePath, lessonPath } from "@/lib/paths";
+
+function syncLessonAddress(path: string) {
+  if (window.location.pathname === path) return;
+  const current = window.history.state;
+  window.history.replaceState(
+    {
+      ...(current && typeof current === "object" ? current : {}),
+      __NA: true,
+    },
+    "",
+    path,
+  );
+}
+
 const advancedKeys = new Set([
   "explanation",
   "visible",
@@ -57,6 +72,8 @@ const labels: Record<string, string> = {
   alt: "Alternative text",
   reviewPrinciples: "Review principles",
   expectedOutput: "Expected output",
+  additionalPenalties: "Additional penalties",
+  issuesToIgnore: "Issues to ignore",
 };
 const choices: Record<string, string[]> = {
   language: ["python", "r"],
@@ -283,10 +300,7 @@ function Fields({
                 <FieldError path={id} />
               </label>
             );
-          const options =
-            key === "mode" && value.type === "tutor-config"
-              ? undefined
-              : choices[key];
+          const options = choices[key];
           if (options)
             return (
               <label key={key} htmlFor={id} className="label mt-3 block">
@@ -363,11 +377,77 @@ function withOptionalFields(b: Block): Block {
     ...(b.type === "data-asset" ? { runtimePath: b.runtimePath ?? "" } : {}),
   } as Block;
 }
+function AssistantForm({
+  legend,
+  description,
+  value,
+  onChange,
+}: {
+  legend: string;
+  description: string;
+  value: AssistantSettings;
+  onChange: (next: AssistantSettings) => void;
+}) {
+  return (
+    <fieldset className="rounded-xl border bg-white p-4">
+      <legend className="px-1 font-semibold">{legend}</legend>
+      <p className="mt-1 text-sm text-zinc-600">{description}</p>
+      <label className="label mt-3 block">
+        Mode
+        <input
+          className="field"
+          value={value.mode}
+          onChange={(e) => onChange({ ...value, mode: e.target.value })}
+        />
+      </label>
+      <label className="label mt-3 block">
+        Suggested questions
+        <textarea
+          className="field"
+          rows={3}
+          value={value.chips}
+          onChange={(e) => onChange({ ...value, chips: e.target.value })}
+        />
+      </label>
+      <label className="label mt-3 block">
+        Constraints
+        <textarea
+          className="field"
+          rows={3}
+          value={value.constraints}
+          onChange={(e) => onChange({ ...value, constraints: e.target.value })}
+        />
+      </label>
+      <label className="mt-3 flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={value.llmAllowed}
+          onChange={(e) =>
+            onChange({ ...value, llmAllowed: e.target.checked })
+          }
+        />
+        Allow LLM
+      </label>
+      <label className="mt-3 flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={value.copyingAllowed}
+          onChange={(e) =>
+            onChange({ ...value, copyingAllowed: e.target.checked })
+          }
+        />
+        Allow copying
+      </label>
+    </fieldset>
+  );
+}
 export default function LessonEditor({
   courseId,
   courseSlug,
   lessonId,
   initial,
+  initialCourseAssistant,
+  initialLessonAssistant,
   canPublish,
   resources,
 }: {
@@ -375,6 +455,8 @@ export default function LessonEditor({
   courseSlug: string;
   lessonId: string;
   initial: LessonDraft;
+  initialCourseAssistant: AssistantSettings;
+  initialLessonAssistant: AssistantSettings;
   canPublish: boolean;
   resources: { template: string; prompt: string };
 }) {
@@ -382,6 +464,10 @@ export default function LessonEditor({
   const [restoring, setRestoring] = useState(false);
   useEffect(() => setReady(true), []);
   const [draft, setDraft] = useState(initial),
+    [courseAssistant, setCourseAssistant] = useState(initialCourseAssistant),
+    [lessonAssistant, setLessonAssistant] = useState(initialLessonAssistant),
+    courseAssistantRef = useRef(initialCourseAssistant),
+    lessonAssistantRef = useRef(initialLessonAssistant),
     latest = useRef(initial),
     dirty = useRef(false),
     saving = useRef(false),
@@ -408,13 +494,28 @@ export default function LessonEditor({
       new Set(initial.steps.flatMap((s) => s.blocks.map((b) => b.id))),
     );
   const [activeStepId, setActiveStepId] = useState(initial.steps[0]?.id),
-    [showPreview, setShowPreview] = useState(false);
+    [showPreview, setShowPreview] = useState(false),
+    [pinnedId, setPinnedId] = useState<string | null>(null);
+  const editorPaneRef = useRef<HTMLElement>(null);
+  const previewPaneRef = useRef<HTMLElement>(null);
   const activeStepIndex = Math.max(
     0,
     draft.steps.findIndex((s) => s.id === activeStepId),
   );
   const activeStep = draft.steps[activeStepIndex];
   const errors = [...parseErrors, ...validateDraft(draft)];
+  function updateCourseAssistant(next: AssistantSettings) {
+    courseAssistantRef.current = next;
+    setCourseAssistant(next);
+    dirty.current = true;
+    setStatus("Unsaved changes");
+  }
+  function updateLessonAssistant(next: AssistantSettings) {
+    lessonAssistantRef.current = next;
+    setLessonAssistant(next);
+    dirty.current = true;
+    setStatus("Unsaved changes");
+  }
   function change(next: LessonDraft) {
     latest.current = next;
     dirty.current = true;
@@ -450,11 +551,11 @@ export default function LessonEditor({
         courseId,
         lessonId,
         snapshot,
+        lessonAssistantRef.current,
+        courseAssistantRef.current,
       );
       if ("error" in result) throw new Error(result.error);
-      window.history.replaceState(
-        null,
-        "",
+      syncLessonAddress(
         lessonPath({ id: courseId, slug: courseSlug }, snapshot),
       );
       const next = { ...latest.current, version: result.version };
@@ -494,6 +595,10 @@ export default function LessonEditor({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Restore failed");
       const next: LessonDraft = result.draft;
+      if ("lessonAssistant" in result && result.lessonAssistant) {
+        lessonAssistantRef.current = result.lessonAssistant;
+        setLessonAssistant(result.lessonAssistant);
+      }
       latest.current = next;
       dirty.current = false;
       paused.current = false;
@@ -505,11 +610,7 @@ export default function LessonEditor({
         new Set(next.steps.flatMap((s) => s.blocks.map((b) => b.id))),
       );
       setPicker(null);
-      window.history.replaceState(
-        null,
-        "",
-        lessonPath({ id: courseId, slug: courseSlug }, next),
-      );
+      syncLessonAddress(lessonPath({ id: courseId, slug: courseSlug }, next));
       setStatus("Restored to draft · Publish to make these changes public");
     } catch (e) {
       paused.current = true;
@@ -525,7 +626,7 @@ export default function LessonEditor({
       if (dirty.current && !saving.current && !paused.current) void save();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [draft, busy]);
+  }, [draft, courseAssistant, lessonAssistant, busy]);
   useEffect(() => {
     function warn(e: BeforeUnloadEvent) {
       if (dirty.current || saving.current) {
@@ -535,6 +636,59 @@ export default function LessonEditor({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, []);
+  useEffect(() => {
+    const preview = previewPaneRef.current;
+    const wide = window.matchMedia("(min-width: 1024px)");
+    if (!preview || !showPreview || !wide.matches || mobile !== "editor") {
+      setPinnedId(null);
+      return;
+    }
+    let frame = 0;
+    const sync = () => {
+      if (!wide.matches) {
+        setPinnedId(null);
+        return;
+      }
+      const top = preview.getBoundingClientRect().top;
+      const nodes = [
+        ...preview.querySelectorAll<HTMLElement>("[data-component-id]"),
+      ];
+      if (!nodes.length) {
+        setPinnedId(null);
+        return;
+      }
+      let current = nodes[0];
+      for (const node of nodes)
+        if (node.getBoundingClientRect().top - top <= 24) current = node;
+      const id = current.dataset.componentId ?? null;
+      setPinnedId(id);
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(sync);
+    };
+    preview.addEventListener("scroll", onScroll, { passive: true });
+    wide.addEventListener("change", onScroll);
+    sync();
+    return () => {
+      preview.removeEventListener("scroll", onScroll);
+      wide.removeEventListener("change", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [showPreview, activeStepId, draft, mobile]);
+  useEffect(() => {
+    const editor = editorPaneRef.current;
+    if (!editor || !pinnedId || !showPreview) return;
+    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+    const card = editor.querySelector<HTMLElement>(
+      `[data-component-id="${CSS.escape(pinnedId)}"]`,
+    );
+    if (!card) return;
+    const delta =
+      card.getBoundingClientRect().top - editor.getBoundingClientRect().top;
+    if (Math.abs(delta) > 4)
+      editor.scrollTo({ top: editor.scrollTop + delta });
+  }, [pinnedId, showPreview]);
   function parse(source: string) {
     setMarkdown(source);
     const parsed = parseLessonMarkdown(source, latest.current);
@@ -606,7 +760,7 @@ export default function LessonEditor({
         <fieldset
           disabled={!ready || restoring}
           className="min-w-0"
-          aria-label="Chapter editor"
+          aria-label="Lesson editor"
         >
           <header
             className={`mx-auto mb-5 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
@@ -638,7 +792,7 @@ export default function LessonEditor({
                     >
                       Publish
                     </button>
-                    <ActionMenu label="Chapter actions">
+                    <ActionMenu label="Lesson actions">
                       <button
                         className="btn-secondary"
                         disabled={busy}
@@ -686,7 +840,7 @@ export default function LessonEditor({
                 Have slides or a document?
               </h2>
               <p className="mt-1 text-sm text-zinc-600">
-                Start with a template or turn your source into a chapter with
+                Start with a template or turn your source into a lesson with
                 AI.
               </p>
             </div>
@@ -732,11 +886,29 @@ export default function LessonEditor({
               Preview
             </button>
           </div>
+          <section
+            className="mx-auto mb-6 grid max-w-7xl gap-4 lg:grid-cols-2"
+            aria-label="Learning Assistant"
+          >
+            <AssistantForm
+              legend="Course Learning Assistant"
+              description="These settings apply to every lesson in this course."
+              value={courseAssistant}
+              onChange={updateCourseAssistant}
+            />
+            <AssistantForm
+              legend="This lesson"
+              description="These settings apply only to this lesson."
+              value={lessonAssistant}
+              onChange={updateLessonAssistant}
+            />
+          </section>
           <div
-            className={`mx-auto grid gap-6 ${showPreview ? "max-w-7xl lg:grid-cols-2" : "max-w-4xl"}`}
+            className={`mx-auto grid gap-6 ${showPreview ? "max-w-7xl lg:sticky lg:top-0 lg:z-10 lg:h-dvh lg:grid-cols-2 lg:items-stretch lg:overflow-hidden lg:bg-zinc-50" : "max-w-4xl"}`}
           >
             <section
-              className={`min-w-0 ${mobile === "preview" ? "hidden lg:block" : ""}`}
+              ref={editorPaneRef}
+              className={`min-w-0 lg:min-h-0 ${mobile === "preview" ? "hidden lg:block" : ""} ${showPreview ? "lg:h-full lg:overflow-y-auto lg:overscroll-contain" : ""}`}
             >
               <nav
                 className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-2"
@@ -810,7 +982,7 @@ export default function LessonEditor({
               </nav>
               {tab === "markdown" ? (
                 <label className="label mt-4 block">
-                  Chapter Markdown
+                  Lesson Markdown
                   <textarea
                     className="field h-[650px] font-mono"
                     value={markdown}
@@ -822,12 +994,12 @@ export default function LessonEditor({
                 <>
                   <details className="mt-4">
                     <summary className="cursor-pointer font-semibold">
-                      Chapter details
+                      Lesson details
                     </summary>
                     <Fields value={draft} path="metadata" onChange={change} />
                   </details>
                   <nav
-                    aria-label="Chapter steps"
+                    aria-label="Lesson steps"
                     className="my-5 flex flex-wrap items-center gap-2"
                   >
                     {draft.steps.map((step, index) => (
@@ -949,11 +1121,18 @@ export default function LessonEditor({
                             render={(b, bi) => (
                               <div
                                 id={`steps.${si}.blocks.${bi}`}
+                                data-component-id={b.id}
                                 tabIndex={-1}
+                                className={
+                                  showPreview && pinnedId === b.id
+                                    ? "lg:sticky lg:top-0 lg:z-20"
+                                    : undefined
+                                }
                               >
                                 <EditorCard
                                   block={b}
                                   index={bi}
+                                  highlighted={showPreview && pinnedId === b.id}
                                   open={!collapsed.has(b.id)}
                                   onToggle={() => toggle(b.id)}
                                   actions={
@@ -1148,11 +1327,15 @@ export default function LessonEditor({
                         </section>
                       );
                     })()}
+                  {showPreview && (
+                    <div className="hidden h-[70vh] lg:block" aria-hidden />
+                  )}
                 </>
               )}
             </section>
             <aside
-              className={`card min-w-0 self-start p-6 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block" : "lg:hidden"}`}
+              ref={previewPaneRef}
+              className={`card min-w-0 p-6 lg:min-h-0 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block lg:h-full lg:overflow-y-auto lg:overscroll-contain" : "lg:hidden"}`}
             >
               <p className="text-sm font-semibold text-teal-800">
                 LEARNER PREVIEW
@@ -1163,12 +1346,19 @@ export default function LessonEditor({
                 <section key={s.id} className="my-6">
                   <h3 className="mb-4 text-xl font-bold">{s.title}</h3>
                   {s.blocks.map((b) => (
-                    <div className="my-4" key={b.id}>
+                    <div
+                      className={`my-4 rounded-lg ${showPreview && pinnedId === b.id ? "ring-2 ring-teal-600" : ""}`}
+                      data-component-id={b.id}
+                      key={b.id}
+                    >
                       <BlockRenderer block={b} />
                     </div>
                   ))}
                 </section>
               ))}
+              {showPreview && (
+                <div className="hidden h-[70vh] lg:block" aria-hidden />
+              )}
             </aside>
           </div>
           <Dialog.Root
@@ -1224,7 +1414,6 @@ export default function LessonEditor({
                             mcq: "Question with answer feedback",
                             "code-exercise": "Learner code and author checks",
                             reflection: "Prompt and review rubric",
-                            "tutor-config": "Tutor behavior and constraints",
                             "data-asset": "Resource and runtime path",
                             "code-review": "Review purpose and criteria",
                           }[t]

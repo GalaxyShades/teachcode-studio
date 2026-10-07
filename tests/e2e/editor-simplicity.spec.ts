@@ -13,9 +13,9 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
   await page
     .getByLabel("Import Markdown")
     .setInputFiles("content/component-reference.md");
-  const source = await page.getByLabel("Chapter Markdown").inputValue();
+  const source = await page.getByLabel("Lesson Markdown").inputValue();
   await page
-    .getByLabel("Chapter Markdown")
+    .getByLabel("Lesson Markdown")
     .fill(
       source
         .replace('slug="component-reference"', 'slug="simple-editor"')
@@ -94,7 +94,7 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
     )
     .toEqual(original);
   await page.getByRole("button", { name: /2\. Practice and reflect/ }).click();
-  await expect(cards).toHaveCount(5);
+  await expect(cards).toHaveCount(4);
   await expect(page.getByRole("toolbar")).toHaveCount(0);
   await page.getByRole("button", { name: "Show preview", exact: true }).click();
   await expect(

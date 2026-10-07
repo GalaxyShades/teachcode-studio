@@ -11,15 +11,15 @@ test("student app reads published content without an author session or draft lea
     })
   ).json();
   const courseBase = `/api/courses/${courseId}`;
-  const { id: chapterId } = await (
+  const { id: lessonId } = await (
     await request.post(courseBase + "/lessons", {
-      data: { title: "Public chapter" },
+      data: { title: "Public lesson" },
     })
   ).json();
   await request.post(courseBase + "/lessons", {
     data: { title: "Secret draft" },
   });
-  const base = `${courseBase}/lessons/${chapterId}`;
+  const base = `${courseBase}/lessons/${lessonId}`;
   const draft = (await (await request.get(base + "/draft")).json()).draft;
   const publication = await (
     await request.post(base + "/publish", { data: draft })
@@ -43,41 +43,41 @@ test("student app reads published content without an author session or draft lea
   ).toBe(true);
   const response = await request.get(`/api/v1/content/courses/${courseId}`);
   const outline = await response.json();
-  expect(outline.lessons).toHaveLength(1);
-  expect(outline.lessons[0].chapters).toHaveLength(1);
-  const chapter = outline.lessons[0].chapters[0];
-  expect(chapter).toMatchObject({
-    id: chapterId,
-    title: "Public chapter",
+  expect(outline.chapters).toHaveLength(1);
+  expect(outline.chapters[0].lessons).toHaveLength(1);
+  const lesson = outline.chapters[0].lessons[0];
+  expect(lesson).toMatchObject({
+    id: lessonId,
+    title: "Public lesson",
     slug: draft.slug,
     revisionId: publication.revisionId,
   });
   expect(JSON.stringify(outline)).not.toContain("Secret draft");
   expect(JSON.stringify(outline)).not.toContain("Private changes");
-  const content = await (await request.get(chapter.contentUrl)).json();
+  const content = await (await request.get(lesson.contentUrl)).json();
   expect(content).toMatchObject({
     courseId,
-    chapterId,
+    lessonId,
     revisionId: publication.revisionId,
-    title: "Public chapter",
+    title: "Public lesson",
   });
   expect(content.version).toBeUndefined();
   expect(content.sourceMarkdown).toBeUndefined();
   expect(content.apiVersion).toBe(1);
   expect(response.headers()["x-content-api-version"]).toBe("1");
-  const head = await request.head(chapter.contentUrl);
+  const head = await request.head(lesson.contentUrl);
   expect(head.status()).toBe(200);
   expect(await head.text()).toBe("");
   for (const path of [
     "/api/v1/content/courses/not-a-uuid",
-    `/api/v1/content/courses/${courseId}/chapters/not-a-uuid`,
+    `/api/v1/content/courses/${courseId}/lessons/not-a-uuid`,
   ]) {
     const bad = await request.get(path);
     expect(bad.status()).toBe(400);
     expect((await bad.json()).code).toBe("INVALID_ID");
   }
   const missing = await request.get(
-    `/api/v1/content/courses/${courseId}/chapters/00000000-0000-4000-8000-000000000000`,
+    `/api/v1/content/courses/${courseId}/lessons/00000000-0000-4000-8000-000000000000`,
   );
   expect(missing.status()).toBe(404);
   expect((await missing.json()).code).toBe("PUBLISHED_CONTENT_NOT_FOUND");

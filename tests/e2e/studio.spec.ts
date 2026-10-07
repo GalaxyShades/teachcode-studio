@@ -30,27 +30,27 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
       .first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "Markdown", exact: true }).click();
-  const source = await page.getByLabel("Chapter Markdown").inputValue();
+  const source = await page.getByLabel("Lesson Markdown").inputValue();
   expect(source).toContain(":::code-exercise");
-  await page.getByLabel("Chapter Markdown").fill(source + "\n:::bad");
+  await page.getByLabel("Lesson Markdown").fill(source + "\n:::bad");
   await expect(
     page.getByRole("alert").filter({ hasText: "Unclosed" }),
   ).toContainText("Unclosed");
   await expect(
     page.getByRole("button", { name: "Publish", exact: true }),
   ).toBeDisabled();
-  await page.getByLabel("Chapter Markdown").fill(source);
+  await page.getByLabel("Lesson Markdown").fill(source);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("status").first()).toContainText("Saved");
   const response = await page.request.get(base + "/draft");
   expect(response.status()).toBe(200);
   let { draft } = await response.json();
-  expect(draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(11);
+  expect(draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(10);
   const publish = await page.request.post(base + "/publish", { data: draft });
   expect(publish.status()).toBe(200);
   const publishedVersion = (await publish.json()).version;
   const publicResponse = await page.request.get(
-    `/api/v1/content/courses/${course}/chapters/${lesson}`,
+    `/api/v1/content/courses/${course}/lessons/${lesson}`,
   );
   expect(publicResponse.status()).toBe(200);
   expect(JSON.stringify(await publicResponse.json())).not.toContain(
@@ -79,7 +79,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
     (
       await (
         await page.request.get(
-          `/api/v1/content/courses/${course}/chapters/${lesson}`,
+          `/api/v1/content/courses/${course}/lessons/${lesson}`,
         )
       ).json()
     ).title,
@@ -88,7 +88,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   expect(
     (
       await page.request.get(
-        `/api/v1/content/courses/${course}/chapters/${lesson}`,
+        `/api/v1/content/courses/${course}/lessons/${lesson}`,
       )
     ).status(),
   ).toBe(404);
@@ -154,31 +154,31 @@ test("management APIs validate, assign and reorder within the course", async ({
   });
   expect(
     (
-      await request.post(`/api/courses/${course}/modules`, {
+      await request.post(`/api/courses/${course}/chapters`, {
         data: { title: "Second module" },
       })
     ).status(),
   ).toBe(200);
   const modules = await (
-      await request.get(`/api/courses/${course}/modules`)
+      await request.get(`/api/courses/${course}/chapters`)
     ).json(),
     ids = modules.map((m: any) => m.id).reverse();
   expect(
     (
       await request.put(`/api/courses/${course}/reorder`, {
-        data: { kind: "modules", ids },
+        data: { kind: "chapters", ids },
       })
     ).status(),
   ).toBe(200);
   expect(
-    (await (await request.get(`/api/courses/${course}/modules`)).json()).map(
+    (await (await request.get(`/api/courses/${course}/chapters`)).json()).map(
       (m: any) => m.id,
     ),
   ).toEqual(ids);
   expect(
     (
       await request.put(`/api/courses/${course}/reorder`, {
-        data: { kind: "modules", ids: [] },
+        data: { kind: "chapters", ids: [] },
       })
     ).status(),
   ).toBe(409);
@@ -215,13 +215,13 @@ test("editor imports files, adds and reorders cards, autosaves and switches on m
   await page
     .getByLabel("Import Markdown")
     .setInputFiles("content/component-reference.md");
-  await expect(page.getByLabel("Chapter Markdown")).toHaveValue(
+  await expect(page.getByLabel("Lesson Markdown")).toHaveValue(
     /:::worked-example/,
   );
   // Use a new slug so the imported reference does not collide with the seeded lesson.
-  const text = await page.getByLabel("Chapter Markdown").inputValue();
+  const text = await page.getByLabel("Lesson Markdown").inputValue();
   await page
-    .getByLabel("Chapter Markdown")
+    .getByLabel("Lesson Markdown")
     .fill(
       text.replace('slug="component-reference"', 'slug="imported-reference"'),
     );
@@ -244,7 +244,7 @@ test("editor imports files, adds and reorders cards, autosaves and switches on m
   const saved = await (
     await page.request.get(`/api/courses/${course}/lessons/${id}/draft`)
   ).json();
-  expect(saved.draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(12);
+  expect(saved.draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(11);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(

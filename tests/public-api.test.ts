@@ -5,9 +5,9 @@ import {
   publicOptions,
   validatePublicIds,
 } from "../lib/public-api";
-import { PublicChapterSchema } from "../lib/public-contract";
+import { PublicLessonSchema } from "../lib/public-contract";
 import { publicDraft, CmsError } from "../lib/repository";
-import { chapterExample, contentOpenApi } from "../scripts/content-openapi";
+import { lessonExample, contentOpenApi } from "../scripts/content-openapi";
 import { sampleBlocks } from "./fixtures";
 import type { LessonDraft } from "../lib/content";
 
@@ -21,27 +21,48 @@ describe("content API contract", () => {
       JSON.parse(readFileSync("docs/content-api.openapi.json", "utf8")),
     ).toEqual(contentOpenApi());
     expect(
-      PublicChapterSchema.parse(
-        JSON.parse(
-          readFileSync("docs/examples/published-chapter.json", "utf8"),
-        ),
+      PublicLessonSchema.parse(
+        JSON.parse(readFileSync("docs/examples/published-lesson.json", "utf8")),
       ),
-    ).toEqual(chapterExample);
+    ).toEqual(lessonExample);
   });
   it("delivers all public card types without author-only or unexpected nested fields", () => {
     const blocks = sampleBlocks();
     const draft = {
-      ...chapterExample,
+      ...lessonExample,
       sourceMarkdown: "PRIVATE SOURCE",
       version: 99,
       privateNote: "PRIVATE ROOT",
+      courseAssistant: {
+        mode: "hint",
+        chips: "PRIVATE_COURSE_ASSISTANT",
+        constraints: "PRIVATE_COURSE_CONSTRAINT",
+        llmAllowed: true,
+        copyingAllowed: true,
+      },
+      lessonAssistant: {
+        mode: "hint",
+        chips: "PRIVATE_LESSON_ASSISTANT",
+        constraints: "PRIVATE_LESSON_CONSTRAINT",
+        llmAllowed: true,
+        copyingAllowed: false,
+      },
       steps: [
         {
           id: "s",
           title: "S",
           privateNote: "PRIVATE STEP",
           blocks: [
-            ...blocks.map((b) => ({ ...b, privateNote: "PRIVATE BLOCK" })),
+            ...blocks.map((b) =>
+              b.type === "code-review"
+                ? {
+                    ...b,
+                    privateNote: "PRIVATE BLOCK",
+                    additionalPenalties: "PRIVATE_PENALTY",
+                    issuesToIgnore: "PRIVATE_IGNORE",
+                  }
+                : { ...b, privateNote: "PRIVATE BLOCK" },
+            ),
             {
               id: "hidden",
               type: "text",
@@ -53,13 +74,13 @@ describe("content API contract", () => {
       ],
     } as unknown as LessonDraft;
     const rendered = publicDraft(draft);
-    const output = PublicChapterSchema.parse({
+    const output = PublicLessonSchema.parse({
       ...rendered,
       ...{
         apiVersion: 1,
-        courseId: chapterExample.courseId,
-        chapterId: chapterExample.chapterId,
-        revisionId: chapterExample.revisionId,
+        courseId: lessonExample.courseId,
+        lessonId: lessonExample.lessonId,
+        revisionId: lessonExample.revisionId,
       },
     });
     expect(new Set(output.steps[0].blocks.map((b) => b.type)).size).toBe(9);
@@ -76,9 +97,19 @@ describe("content API contract", () => {
       "randomisation",
       "tutor-config",
       "code-review",
+      "additionalPenalties",
+      "issuesToIgnore",
+      "PRIVATE_PENALTY",
+      "PRIVATE_IGNORE",
+      "courseAssistant",
+      "lessonAssistant",
+      "PRIVATE_COURSE_ASSISTANT",
+      "PRIVATE_LESSON_ASSISTANT",
+      "llmAllowed",
+      "copyingAllowed",
     ])
       expect(json).not.toContain(field);
-    const extra = structuredClone(chapterExample);
+    const extra = structuredClone(lessonExample);
     extra.steps[0].blocks = [
       {
         id: "mcq",
@@ -93,7 +124,7 @@ describe("content API contract", () => {
         ],
       } as never,
     ];
-    expect(JSON.stringify(PublicChapterSchema.parse(extra))).not.toContain(
+    expect(JSON.stringify(PublicLessonSchema.parse(extra))).not.toContain(
       "privateNote",
     );
   });
@@ -110,7 +141,7 @@ describe("content API contract", () => {
     expect((await response.json()).code).toBe("INVALID_ID");
     expect(read).not.toHaveBeenCalled();
     expect(() =>
-      validatePublicIds(chapterExample.courseId, chapterExample.chapterId),
+      validatePublicIds(lessonExample.courseId, lessonExample.lessonId),
     ).not.toThrow();
   });
   it.each([404, 500])(
@@ -149,7 +180,7 @@ describe("content API contract", () => {
     ]) {
       const req = new Request("http://studio.test", { headers: { origin } });
       for (const response of [
-        await publicResponse(req, async () => chapterExample),
+        await publicResponse(req, async () => lessonExample),
         publicOptions(req),
       ]) {
         expect(response.headers.get("access-control-allow-origin")).toBe(

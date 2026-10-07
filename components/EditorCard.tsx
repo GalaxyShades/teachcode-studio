@@ -10,7 +10,6 @@ export const cardNames: Record<BlockType, string> = {
   mcq: "Multiple choice",
   "code-exercise": "Code exercise",
   reflection: "Reflection",
-  "tutor-config": "Tutor settings",
   "data-asset": "Resource",
   "code-review": "Code review",
 };
@@ -23,7 +22,6 @@ export const cardIcons: Record<BlockType, string> = {
   mcq: "?",
   "code-exercise": "⌨",
   reflection: "✎",
-  "tutor-config": "✦",
   "data-asset": "↗",
   "code-review": "☷",
 };
@@ -45,8 +43,6 @@ export function cardSummary(block: Block) {
       return block.prompt;
     case "reflection":
       return block.prompt;
-    case "tutor-config":
-      return block.mode;
     case "data-asset":
       return block.filename;
     case "code-review":
@@ -105,6 +101,7 @@ export function EditorCard({
   index,
   open,
   onToggle,
+  highlighted = false,
   actions,
   children,
 }: {
@@ -112,12 +109,13 @@ export function EditorCard({
   index: number;
   open: boolean;
   onToggle: () => void;
+  highlighted?: boolean;
   actions: ReactNode;
   children: ReactNode;
 }) {
   return (
     <article
-      className={`rounded-xl border bg-white transition-colors ${open ? "border-teal-600 shadow-sm" : "border-zinc-200 hover:border-teal-400"}`}
+      className={`rounded-xl border bg-white transition-colors ${highlighted ? "border-teal-600 ring-2 ring-teal-600" : open ? "border-teal-600 shadow-sm" : "border-zinc-200 hover:border-teal-400"}`}
       data-card-id={block.id}
     >
       <header

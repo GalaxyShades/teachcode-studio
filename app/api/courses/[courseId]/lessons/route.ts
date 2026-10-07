@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: C) {
     const text = await req.text();
     const body = z
       .object({
-        moduleId: z.string().nullable().optional(),
+        chapterId: z.string().nullable().optional(),
         title: z.string().trim().min(1).max(200).optional(),
       })
       .parse(text ? JSON.parse(text) : {});
@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: C) {
       {
         id: await createLesson(
           (await params).courseId,
-          body.moduleId,
+          body.chapterId,
           body.title,
         ),
       },

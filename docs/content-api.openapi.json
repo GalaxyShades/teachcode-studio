@@ -3,7 +3,7 @@
   "info": {
     "title": "TeachCode published content API",
     "version": "1.0.0",
-    "description": "Public read-only content delivery. Course → lessons → chapters → steps → blocks. Student identity, progress, and grading belong to the consuming app. All requests read current publications; no historical revision endpoint."
+    "description": "Public read-only content delivery. Course → chapters → lessons → steps → blocks. Student identity, progress, and grading belong to the consuming app. All requests read current publications; no historical revision endpoint."
   },
   "servers": [
     {
@@ -17,7 +17,7 @@
       "parameters": [],
       "get": {
         "operationId": "listPublishedCourses",
-        "summary": "List published courses with available chapters",
+        "summary": "List published courses with available lessons",
         "responses": {
           "200": {
             "description": "Current published content",
@@ -147,7 +147,7 @@
       ],
       "get": {
         "operationId": "getPublishedCourse",
-        "summary": "Read the ordered lesson and chapter outline",
+        "summary": "Read the ordered chapter and lesson outline",
         "responses": {
           "200": {
             "description": "Current published content",
@@ -224,7 +224,7 @@
             }
           },
           "404": {
-            "description": "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/chapter pairing",
+            "description": "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/lesson pairing",
             "headers": {
               "X-Content-API-Version": {
                 "description": "Content contract major version.",
@@ -336,7 +336,7 @@
         }
       }
     },
-    "/api/v1/content/courses/{courseId}/chapters/{chapterId}": {
+    "/api/v1/content/courses/{courseId}/lessons/{lessonId}": {
       "parameters": [
         {
           "name": "courseId",
@@ -349,7 +349,7 @@
           "description": "Internal ID returned by the API; not a slug."
         },
         {
-          "name": "chapterId",
+          "name": "lessonId",
           "in": "path",
           "required": true,
           "schema": {
@@ -360,8 +360,8 @@
         }
       ],
       "get": {
-        "operationId": "getPublishedChapter",
-        "summary": "Read the current published chapter content",
+        "operationId": "getPublishedLesson",
+        "summary": "Read the current published lesson content",
         "responses": {
           "200": {
             "description": "Current published content",
@@ -395,7 +395,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Chapter"
+                  "$ref": "#/components/schemas/Lesson"
                 }
               }
             }
@@ -438,7 +438,7 @@
             }
           },
           "404": {
-            "description": "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/chapter pairing",
+            "description": "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/lesson pairing",
             "headers": {
               "X-Content-API-Version": {
                 "description": "Content contract major version.",
@@ -514,7 +514,7 @@
         }
       },
       "options": {
-        "operationId": "getPublishedChapterOptions",
+        "operationId": "getPublishedLessonOptions",
         "summary": "Read-only CORS preflight",
         "responses": {
           "204": {
@@ -597,7 +597,7 @@
           "description": {
             "type": "string"
           },
-          "lessons": {
+          "chapters": {
             "type": "array",
             "items": {
               "type": "object",
@@ -609,7 +609,7 @@
                 "title": {
                   "type": "string"
                 },
-                "chapters": {
+                "lessons": {
                   "type": "array",
                   "items": {
                     "type": "object",
@@ -618,7 +618,7 @@
                         "type": "string",
                         "minLength": 1
                       },
-                      "lessonId": {
+                      "chapterId": {
                         "type": "string",
                         "minLength": 1,
                         "nullable": true
@@ -642,7 +642,7 @@
                     },
                     "required": [
                       "id",
-                      "lessonId",
+                      "chapterId",
                       "slug",
                       "title",
                       "description",
@@ -656,12 +656,12 @@
               "required": [
                 "id",
                 "title",
-                "chapters"
+                "lessons"
               ],
               "additionalProperties": true
             }
           },
-          "unassignedChapters": {
+          "unassignedLessons": {
             "type": "array",
             "items": {
               "type": "object",
@@ -670,7 +670,7 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "lessonId": {
+                "chapterId": {
                   "type": "string",
                   "minLength": 1,
                   "nullable": true
@@ -694,7 +694,7 @@
               },
               "required": [
                 "id",
-                "lessonId",
+                "chapterId",
                 "slug",
                 "title",
                 "description",
@@ -710,12 +710,12 @@
           "slug",
           "title",
           "description",
-          "lessons",
-          "unassignedChapters"
+          "chapters",
+          "unassignedLessons"
         ],
         "additionalProperties": true
       },
-      "Chapter": {
+      "Lesson": {
         "type": "object",
         "properties": {
           "title": {
@@ -1249,7 +1249,7 @@
             "type": "string",
             "minLength": 1
           },
-          "chapterId": {
+          "lessonId": {
             "type": "string",
             "minLength": 1
           },
@@ -1272,7 +1272,7 @@
           "steps",
           "apiVersion",
           "courseId",
-          "chapterId",
+          "lessonId",
           "revisionId"
         ],
         "additionalProperties": true,
@@ -1315,7 +1315,7 @@
           ],
           "apiVersion": 1,
           "courseId": "a1000000-0000-4000-8000-000000000001",
-          "chapterId": "a1000000-0000-4000-8000-000000000002",
+          "lessonId": "a1000000-0000-4000-8000-000000000002",
           "revisionId": "a1000000-0000-4000-8000-000000000003"
         }
       },

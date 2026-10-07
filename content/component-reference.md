@@ -1,4 +1,4 @@
-:::lesson{title="Component reference" slug="component-reference" description="Explore all eleven lesson cards, then practice with a short Python exercise." track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"reference\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
+:::lesson{title="Component reference" slug="component-reference" description="Explore every lesson card, then practice with a short Python exercise." track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"reference\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
 :::
 
 :::step{id="read-and-explore" title="Read and explore"}
@@ -196,19 +196,6 @@ Accept clear explanations in the learner’s own words.
 :::
 :::
 
-:::tutor-config{id="greeting-hints" visible=true advanced=false llmAllowed=false copyingAllowed=false}
-:::mode{format="raw"}
-hint
-:::
-:::chips{format="raw"}
-What does assignment do?
-How do I display a variable?
-:::
-:::constraints{format="raw"}
-Ask the learner to explain their current code. Offer one hint at a time. Do not provide the full solution.
-:::
-:::
-
 :::data-asset{id="practice-data" visible=true advanced=false}
 :::url{format="raw"}
 https://example.edu/example.csv
@@ -245,6 +232,12 @@ Printing the variable name as a literal string.
 :::
 :::variants{format="raw"}
 Single or double quotes are acceptable.
+:::
+:::additionalPenalties{format="raw"}
+Deduct marks for missing the greeting variable.
+:::
+:::issuesToIgnore{format="raw"}
+Ignore quote style and extra blank lines.
 :::
 :::
 :::

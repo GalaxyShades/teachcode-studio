@@ -112,7 +112,7 @@ export function VersionHistory({
           )}
           {history?.versions.length === 0 && (
             <p className="mt-3 text-sm">
-              No published versions yet. Publish this chapter to create its
+              No published versions yet. Publish this lesson to create its
               first snapshot.
             </p>
           )}

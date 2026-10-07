@@ -20,36 +20,36 @@ export async function publishedCourse(courseId: string) {
       )
     ).rows[0];
     if (!course) throw new CmsError(404, "Published course not found");
-    const chapters = (
+    const lessons = (
       await client.query(
-        "SELECT l.id,l.module_id,m.slug,m.title,m.description,l.published_revision_id FROM cms_lessons l JOIN cms_revision_metadata m ON m.revision_id=l.published_revision_id WHERE l.course_id=$1 AND l.status='published' ORDER BY l.position,l.id",
+        "SELECT l.id,l.chapter_id,m.slug,m.title,m.description,l.published_revision_id FROM cms_lessons l JOIN cms_revision_metadata m ON m.revision_id=l.published_revision_id WHERE l.course_id=$1 AND l.status='published' ORDER BY l.position,l.id",
         [courseId],
       )
-    ).rows.map((ch) => ({
-      id: ch.id,
-      lessonId: ch.module_id,
-      slug: ch.slug,
-      title: ch.title,
-      description: ch.description,
-      revisionId: ch.published_revision_id,
-      contentUrl: `/api/v1/content/courses/${courseId}/chapters/${ch.id}`,
+    ).rows.map((lesson) => ({
+      id: lesson.id,
+      chapterId: lesson.chapter_id,
+      slug: lesson.slug,
+      title: lesson.title,
+      description: lesson.description,
+      revisionId: lesson.published_revision_id,
+      contentUrl: `/api/v1/content/courses/${courseId}/lessons/${lesson.id}`,
     }));
-    if (!chapters.length) throw new CmsError(404, "Published course not found");
+    if (!lessons.length) throw new CmsError(404, "Published course not found");
     const groups = (
       await client.query(
-        "SELECT id,title FROM cms_modules WHERE course_id=$1 ORDER BY position,id",
+        "SELECT id,title FROM cms_chapters WHERE course_id=$1 ORDER BY position,id",
         [courseId],
       )
     ).rows;
     return CourseOutlineSchema.parse({
       ...course,
-      lessons: groups
-        .map((g) => ({
-          ...g,
-          chapters: chapters.filter((ch) => ch.lessonId === g.id),
+      chapters: groups
+        .map((group) => ({
+          ...group,
+          lessons: lessons.filter((lesson) => lesson.chapterId === group.id),
         }))
-        .filter((g) => g.chapters.length),
-      unassignedChapters: chapters.filter((ch) => !ch.lessonId),
+        .filter((group) => group.lessons.length),
+      unassignedLessons: lessons.filter((lesson) => !lesson.chapterId),
     });
   });
 }

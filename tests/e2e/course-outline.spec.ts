@@ -25,7 +25,7 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   ).json();
   const base = `/api/courses/${id}`;
   const state = async () => (await page.request.get(base)).json();
-  const first = (await state()).modules[0].id;
+  const first = (await state()).chapters[0].id;
   await page.goto("/courses/outline-course");
   await expect(
     page.getByRole("heading", { name: "Modules", exact: true }),
@@ -34,101 +34,101 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
     page.getByRole("button", { name: "Drag to reorder" }),
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "＋ Add lesson", exact: true })
+    .getByRole("button", { name: "＋ Add chapter", exact: true })
     .click();
-  await page.getByLabel("New lesson title").fill("Practice");
+  await page.getByLabel("New chapter title").fill("Practice");
   await page
-    .getByRole("button", { name: "Create lesson", exact: true })
+    .getByRole("button", { name: "Create chapter", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Practice", exact: true }),
   ).toBeVisible();
-  const second = (await state()).modules[1].id;
-  const create = async (moduleId: string) =>
+  const second = (await state()).chapters[1].id;
+  const create = async (chapterId: string) =>
     (
       await (
-        await page.request.post(base + "/lessons", { data: { moduleId } })
+        await page.request.post(base + "/lessons", { data: { chapterId } })
       ).json()
     ).id;
   const a = await create(first),
     b = await create(first);
   await page.reload();
-  const lesson = (key: string) =>
-    page.locator(`[data-outline-item="lesson:${key}"]`);
   const chapter = (key: string) =>
     page.locator(`[data-outline-item="chapter:${key}"]`);
-  const zone = (key: string) => page.locator(`[data-chapter-zone="${key}"]`);
+  const lesson = (key: string) =>
+    page.locator(`[data-outline-item="lesson:${key}"]`);
+  const zone = (key: string) => page.locator(`[data-lesson-zone="${key}"]`);
   await expect(
-    lesson(first).locator('[data-outline-item^="chapter:"]'),
+    chapter(first).locator('[data-outline-item^="lesson:"]'),
   ).toHaveCount(2);
-  await drag(page, chapter(a), chapter(b));
+  await drag(page, lesson(a), lesson(b));
   await expect
     .poll(async () =>
       (await state()).lessons.map((ch: { id: string }) => ch.id),
     )
     .toEqual([b, a]);
-  await drag(page, chapter(a), zone(second));
+  await drag(page, lesson(a), zone(second));
   await expect
     .poll(
       async () =>
         (await state()).lessons.find((ch: { id: string }) => ch.id === a)
-          .module_id,
+          .chapter_id,
     )
     .toBe(second);
   await expect(
-    lesson(second).locator('[data-outline-item^="chapter:"]'),
+    chapter(second).locator('[data-outline-item^="lesson:"]'),
   ).toHaveCount(1);
   await drag(
     page,
-    lesson(first).locator("[data-lesson-surface]"),
-    lesson(second).locator("[data-lesson-surface]"),
+    chapter(first).locator("[data-chapter-surface]"),
+    chapter(second).locator("[data-chapter-surface]"),
   );
   await expect
-    .poll(async () => (await state()).modules.map((m: { id: string }) => m.id))
+    .poll(async () => (await state()).chapters.map((m: { id: string }) => m.id))
     .toEqual([second, first]);
   await page.reload();
   await expect(
-    page.locator('[data-outline-item^="lesson:"]').first(),
-  ).toHaveAttribute("data-outline-item", `lesson:${second}`);
-  // Keyboard sorting moves the whole lesson, with its chapters intact.
-  await expect(lesson(second)).toHaveAttribute("tabindex", "0");
-  await lesson(second).focus();
+    page.locator('[data-outline-item^="chapter:"]').first(),
+  ).toHaveAttribute("data-outline-item", `chapter:${second}`);
+  // Keyboard sorting moves the whole chapter, with its lessons intact.
+  await expect(chapter(second)).toHaveAttribute("tabindex", "0");
+  await chapter(second).focus();
   await page.keyboard.press("Space");
-  await expect(lesson(second)).toHaveAttribute("data-dragging", "true");
+  await expect(chapter(second)).toHaveAttribute("data-dragging", "true");
   await page.keyboard.press("ArrowDown");
   await expect
     .poll(() =>
-      lesson(second).evaluate(
+      chapter(second).evaluate(
         (el) => new DOMMatrix(getComputedStyle(el).transform).m42,
       ),
     )
     .toBeGreaterThan(0);
   await page.keyboard.press("Space");
   await expect
-    .poll(async () => (await state()).modules.map((m: { id: string }) => m.id))
+    .poll(async () => (await state()).chapters.map((m: { id: string }) => m.id))
     .toEqual([first, second]);
-  await lesson(second)
-    .getByRole("button", { name: "＋ Add chapter", exact: true })
+  await chapter(second)
+    .getByRole("button", { name: "＋ Add lesson", exact: true })
     .click();
-  await page.getByLabel("Chapter name").fill("  Practice with data  ");
+  await page.getByLabel("Lesson name").fill("  Practice with data  ");
   await page
-    .getByRole("button", { name: "Create chapter", exact: true })
+    .getByRole("button", { name: "Create lesson", exact: true })
     .click();
   await expect(
-    lesson(second).locator('[data-outline-item^="chapter:"]'),
+    chapter(second).locator('[data-outline-item^="lesson:"]'),
   ).toHaveCount(2);
   await expect(
-    lesson(second).locator('[data-outline-item^="chapter:"]').first(),
-  ).toHaveAttribute("data-outline-item", `chapter:${a}`);
+    chapter(second).locator('[data-outline-item^="lesson:"]').first(),
+  ).toHaveAttribute("data-outline-item", `lesson:${a}`);
   await expect(
-    lesson(second).getByRole("link", {
+    chapter(second).getByRole("link", {
       name: "Practice with data",
       exact: true,
     }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    lesson(second).getByRole("link", {
+    chapter(second).getByRole("link", {
       name: "Practice with data",
       exact: true,
     }),
@@ -136,25 +136,27 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   expect(
     (
       await page.request.post(`/api/courses/${id}/lessons`, {
-        data: { moduleId: second, title: "   " },
+        data: { chapterId: second, title: "   " },
       })
     ).status(),
   ).toBe(400);
   // Reject malformed/stale and cross-course outlines without partial assignment changes.
   const saved = await state();
   const payload = {
-    lessons: saved.modules.map((m: { id: string }) => m.id),
-    chapters: saved.lessons.map((ch: { id: string; module_id: string }) => ({
-      id: ch.id,
-      lessonId: ch.module_id,
-    })),
+    chapters: saved.chapters.map((chapter: { id: string }) => chapter.id),
+    lessons: saved.lessons.map(
+      (lesson: { id: string; chapter_id: string }) => ({
+        id: lesson.id,
+        chapterId: lesson.chapter_id,
+      }),
+    ),
   };
   expect(
     (
       await page.request.put(base + "/outline", {
         data: {
           ...payload,
-          chapters: [...payload.chapters, payload.chapters[0]],
+          lessons: [...payload.lessons, payload.lessons[0]],
         },
       })
     ).status(),
@@ -164,20 +166,22 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
       await page.request.put(base + "/outline", {
         data: {
           ...payload,
-          chapters: payload.chapters.map((ch: { id: string }) => ({
-            ...ch,
-            lessonId: "foreign-group",
+          lessons: payload.lessons.map((lesson: { id: string }) => ({
+            ...lesson,
+            chapterId: "foreign-group",
           })),
         },
       })
     ).status(),
   ).toBe(409);
   expect(
-    (await state()).lessons.map((ch: { id: string; module_id: string }) => ({
-      id: ch.id,
-      lessonId: ch.module_id,
-    })),
-  ).toEqual(payload.chapters);
+    (await state()).lessons.map(
+      (lesson: { id: string; chapter_id: string }) => ({
+        id: lesson.id,
+        chapterId: lesson.chapter_id,
+      }),
+    ),
+  ).toEqual(payload.lessons);
   // A failed drag restores the saved view and reports the failure.
   await page.route("**/outline", (route) =>
     route.fulfill({
@@ -186,12 +190,12 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
       body: JSON.stringify({ error: "Please retry" }),
     }),
   );
-  await drag(page, chapter(b), zone(second));
+  await drag(page, lesson(b), zone(second));
   await expect(
     page.getByRole("status").filter({ hasText: "Please retry" }),
   ).toBeVisible();
   await expect(
-    lesson(first).locator(`[data-outline-item="chapter:${b}"]`),
+    chapter(first).locator(`[data-outline-item="lesson:${b}"]`),
   ).toHaveCount(1);
   await page.unroute("**/outline");
   expect(
@@ -217,10 +221,10 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   });
   await page.reload();
   await expect(
-    lesson(second).locator('[data-outline-item^="chapter:"]'),
+    chapter(second).locator('[data-outline-item^="lesson:"]'),
   ).toHaveCount(2);
   await expect(
-    page.getByRole("button", { name: "＋ Add lesson", exact: true }),
+    page.getByRole("button", { name: "＋ Add chapter", exact: true }),
   ).toHaveCount(0);
   expect(
     (await page.request.put(base + "/outline", { data: payload })).status(),

@@ -10,7 +10,7 @@ vi.mock("../lib/auth", () => ({ currentUser: vi.fn(), requireUser: vi.fn() }));
 import { currentUser, requireUser } from "../lib/auth";
 import { resolveEditorCourse, resolveEditorLesson } from "../lib/editor-routes";
 import { createLesson } from "../lib/cms";
-import { editModule, saveOutline } from "../lib/management";
+import { editChapter, saveOutline } from "../lib/management";
 import { db, assertDatabase, readSnapshot } from "../lib/db";
 import { migrate } from "../scripts/migrate";
 import {
@@ -175,49 +175,49 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
       display_name: "Test",
       role: "admin",
     });
-    await editModule(c, { title: "First lesson" });
-    await editModule(c, { title: "Second lesson" });
+    await editChapter(c, { title: "First chapter" });
+    await editChapter(c, { title: "Second chapter" });
     const groups = (
       await db().query(
-        "SELECT id FROM cms_modules WHERE course_id=$1 ORDER BY position",
+        "SELECT id FROM cms_chapters WHERE course_id=$1 ORDER BY position",
         [c],
       )
-    ).rows.map((m) => m.id);
-    const chapters = (
+    ).rows.map((chapter) => chapter.id);
+    const lessons = (
       await db().query(
         "SELECT id FROM cms_lessons WHERE course_id=$1 ORDER BY id",
         [c],
       )
-    ).rows.map((ch, i) => ({ id: ch.id, lessonId: groups[i % 2] }));
+    ).rows.map((lesson, i) => ({ id: lesson.id, chapterId: groups[i % 2] }));
     const outline = {
-      lessons: [...groups].reverse(),
-      chapters: [...chapters].reverse(),
+      chapters: [...groups].reverse(),
+      lessons: [...lessons].reverse(),
     };
     await saveOutline(c, outline);
     const read = async () => ({
-      lessons: (
-        await db().query(
-          "SELECT id FROM cms_modules WHERE course_id=$1 ORDER BY position",
-          [c],
-        )
-      ).rows.map((m) => m.id),
       chapters: (
         await db().query(
-          "SELECT id,module_id FROM cms_lessons WHERE course_id=$1 ORDER BY position",
+          "SELECT id FROM cms_chapters WHERE course_id=$1 ORDER BY position",
           [c],
         )
-      ).rows.map((ch) => ({ id: ch.id, lessonId: ch.module_id })),
+      ).rows.map((chapter) => chapter.id),
+      lessons: (
+        await db().query(
+          "SELECT id,chapter_id FROM cms_lessons WHERE course_id=$1 ORDER BY position",
+          [c],
+        )
+      ).rows.map((lesson) => ({ id: lesson.id, chapterId: lesson.chapter_id })),
     });
     expect(await read()).toEqual(outline);
     await expect(
-      saveOutline(c, { ...outline, chapters: chapters.slice(1) }),
+      saveOutline(c, { ...outline, lessons: lessons.slice(1) }),
     ).rejects.toMatchObject({ status: 409 });
     await expect(
       saveOutline(c, {
         ...outline,
-        chapters: chapters.map((ch) => ({
-          ...ch,
-          lessonId: crypto.randomUUID(),
+        lessons: lessons.map((lesson) => ({
+          ...lesson,
+          chapterId: crypto.randomUUID(),
         })),
       }),
     ).rejects.toMatchObject({ status: 409 });
@@ -233,10 +233,10 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
     ).toBe(created);
     expect(
       (
-        await db().query("SELECT module_id FROM cms_lessons WHERE id=$1", [
+        await db().query("SELECT chapter_id FROM cms_lessons WHERE id=$1", [
           created,
         ])
-      ).rows[0].module_id,
+      ).rows[0].chapter_id,
     ).toBe(groups[1]);
   });
   it("retains five latest publications and cascades removed snapshot content", async () => {
@@ -325,15 +325,15 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
     expect(await publishedLesson(c, l)).toMatchObject({
       title: "Publication 6",
       courseId: c,
-      chapterId: l,
+      lessonId: l,
       revisionId: ids[6],
     });
     const catalogue = await publishedCourse(c);
-    const visibleChapters = [
-      ...catalogue.lessons.flatMap((group) => group.chapters),
-      ...catalogue.unassignedChapters,
+    const visibleLessons = [
+      ...catalogue.chapters.flatMap((group) => group.lessons),
+      ...catalogue.unassignedLessons,
     ];
-    expect(visibleChapters.find((ch) => ch.id === l)).toMatchObject({
+    expect(visibleLessons.find((lesson) => lesson.id === l)).toMatchObject({
       title: "Publication 6",
       revisionId: ids[6],
     });

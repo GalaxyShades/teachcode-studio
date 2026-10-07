@@ -1,17 +1,17 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import {
-  PublicChapterSchema,
+  PublicLessonSchema,
   CourseListSchema,
   CourseOutlineSchema,
   PublicErrorSchema,
   ContentBlockSchema,
 } from "../lib/public-contract";
 
-export const chapterExample = PublicChapterSchema.parse({
+export const lessonExample = PublicLessonSchema.parse({
   apiVersion: 1,
   courseId: "a1000000-0000-4000-8000-000000000001",
-  chapterId: "a1000000-0000-4000-8000-000000000002",
+  lessonId: "a1000000-0000-4000-8000-000000000002",
   revisionId: "a1000000-0000-4000-8000-000000000003",
   title: "Your first Python program",
   slug: "first-python-program",
@@ -90,7 +90,7 @@ function endpoint(
               },
               "404": {
                 description:
-                  "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/chapter pairing",
+                  "PUBLISHED_CONTENT_NOT_FOUND: unavailable, unpublished, archived, or incorrect course/lesson pairing",
                 headers,
                 content: json("Error"),
               },
@@ -130,34 +130,34 @@ export function contentOpenApi() {
       title: "TeachCode published content API",
       version: "1.0.0",
       description:
-        "Public read-only content delivery. Course → lessons → chapters → steps → blocks. Student identity, progress, and grading belong to the consuming app. All requests read current publications; no historical revision endpoint.",
+        "Public read-only content delivery. Course → chapters → lessons → steps → blocks. Student identity, progress, and grading belong to the consuming app. All requests read current publications; no historical revision endpoint.",
     },
     servers: [{ url: "/", description: "Current Studio origin" }],
     security: [],
     paths: {
       "/api/v1/content/courses": endpoint(
         "listPublishedCourses",
-        "List published courses with available chapters",
+        "List published courses with available lessons",
         "CourseList",
       ),
       "/api/v1/content/courses/{courseId}": endpoint(
         "getPublishedCourse",
-        "Read the ordered lesson and chapter outline",
+        "Read the ordered chapter and lesson outline",
         "CourseOutline",
         ["courseId"],
       ),
-      "/api/v1/content/courses/{courseId}/chapters/{chapterId}": endpoint(
-        "getPublishedChapter",
-        "Read the current published chapter content",
-        "Chapter",
-        ["courseId", "chapterId"],
+      "/api/v1/content/courses/{courseId}/lessons/{lessonId}": endpoint(
+        "getPublishedLesson",
+        "Read the current published lesson content",
+        "Lesson",
+        ["courseId", "lessonId"],
       ),
     },
     components: {
       schemas: {
         CourseList: schema(CourseListSchema),
         CourseOutline: schema(CourseOutlineSchema),
-        Chapter: { ...schema(PublicChapterSchema), example: chapterExample },
+        Lesson: { ...schema(PublicLessonSchema), example: lessonExample },
         ContentBlock: schema(ContentBlockSchema),
         Error: schema(PublicErrorSchema),
       },

@@ -8,7 +8,6 @@ export const blockTypes = [
   "mcq",
   "code-exercise",
   "reflection",
-  "tutor-config",
   "data-asset",
   "code-review",
 ] as const;
@@ -88,14 +87,6 @@ export const BlockSchema = z.discriminatedUnion("type", [
     }),
   }),
   base.extend({
-    type: z.literal("tutor-config"),
-    mode: z.string(),
-    chips: z.string(),
-    constraints: z.string(),
-    llmAllowed: z.boolean(),
-    copyingAllowed: z.boolean(),
-  }),
-  base.extend({
     type: z.literal("data-asset"),
     url: z.string(),
     filename: z.string(),
@@ -111,8 +102,27 @@ export const BlockSchema = z.discriminatedUnion("type", [
     keyIdeas: z.string(),
     misconceptions: z.string(),
     variants: z.string(),
+    additionalPenalties: z.string(),
+    issuesToIgnore: z.string(),
   }),
 ]);
+export const AssistantSchema = z.object({
+  mode: z.string(),
+  chips: z.string(),
+  constraints: z.string(),
+  llmAllowed: z.boolean(),
+  copyingAllowed: z.boolean(),
+});
+export type AssistantSettings = z.infer<typeof AssistantSchema>;
+export function emptyAssistant(): AssistantSettings {
+  return {
+    mode: "hint",
+    chips: "",
+    constraints: "",
+    llmAllowed: false,
+    copyingAllowed: false,
+  };
+}
 export type Block = z.infer<typeof BlockSchema>;
 export type Step = { id: string; title: string; blocks: Block[] };
 export const LessonSchema = z.object({
@@ -213,16 +223,6 @@ export const defaults: { [K in BlockType]: () => Extract<Block, { type: K }> } =
       prompt: "What did you learn?",
       rubric: { keyIdeas: "", misconceptions: "", variants: "" },
     }),
-    "tutor-config": () => ({
-      id: uid(),
-      type: "tutor-config",
-      visible: true,
-      mode: "hint",
-      chips: "",
-      constraints: "",
-      llmAllowed: false,
-      copyingAllowed: false,
-    }),
     "data-asset": () => ({
       id: uid(),
       type: "data-asset",
@@ -242,6 +242,8 @@ export const defaults: { [K in BlockType]: () => Extract<Block, { type: K }> } =
       keyIdeas: "",
       misconceptions: "",
       variants: "",
+      additionalPenalties: "",
+      issuesToIgnore: "",
     }),
   };
 export function validateDraft(v: unknown) {

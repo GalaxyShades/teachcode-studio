@@ -6,7 +6,7 @@ import { CONTENT_API_VERSION } from "./public-contract";
 
 export function validatePublicIds(...ids: string[]) {
   if (ids.some((id) => !z.string().uuid().safeParse(id).success))
-    throw new CmsError(400, "Course and chapter IDs must be UUIDs, not slugs.");
+    throw new CmsError(400, "Course and lesson IDs must be UUIDs, not slugs.");
 }
 export function publicHeaders(req: Request) {
   return {
@@ -31,7 +31,7 @@ export async function publicResponse(
       {
         error:
           status === 400
-            ? "Course and chapter IDs must be UUIDs, not slugs."
+            ? "Course and lesson IDs must be UUIDs, not slugs."
             : status === 404
               ? "Published content not found"
               : "Unable to load published content. Please retry later.",

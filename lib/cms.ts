@@ -1,7 +1,14 @@
 import crypto from "node:crypto";
 import { db, isSqlite } from "./db";
 import { requireUser, type User } from "./auth";
-import { CmsError, loadRevision, writeRevision } from "./repository";
+import {
+  CmsError,
+  loadRevision,
+  readAssistant,
+  writeAssistant,
+  writeRevision,
+} from "./repository";
+import { emptyAssistant } from "./content";
 import { type LessonDraft } from "./content";
 export async function canAccess(courseId: string, user: User) {
   if (user.role === "admin") return true;
@@ -45,9 +52,9 @@ export async function getCourse(id: string) {
   return {
     course: (await db().query("SELECT * FROM cms_courses WHERE id=$1", [id]))
       .rows[0],
-    modules: (
+    chapters: (
       await db().query(
-        "SELECT * FROM cms_modules WHERE course_id=$1 ORDER BY position",
+        "SELECT * FROM cms_chapters WHERE course_id=$1 ORDER BY position",
         [id],
       )
     ).rows,
@@ -81,16 +88,24 @@ export async function createCourse(form: FormData) {
       "INSERT INTO cms_courses(id,slug,title,description,created_by) VALUES($1,$2,$3,$4,$5)",
       [courseId, slug, title, String(form.get("description") || ""), u.id],
     );
+    const chapterId = crypto.randomUUID();
     await c.query(
-      "INSERT INTO cms_modules(id,course_id,title,position) VALUES($1,$2,'Getting started',0)",
-      [crypto.randomUUID(), courseId],
+      "INSERT INTO cms_chapters(id,course_id,title,position) VALUES($1,$2,'Getting started',0)",
+      [chapterId, courseId],
+    );
+    await writeAssistant(
+      c,
+      "cms_course_assistants",
+      "course_id",
+      courseId,
+      emptyAssistant(),
     );
   });
   return courseId;
 }
 export function emptyDraft(): LessonDraft {
   return {
-    title: "Untitled chapter",
+    title: "Untitled lesson",
     slug: "untitled",
     description: "",
     track: "Python",
@@ -106,13 +121,13 @@ export function emptyDraft(): LessonDraft {
 }
 export async function createLesson(
   courseId: string,
-  moduleId?: string | null,
+  chapterId?: string | null,
   title?: string,
 ) {
   if (title !== undefined && (!title.trim() || title.trim().length > 200))
     throw new CmsError(
       400,
-      "Chapter name must be between 1 and 200 characters",
+      "Lesson name must be between 1 and 200 characters",
     );
   const u = await requireAdmin(courseId),
     lessonId = crypto.randomUUID(),
@@ -133,22 +148,22 @@ export async function createLesson(
     );
     let slug = "new-lesson";
     for (let n = 2; used.has(slug); n++) slug = `new-lesson-${n}`;
-    const module = (
+    const chapter = (
       await c.query(
-        "SELECT id FROM cms_modules WHERE course_id=$1 ORDER BY position",
+        "SELECT id FROM cms_chapters WHERE course_id=$1 ORDER BY position",
         [courseId],
       )
     ).rows[0];
     if (
-      moduleId &&
+      chapterId &&
       !(
         await c.query(
-          "SELECT id FROM cms_modules WHERE id=$1 AND course_id=$2",
-          [moduleId, courseId],
+          "SELECT id FROM cms_chapters WHERE id=$1 AND course_id=$2",
+          [chapterId, courseId],
         )
       ).rowCount
     )
-      throw new CmsError(404, "Lesson not found");
+      throw new CmsError(404, "Chapter not found");
     const draft = {
       ...emptyDraft(),
       ...(title === undefined ? {} : { title: title.trim() }),
@@ -161,11 +176,11 @@ export async function createLesson(
       )
     ).rows[0].n;
     await c.query(
-      "INSERT INTO cms_lessons(id,course_id,module_id,slug,title,updated_by,position) VALUES($1,$2,$3,$4,$5,$6,$7)",
+      "INSERT INTO cms_lessons(id,course_id,chapter_id,slug,title,updated_by,position) VALUES($1,$2,$3,$4,$5,$6,$7)",
       [
         lessonId,
         courseId,
-        moduleId === undefined ? (module?.id ?? null) : moduleId,
+        chapterId === undefined ? (chapter?.id ?? null) : chapterId,
         draft.slug,
         draft.title,
         u.id,
@@ -193,8 +208,21 @@ export async function getDraft(courseId: string, lessonId: string) {
     ])
   ).rows[0];
   if (!lesson) throw new CmsError(404, "Lesson not found");
+  const client = db();
   return {
     lesson,
-    draft: await loadRevision(db(), lesson, lesson.draft_revision_id),
+    draft: await loadRevision(client, lesson, lesson.draft_revision_id),
+    courseAssistant: await readAssistant(
+      client,
+      "cms_course_assistants",
+      "course_id",
+      courseId,
+    ),
+    lessonAssistant: await readAssistant(
+      client,
+      "cms_lesson_assistants",
+      "revision_id",
+      lesson.draft_revision_id,
+    ),
   };
 }

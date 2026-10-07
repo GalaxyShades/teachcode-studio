@@ -114,7 +114,7 @@ export const ContentBlockSchema = z.discriminatedUnion("type", [
   blocks[7].omit({ rubric: true }),
   blocks[8],
 ]);
-export const PublicChapterSchema = PublicDraftSchema.omit({
+export const PublicLessonSchema = PublicDraftSchema.omit({
   sourceMarkdown: true,
 }).extend({
   steps: z
@@ -124,10 +124,10 @@ export const PublicChapterSchema = PublicDraftSchema.omit({
     .min(1),
   apiVersion: z.literal(CONTENT_API_VERSION),
   courseId: id,
-  chapterId: id,
+  lessonId: id,
   revisionId: id,
 });
-export type PublicChapter = z.infer<typeof PublicChapterSchema>;
+export type PublicLesson = z.infer<typeof PublicLessonSchema>;
 export const CourseSummarySchema = z.object({
   id,
   slug: z.string(),
@@ -135,9 +135,9 @@ export const CourseSummarySchema = z.object({
   description: z.string(),
 });
 export const CourseListSchema = z.array(CourseSummarySchema);
-export const ChapterSummarySchema = z.object({
+export const LessonSummarySchema = z.object({
   id,
-  lessonId: id.nullable(),
+  chapterId: id.nullable(),
   slug: z.string(),
   title: z.string(),
   description: z.string(),
@@ -145,14 +145,14 @@ export const ChapterSummarySchema = z.object({
   contentUrl: z.string(),
 });
 export const CourseOutlineSchema = CourseSummarySchema.extend({
-  lessons: z.array(
+  chapters: z.array(
     z.object({
       id,
       title: z.string(),
-      chapters: z.array(ChapterSummarySchema),
+      lessons: z.array(LessonSummarySchema),
     }),
   ),
-  unassignedChapters: z.array(ChapterSummarySchema),
+  unassignedLessons: z.array(LessonSummarySchema),
 });
 export const PublicErrorSchema = z.object({
   error: z.string(),

@@ -1,6 +1,6 @@
 # Markdown dialect, schema version 1
 
-Use [the complete reference](../content/component-reference.md), which the parser tests load. It contains all eleven components and can be imported with the editor’s **Import Markdown** control. This is a reference for manually authored content, not a YAML migration format.
+Use [the complete reference](../content/component-reference.md), which the parser tests load. It contains every lesson component and can be imported with the editor’s **Import Markdown** control. This is a reference for manually authored content, not a YAML migration format.
 
 ## Structure
 
@@ -37,9 +37,8 @@ Every component accepts `id`, `visible`, and `advanced` attributes. Boolean comp
 | mcq             | question, multiple, choices, explanation                                                                                      |
 | code-exercise   | language, starterCode, solution, execution, prompt, checkScript, styleConfig, randomisation, reviewPrinciples, expectedOutput |
 | reflection      | prompt, rubric                                                                                                                |
-| tutor-config    | mode, chips, constraints, llmAllowed, copyingAllowed                                                                          |
 | data-asset      | url, filename, runtimePath, description                                                                                       |
-| code-review     | title, purpose, mechanism, output, keyIdeas, misconceptions, variants                                                         |
+| code-review     | title, purpose, mechanism, output, keyIdeas, misconceptions, variants, additionalPenalties, issuesToIgnore                    |
 
 For compact input, direct component body text is accepted for text/quick-reference/figure Markdown, task statement, reflection/exercise prompt, MCQ question, worked-example code, and resource description. Prefer explicit named fields for lossless export.
 

@@ -4,18 +4,18 @@ import { CourseOutline } from "./CourseOutline";
 type Item = { id: string; title: string; [key: string]: any };
 export function CourseManager({
   course,
-  initialModules,
+  initialChapters,
   initialLessons,
   initialStaff,
   admin,
 }: {
   course: Item;
-  initialModules: Item[];
+  initialChapters: Item[];
   initialLessons: Item[];
   initialStaff: Item[];
   admin: boolean;
 }) {
-  const [modules, setModules] = useState(initialModules),
+  const [chapters, setChapters] = useState(initialChapters),
     [lessons, setLessons] = useState(initialLessons),
     [staff, setStaff] = useState(initialStaff),
     [users, setUsers] = useState<Item[]>([]),
@@ -50,7 +50,7 @@ export function CourseManager({
           "Could not reload the outline. Refresh the page to see the latest saved content.",
         );
       const c = await r.json();
-      setModules(c.modules);
+      setChapters(c.chapters);
       setLessons(c.lessons);
       setStaff(c.staff);
     } catch (e) {
@@ -68,8 +68,8 @@ export function CourseManager({
       </p>
       <CourseOutline
         course={course}
-        modules={modules}
-        chapters={lessons}
+        chapters={chapters}
+        lessons={lessons}
         admin={admin}
         busy={busy}
         perform={request}
