@@ -48,15 +48,14 @@ async function main() {
           break;
         case "code-exercise":
           b.starterCode = 'greeting = ""\n# Display greeting below';
-          b.prompt = 'Set `greeting` to `"Hello"`, then print it.';
+          b.instructions = 'Set `greeting` to `"Hello"`, then print it.';
           b.solution = 'greeting = "Hello"\nprint(greeting)';
           b.checkScript =
             'assert greeting == "Hello", "Set greeting to Hello."';
-          b.reviewPrinciples =
-            "Use a descriptive variable name.\nPrint the stored value.";
-          b.styleConfig = "Prefer snake_case for variable names.";
-          b.randomisation = "No randomisation for this introductory exercise.";
           b.expectedOutput = "Hello";
+          b.additionalPenalties =
+            "Deduct marks for missing the greeting variable.";
+          b.ignoredIssues = "Ignore quote style and extra blank lines.";
           break;
         case "reflection":
           b.prompt = "How does assigning a value differ from displaying it?";
@@ -73,18 +72,6 @@ async function main() {
           b.runtimePath = "/data/example.csv";
           b.description =
             "Replace this example URL with your own downloadable data. Runtime files are not downloaded automatically.";
-          break;
-        case "code-review":
-          b.title = "Greeting review";
-          b.purpose = "Help the learner connect assignment with output.";
-          b.mechanism = "Review the code against the criteria.";
-          b.output = "One strength and one suggestion.";
-          b.keyIdeas = "Correct assignment and output.";
-          b.misconceptions = "Printing the variable name as a literal string.";
-          b.variants = "Single or double quotes are acceptable.";
-          b.additionalPenalties =
-            "Deduct marks for missing the greeting variable.";
-          b.issuesToIgnore = "Ignore quote style and extra blank lines.";
           break;
       }
     }

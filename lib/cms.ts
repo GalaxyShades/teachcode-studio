@@ -109,12 +109,8 @@ export function emptyDraft(): LessonDraft {
     slug: "untitled",
     description: "",
     track: "Python",
-    level: "year 1",
-    mode: "lesson",
     programmingLanguage: "Python",
     tags: [],
-    presentation: "guided",
-    runtimeScope: "per-step",
     version: 0,
     steps: [{ id: crypto.randomUUID(), title: "Step 1", blocks: [] }],
   };

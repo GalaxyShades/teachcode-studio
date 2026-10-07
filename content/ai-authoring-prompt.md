@@ -24,9 +24,11 @@ One Markdown document creates one lesson. The root directive is `:::lesson`.
 - For coding exercises, provide a small runnable starter, solution, expectedOutput,
   and a checkScript appropriate to the language. Use execution="browser" and
   standard-library examples without network, package installation, or file dependencies.
-- Rubrics, code-review lists, and Learning Assistant settings are authoring
-  metadata. Do not add a tutor-config card. Do not claim that an AI tutor,
-  automatic rubric grading, or server execution is active.
+  Learner-facing exercise text belongs in instructions. When a teacher review
+  should deduct marks or leave some issues unflagged, add additionalPenalties
+  and ignoredIssues, one item per line.
+- Rubrics and Learning Assistant settings are authoring metadata. Do not claim
+  that an AI tutor, automatic rubric grading, or server execution is active.
 
 ## Output contract
 

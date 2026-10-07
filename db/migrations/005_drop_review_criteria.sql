@@ -1,0 +1,9 @@
+ALTER TABLE cms_code_exercise_blocks DROP COLUMN IF EXISTS style_config;
+ALTER TABLE cms_code_exercise_blocks DROP COLUMN IF EXISTS randomisation;
+ALTER TABLE cms_code_exercise_blocks DROP COLUMN IF EXISTS review_principles;
+ALTER TABLE cms_code_review_blocks DROP COLUMN IF EXISTS purpose;
+ALTER TABLE cms_code_review_blocks DROP COLUMN IF EXISTS mechanism;
+ALTER TABLE cms_code_review_blocks DROP COLUMN IF EXISTS output;
+ALTER TABLE cms_code_review_blocks DROP COLUMN IF EXISTS key_ideas;
+ALTER TABLE cms_code_review_blocks DROP COLUMN IF EXISTS misconceptions;
+ALTER TABLE cms_code_review_blocks DROP COLUMN IF EXISTS acceptable_variants;

@@ -9,7 +9,6 @@ export const blockTypes = [
   "code-exercise",
   "reflection",
   "data-asset",
-  "code-review",
 ] as const;
 export type BlockType = (typeof blockTypes)[number];
 const base = z.object({
@@ -70,12 +69,11 @@ export const BlockSchema = z.discriminatedUnion("type", [
     starterCode: z.string(),
     solution: z.string().optional(),
     execution: z.enum(["browser", "server"]),
-    prompt: z.string(),
+    instructions: z.string(),
     checkScript: z.string().optional(),
     expectedOutput: z.string().optional(),
-    styleConfig: z.string().default(""),
-    randomisation: z.string().default(""),
-    reviewPrinciples: z.string().default(""),
+    additionalPenalties: z.string().optional(),
+    ignoredIssues: z.string().optional(),
   }),
   base.extend({
     type: z.literal("reflection"),
@@ -93,34 +91,16 @@ export const BlockSchema = z.discriminatedUnion("type", [
     runtimePath: z.string().optional(),
     description: z.string(),
   }),
-  base.extend({
-    type: z.literal("code-review"),
-    title: z.string(),
-    purpose: z.string(),
-    mechanism: z.string(),
-    output: z.string(),
-    keyIdeas: z.string(),
-    misconceptions: z.string(),
-    variants: z.string(),
-    additionalPenalties: z.string(),
-    issuesToIgnore: z.string(),
-  }),
 ]);
 export const AssistantSchema = z.object({
-  mode: z.string(),
-  chips: z.string(),
+  suggestedQuestions: z.string(),
   constraints: z.string(),
-  llmAllowed: z.boolean(),
-  copyingAllowed: z.boolean(),
 });
 export type AssistantSettings = z.infer<typeof AssistantSchema>;
 export function emptyAssistant(): AssistantSettings {
   return {
-    mode: "hint",
-    chips: "",
+    suggestedQuestions: "",
     constraints: "",
-    llmAllowed: false,
-    copyingAllowed: false,
   };
 }
 export type Block = z.infer<typeof BlockSchema>;
@@ -130,12 +110,8 @@ export const LessonSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]+$/),
   description: z.string(),
   track: z.enum(["Python", "R", "literacy"]),
-  level: z.enum(["year 1", "year 2", "advanced"]),
-  mode: z.enum(["lesson", "exercise", "quiz"]),
   programmingLanguage: z.enum(["Python", "R", ""]),
   tags: z.array(z.string()),
-  presentation: z.string(),
-  runtimeScope: z.enum(["per-step", "lesson-wide"]),
   version: z.number().int().nonnegative().optional(),
   sourceMarkdown: z.string().optional(),
   steps: z
@@ -211,10 +187,9 @@ export const defaults: { [K in BlockType]: () => Extract<Block, { type: K }> } =
       language: "python",
       starterCode: "# Write your code here",
       execution: "browser",
-      prompt: "Write a program.",
-      styleConfig: "",
-      randomisation: "",
-      reviewPrinciples: "",
+      instructions: "Write a program.",
+      additionalPenalties: "",
+      ignoredIssues: "",
     }),
     reflection: () => ({
       id: uid(),
@@ -230,20 +205,6 @@ export const defaults: { [K in BlockType]: () => Extract<Block, { type: K }> } =
       url: "https://example.edu/data.csv",
       filename: "data.csv",
       description: "",
-    }),
-    "code-review": () => ({
-      id: uid(),
-      type: "code-review",
-      visible: true,
-      title: "Review",
-      purpose: "",
-      mechanism: "",
-      output: "",
-      keyIdeas: "",
-      misconceptions: "",
-      variants: "",
-      additionalPenalties: "",
-      issuesToIgnore: "",
     }),
   };
 export function validateDraft(v: unknown) {

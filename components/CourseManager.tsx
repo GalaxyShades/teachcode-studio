@@ -6,20 +6,15 @@ export function CourseManager({
   course,
   initialChapters,
   initialLessons,
-  initialStaff,
   admin,
 }: {
   course: Item;
   initialChapters: Item[];
   initialLessons: Item[];
-  initialStaff: Item[];
   admin: boolean;
 }) {
   const [chapters, setChapters] = useState(initialChapters),
     [lessons, setLessons] = useState(initialLessons),
-    [staff, setStaff] = useState(initialStaff),
-    [users, setUsers] = useState<Item[]>([]),
-    [query, setQuery] = useState(""),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false);
   const base = `/api/courses/${course.id}`;
@@ -52,7 +47,6 @@ export function CourseManager({
       const c = await r.json();
       setChapters(c.chapters);
       setLessons(c.lessons);
-      setStaff(c.staff);
     } catch (e) {
       setStatus(
         e instanceof Error
@@ -75,76 +69,6 @@ export function CourseManager({
         perform={request}
         refresh={refresh}
       />
-      {admin && (
-        <section className="card mt-5 p-4">
-          <h2 className="text-xl font-bold">Staff assignments</h2>
-          {staff.map((s) => (
-            <p
-              className="my-2 flex items-center justify-between gap-2"
-              key={s.id}
-            >
-              {s.display_name} · {s.email}
-              <button
-                className="btn-secondary"
-                disabled={busy}
-                onClick={async () => {
-                  if (
-                    await request("/assignments", "PUT", {
-                      userId: s.id,
-                      assigned: false,
-                    })
-                  )
-                    await refresh();
-                }}
-              >
-                Remove assignment
-              </button>
-            </p>
-          ))}
-          {!staff.length && <p>No staff assigned.</p>}
-          <form
-            className="my-3 flex items-end gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const res = await fetch(
-                "/api/users?q=" + encodeURIComponent(query),
-              );
-              if (res.ok) setUsers(await res.json());
-              else setStatus("User search failed");
-            }}
-          >
-            <label className="label flex-1">
-              Search staff by name or email
-              <input
-                className="field"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <button className="btn-secondary">Search</button>
-          </form>
-          {users.map((u) => (
-            <p key={u.id} className="my-2 flex justify-between">
-              {u.display_name} · {u.email}
-              <button
-                className="btn-secondary"
-                disabled={busy || staff.some((s) => s.id === u.id)}
-                onClick={async () => {
-                  if (
-                    await request("/assignments", "PUT", {
-                      userId: u.id,
-                      assigned: true,
-                    })
-                  )
-                    await refresh();
-                }}
-              >
-                Assign
-              </button>
-            </p>
-          ))}
-        </section>
-      )}
     </>
   );
 }

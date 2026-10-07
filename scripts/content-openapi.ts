@@ -17,12 +17,8 @@ export const lessonExample = PublicLessonSchema.parse({
   slug: "first-python-program",
   description: "Use print to display a message.",
   track: "Python",
-  level: "year 1",
-  mode: "lesson",
   programmingLanguage: "Python",
   tags: ["beginner"],
-  presentation: "guided",
-  runtimeScope: "per-step",
   steps: [
     {
       id: "first-program",

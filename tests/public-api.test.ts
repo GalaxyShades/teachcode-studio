@@ -34,18 +34,12 @@ describe("content API contract", () => {
       version: 99,
       privateNote: "PRIVATE ROOT",
       courseAssistant: {
-        mode: "hint",
-        chips: "PRIVATE_COURSE_ASSISTANT",
+        suggestedQuestions: "PRIVATE_COURSE_ASSISTANT",
         constraints: "PRIVATE_COURSE_CONSTRAINT",
-        llmAllowed: true,
-        copyingAllowed: true,
       },
       lessonAssistant: {
-        mode: "hint",
-        chips: "PRIVATE_LESSON_ASSISTANT",
+        suggestedQuestions: "PRIVATE_LESSON_ASSISTANT",
         constraints: "PRIVATE_LESSON_CONSTRAINT",
-        llmAllowed: true,
-        copyingAllowed: false,
       },
       steps: [
         {
@@ -54,12 +48,16 @@ describe("content API contract", () => {
           privateNote: "PRIVATE STEP",
           blocks: [
             ...blocks.map((b) =>
-              b.type === "code-review"
+              b.type === "code-exercise"
                 ? {
                     ...b,
                     privateNote: "PRIVATE BLOCK",
                     additionalPenalties: "PRIVATE_PENALTY",
-                    issuesToIgnore: "PRIVATE_IGNORE",
+                    ignoredIssues: "PRIVATE_IGNORE",
+                    issuesToIgnore: "PRIVATE_OLD_IGNORE",
+                    prompt: "PRIVATE_OLD_PROMPT",
+                    solution: "PRIVATE_SOLUTION",
+                    checkScript: "PRIVATE_CHECK",
                   }
                 : { ...b, privateNote: "PRIVATE BLOCK" },
             ),
@@ -84,6 +82,15 @@ describe("content API contract", () => {
       },
     });
     expect(new Set(output.steps[0].blocks.map((b) => b.type)).size).toBe(9);
+    const exercise = output.steps[0].blocks.find(
+      (b) => b.type === "code-exercise",
+    );
+    expect(exercise).toMatchObject({
+      instructions: 'Set `greeting` to `"Hello"`, then print it.',
+    });
+    expect(exercise).not.toHaveProperty("prompt");
+    expect(exercise).not.toHaveProperty("ignoredIssues");
+    expect(exercise).not.toHaveProperty("issuesToIgnore");
     const json = JSON.stringify(output);
     for (const field of [
       "PRIVATE",
@@ -97,16 +104,21 @@ describe("content API contract", () => {
       "randomisation",
       "tutor-config",
       "code-review",
+      "PRIVATE_SOLUTION",
+      "PRIVATE_CHECK",
       "additionalPenalties",
+      "ignoredIssues",
       "issuesToIgnore",
+      "suggestedQuestions",
+      "chips",
       "PRIVATE_PENALTY",
       "PRIVATE_IGNORE",
+      "PRIVATE_OLD_IGNORE",
+      "PRIVATE_OLD_PROMPT",
       "courseAssistant",
       "lessonAssistant",
       "PRIVATE_COURSE_ASSISTANT",
       "PRIVATE_LESSON_ASSISTANT",
-      "llmAllowed",
-      "copyingAllowed",
     ])
       expect(json).not.toContain(field);
     const extra = structuredClone(lessonExample);

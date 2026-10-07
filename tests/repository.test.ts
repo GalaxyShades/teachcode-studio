@@ -33,12 +33,8 @@ const draft: LessonDraft = {
   slug: "test",
   description: "Test outcomes",
   track: "Python",
-  level: "year 1",
-  mode: "lesson",
   programmingLanguage: "Python",
   tags: ["a", "b"],
-  presentation: "guided",
-  runtimeScope: "per-step",
   version: 0,
   steps: [{ id: "s", title: "Step", blocks: sampleBlocks() }],
 };
@@ -82,7 +78,32 @@ describe("SQLite repository", () => {
     await assertDatabase();
     expect(
       (await db().query("SELECT * FROM cms_schema_migrations")).rowCount,
-    ).toBe(2);
+    ).toBe(6);
+    const exerciseColumns = (
+      await db().query("PRAGMA table_info(cms_code_exercise_blocks)")
+    ).rows.map((row) => row.name);
+    for (const column of ["style_config", "randomisation", "review_principles"])
+      expect(exerciseColumns).not.toContain(column);
+    for (const column of ["additional_penalties", "ignored_issues", "instructions"])
+      expect(exerciseColumns).toContain(column);
+    expect(exerciseColumns).not.toContain("prompt");
+    expect(exerciseColumns).not.toContain("issues_to_ignore");
+    expect(
+      (
+        await db().query(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='cms_code_review_blocks'",
+        )
+      ).rowCount,
+    ).toBe(0);
+    for (const [table, id] of [
+      ["cms_course_assistants", "course_id"],
+      ["cms_lesson_assistants", "revision_id"],
+    ] as const)
+      expect(
+        (await db().query(`PRAGMA table_info(${table})`)).rows.map(
+          (row) => row.name,
+        ),
+      ).toEqual([id, "suggested_questions", "constraints"]);
   });
   it("binds repeated and out-of-order parameters", async () =>
     expect(
@@ -97,6 +118,28 @@ describe("SQLite repository", () => {
     );
     expect(loaded.tags).toEqual(["a", "b"]);
     expect(loaded.steps[0].blocks).toEqual(draft.steps[0].blocks);
+    const exercise = draft.steps[0].blocks.find(
+      (b) => b.type === "code-exercise",
+    );
+    expect(exercise?.type).toBe("code-exercise");
+    if (exercise?.type === "code-exercise") {
+      const stored = (
+        await db().query(
+          "SELECT additional_penalties, ignored_issues FROM cms_code_exercise_blocks",
+        )
+      ).rows[0];
+      const lines = (value: string) =>
+        value
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
+      expect(JSON.parse(stored.additional_penalties)).toEqual(
+        lines(exercise.additionalPenalties ?? ""),
+      );
+      expect(JSON.parse(stored.ignored_issues)).toEqual(
+        lines(exercise.ignoredIssues ?? ""),
+      );
+    }
   });
   it("rolls back failed transactions", async () => {
     await expect(
@@ -150,18 +193,29 @@ describe("SQLite repository", () => {
     const p = await publishedLesson(cid, lid);
     expect(p.sourceMarkdown).toBe("");
     expect(p.version).toBeUndefined();
-    expect(
-      p.steps.flatMap((s) => s.blocks).some((b) => b.type === "code-review"),
-    ).toBe(false);
+    const exercise = p.steps
+      .flatMap((s) => s.blocks)
+      .find((b) => b.type === "code-exercise");
+    expect(exercise).toBeDefined();
+    expect(exercise).not.toHaveProperty("additionalPenalties");
+    expect(exercise).not.toHaveProperty("ignoredIssues");
+    expect(exercise).not.toHaveProperty("issuesToIgnore");
+    expect(exercise).not.toHaveProperty("prompt");
+    if (exercise?.type === "code-exercise")
+      expect(exercise.instructions).toBeTruthy();
+    expect(exercise).not.toHaveProperty("solution");
+    expect(exercise).not.toHaveProperty("checkScript");
     const published = JSON.stringify(p);
+    expect(published).not.toContain("code-review");
     for (const field of [
       "checkScript",
       "additionalPenalties",
+      "ignoredIssues",
       "issuesToIgnore",
+      "suggestedQuestions",
+      "chips",
       "courseAssistant",
       "lessonAssistant",
-      "llmAllowed",
-      "copyingAllowed",
     ])
       expect(published).not.toContain(field);
   });

@@ -3,7 +3,7 @@ import { getCourse } from "@/lib/cms";
 import { CourseSettings } from "@/components/CourseSettings";
 import { CourseManager } from "@/components/CourseManager";
 import { resolveEditorCourse } from "@/lib/editor-routes";
-import { coursePath } from "@/lib/paths";
+import { assignmentsPath, coursePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
 export default async function Course({
   params,
@@ -15,7 +15,7 @@ export default async function Course({
   if (`/courses/${key}` !== coursePath(resolved))
     redirect(coursePath(resolved));
   const courseId = resolved.id;
-  const { course, chapters, lessons, staff, user } = await getCourse(courseId);
+  const { course, chapters, lessons, user } = await getCourse(courseId);
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6">
       <Link href="/courses" className="text-teal-800 underline">
@@ -32,6 +32,11 @@ export default async function Course({
           <span className="rounded-full border border-teal-100 bg-teal-50 px-3 py-1 text-sm font-medium capitalize text-teal-800">
             {course.status}
           </span>
+          {user.role === "admin" && (
+            <Link href={assignmentsPath(resolved)} className="btn-secondary">
+              Staff assignments
+            </Link>
+          )}
           {user.role === "admin" && <CourseSettings course={course as any} />}
         </div>
       </header>
@@ -39,7 +44,6 @@ export default async function Course({
         course={course as any}
         initialChapters={chapters as any}
         initialLessons={lessons as any}
-        initialStaff={staff as any}
         admin={user.role === "admin"}
       />
     </main>

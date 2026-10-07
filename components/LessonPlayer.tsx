@@ -10,7 +10,7 @@ export function LessonPlayer({ draft }: { draft: LessonDraft }) {
       <p className="font-semibold text-teal-800">TeachCode lesson</p>
       <h1 className="my-3 text-3xl font-bold">{draft.title}</h1>
       <div className="flex flex-wrap gap-2">
-        {[draft.track, draft.level, draft.mode, ...draft.tags].map((s, i) => (
+        {[draft.track, ...draft.tags].map((s, i) => (
           <span
             key={i}
             className="rounded bg-teal-50 px-2 py-1 text-sm text-teal-900"

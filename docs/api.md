@@ -4,41 +4,48 @@ For student-app integration, start with the [lesson content API guide](lesson-co
 
 Studio content is Course → Chapter → Lesson. A chapter groups lessons. A lesson is the editable document. API path parameters use internal IDs, while UI links use readable slugs.
 
-Authoring endpoints under `/api/courses` require an admin or assigned-staff session. The public API lists published courses, retrieves their chapter/lesson outlines, and serves individual published lessons. Studio does not currently provide API-key or service-account authentication. Learning Assistant settings, source Markdown, solutions, check scripts, rubrics, and code-review configuration are authoring data and are omitted from public responses.
+Authoring endpoints under `/api/courses` require an admin or assigned-staff session. The public API lists published courses, retrieves their chapter/lesson outlines, and serves individual published lessons. Studio does not currently provide API-key or service-account authentication. Learning Assistant settings, source Markdown, solutions, check scripts, rubrics, additional penalties, and ignored issues are authoring data and are omitted from public responses.
 
 All authenticated endpoints use the HTTP-only `teachcode_cms_session` cookie. Login rotates the current browser session; logout revokes the database token. Sessions expire after seven days. Cookies use SameSite=Lax and Secure in production. Only admin/staff roles receive CMS sessions. All mutations check authorization on the server, and cross-origin mutation requests are rejected.
 
 Authoring bodies are JSON and validated with Zod. Authoring errors return `{ "error": "message" }`, optionally `issues` for validation. Statuses: 400 invalid input, 401 unauthenticated, 403 forbidden, 404 missing resource, 409 version/uniqueness/order conflict, 500 unexpected server/setup error. No endpoint executes learner code on the server.
 
-| Method        | Path                                                  | Behavior / role                                                                       |
-| ------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| POST          | /api/auth/login                                       | `{email,password}`; establish session                                                 |
-| GET           | /api/auth/session                                     | `{user: User or null}`                                                                |
-| DELETE        | /api/auth/session                                     | Revoke session and clear cookie                                                       |
-| GET           | /api/courses                                          | Admin: all; staff: assigned only                                                      |
-| POST          | /api/courses                                          | Admin; `{title,slug,description}`                                                     |
-| GET           | /api/courses/:courseId                                | Course, chapters, lessons, assigned staff (admin only), user                          |
-| PATCH         | /api/courses/:courseId                                | Admin; `{title,slug,description,status}`                                              |
-| GET           | /api/courses/:courseId/chapters                       | Ordered chapters                                                                      |
-| POST          | /api/courses/:courseId/chapters                       | Admin; `{title}` creates, `{id,title}` renames                                        |
-| DELETE        | /api/courses/:courseId/chapters                       | Admin; `{id}`; chapter must be empty                                                  |
-| GET           | /api/courses/:courseId/lessons                        | Ordered lessons                                                                       |
-| POST          | /api/courses/:courseId/lessons                        | Admin; creates an empty draft                                                         |
-| PATCH         | /api/courses/:courseId/lessons/:lessonId              | Admin; `{chapterId: string or null}`                                                  |
-| DELETE        | /api/courses/:courseId/lessons/:lessonId              | Admin; archives and unpublishes                                                       |
-| GET           | /api/courses/:courseId/lessons/:lessonId/draft        | Assigned staff/admin; `{lesson,draft,courseAssistant,lessonAssistant}`                |
-| PUT           | /api/courses/:courseId/lessons/:lessonId/draft        | Assigned staff/admin; LessonDraft plus optional assistant settings and version        |
-| POST          | /api/courses/:courseId/lessons/:lessonId/publish      | Admin; LessonDraft plus optional assistant settings; validate/save/clone atomically   |
-| DELETE        | /api/courses/:courseId/lessons/:lessonId/publish      | Admin; unpublish                                                                      |
-| PUT           | /api/courses/:courseId/reorder                        | Admin; `{kind: "chapters" or "lessons", ids: [...]}`; every course item exactly once  |
-| GET           | /api/courses/:courseId/assignments                    | Admin; assigned staff                                                                 |
-| PUT           | /api/courses/:courseId/assignments                    | Admin; `{userId,assigned: boolean}`                                                   |
-| GET           | /api/users?q=...                                      | Admin; up to 50 matching staff names/emails                                           |
-| GET / OPTIONS | /api/v1/content/courses/:courseId/lessons/:lessonId   | Public selected published revision                                                    |
+| Method | Path                                             | Behavior / role                                                                      |
+| ------ | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| POST   | /api/auth/login                                  | `{email,password}`; establish session                                                |
+| GET    | /api/auth/session                                | `{user: User or null}`                                                               |
+| DELETE | /api/auth/session                                | Revoke session and clear cookie                                                      |
+| GET    | /api/courses                                     | Admin: all; staff: assigned only                                                     |
+| POST   | /api/courses                                     | Admin; `{title,slug,description}`                                                    |
+| GET    | /api/courses/:courseId                           | Course, chapters, lessons, assigned staff (admin only), user                         |
+| PATCH  | /api/courses/:courseId                           | Admin; `{title,slug,description,status}`                                             |
+| GET    | /api/courses/:courseId/chapters                  | Ordered chapters                                                                     |
+| POST   | /api/courses/:courseId/chapters                  | Admin; `{title}` creates, `{id,title}` renames                                       |
+| DELETE | /api/courses/:courseId/chapters                  | Admin; `{id}`; chapter must be empty                                                 |
+| GET    | /api/courses/:courseId/lessons                   | Ordered lessons                                                                      |
+| POST   | /api/courses/:courseId/lessons                   | Admin; creates an empty draft                                                        |
+| PATCH  | /api/courses/:courseId/lessons/:lessonId         | Admin; `{chapterId: string or null}`                                                 |
+| DELETE | /api/courses/:courseId/lessons/:lessonId         | Admin; archives and unpublishes                                                      |
+| GET    | /api/courses/:courseId/lessons/:lessonId/draft   | Assigned staff/admin; `{lesson,draft,courseAssistant,lessonAssistant}`               |
+| PUT    | /api/courses/:courseId/lessons/:lessonId/draft   | Assigned staff/admin; LessonDraft plus optional assistant settings and version       |
+| POST   | /api/courses/:courseId/lessons/:lessonId/publish | Admin; LessonDraft plus optional assistant settings; validate/save/clone atomically  |
+| DELETE | /api/courses/:courseId/lessons/:lessonId/publish | Admin; unpublish                                                                     |
+| PUT    | /api/courses/:courseId/reorder                   | Admin; `{kind: "chapters" or "lessons", ids: [...]}`; every course item exactly once |
+| GET    | /api/courses/:courseId/assignments               | Admin; assigned staff                                                                |
+| PUT           | /api/courses/:courseId/outline                        | Admin; full chapter and lesson order in one transaction                             |
+| GET           | /api/courses/:courseId/lessons/:lessonId/history      | Assigned staff/admin; up to five published snapshots                                 |
+| POST          | /api/courses/:courseId/lessons/:lessonId/history      | Assigned staff/admin; restore a snapshot into the current draft                     |
+| PUT           | /api/courses/:courseId/assignments                    | Admin; `{userId,assigned: boolean}`                                                  |
+| GET           | /api/users?q=...                                      | Admin; up to 50 matching staff names/emails                                          |
+| GET / OPTIONS | /api/v1/content/courses                               | Public courses that have a published lesson                                          |
+| GET / OPTIONS | /api/v1/content/courses/:courseId                     | Public course, ordered chapters, and unassigned lessons                              |
+| GET / OPTIONS | /api/v1/content/courses/:courseId/lessons/:lessonId   | Public selected published revision                                                   |
+
+Admins assign and unassign staff at `/courses/:courseSlug/assignments`. Assigned staff can edit drafts for those courses and do not receive that page.
 
 `LessonDraft` is defined in `lib/content.ts`; its discriminated block schemas are the same schemas used by import, editor and repositories. Save and publish return `{ok,version,errors,savedAt,editor}`; publish also returns `revisionId`. Resend only after adopting the returned version. A conflict needs a fresh GET and user review; never silently overwrite it.
 
-Public content includes ordered steps and visible learner blocks. It omits the mutable draft version counter, source Markdown, solution/check scripts, private review rubrics, both Learning Assistant configurations, and code-review configuration, including additional penalties and issues to ignore. MCQ correctness remains client-visible for interactive demo feedback and is not secure assessment grading. No author check can remain secret if shipped to a learner browser, so hidden checks run only in authenticated author preview until a dedicated sandbox service is integrated.
+Public content includes ordered steps and visible learner blocks. A code exercise’s learner text is `instructions`. The response omits the mutable draft version counter, source Markdown, solutions, check scripts, `additionalPenalties`, `ignoredIssues`, reflection rubrics, and both Learning Assistant configurations (`suggestedQuestions` and `constraints`). MCQ correctness remains client-visible for interactive demo feedback and is not secure assessment grading. No author check can remain secret if shipped to a learner browser, so hidden checks run only in authenticated author preview until a dedicated sandbox service is integrated.
 
 Public API responses are `Cache-Control: no-store`; Studio public pages render dynamically. Publishing/unpublishing also revalidates the public layout. Exact origins listed in `ALLOWED_CORS_ORIGINS` receive read-only CORS headers with `Vary: Origin`. Other origins receive no CORS permission. This does not restrict direct access to public content.
 
@@ -68,7 +75,7 @@ changes. `/chapters` endpoints manage chapter groups, and `/lessons`
 endpoints manage lesson documents. `POST /lessons` also accepts an optional `chapterId` and `title` to
 create a named lesson directly inside the chosen chapter. Titles are trimmed and must contain 1–200 characters when supplied.
 
-Saving a lesson draft can include `lessonAssistant` and `courseAssistant`. Lesson settings are stored with that revision and copied into the published snapshot. Course settings are stored once on the course and apply to every lesson. Both stay off the public content API. There is no connected tutor service.
+Saving a lesson draft can include `lessonAssistant` and `courseAssistant`. Each object has `suggestedQuestions` (one question per line) and `constraints`. Lesson settings are stored with that revision and copied into the published snapshot. Course settings are stored once on the course and apply to every lesson. Both stay off the public content API. There is no connected tutor service.
 
 ## Version history
 

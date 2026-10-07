@@ -48,42 +48,75 @@ const advancedKeys = new Set([
   "expectedOutput",
   "solution",
   "checkScript",
-  "styleConfig",
-  "randomisation",
-  "reviewPrinciples",
   "rubric",
   "constraints",
-  "keyIdeas",
-  "misconceptions",
-  "variants",
 ]);
 const labels: Record<string, string> = {
-  visible: "Show to learners",
   markdown: "Text",
   statement: "Instructions",
   imageUrl: "Image URL",
-  copyingAllowed: "Allow copying",
-  chips: "Suggested questions",
+  suggestedQuestions: "Suggested questions",
   starterCode: "Starter code",
   checkScript: "Automated check (author only)",
-  llmAllowed: "Allow LLM",
-  runtimeScope: "Runtime scope",
   programmingLanguage: "Programming language",
   alt: "Alternative text",
-  reviewPrinciples: "Review principles",
   expectedOutput: "Expected output",
   additionalPenalties: "Additional penalties",
-  issuesToIgnore: "Issues to ignore",
+  ignoredIssues: "Ignored issues",
 };
+const hints: Record<string, string> = {
+  checkScript:
+    "Code that runs after the learner’s program and reports pass or fail. Only authors see this script.",
+  additionalPenalties:
+    "Extra review deductions, one per line. Learners do not see this list.",
+  ignoredIssues:
+    "Possible issues in other situations that the teacher does not want flagged for this exercise. Learners do not see this list.",
+  solution: "A sample answer for authors. Learners do not see it.",
+  expectedOutput:
+    "What a correct run should print. Learners can open it from the code runner.",
+  execution:
+    "Browser runs the code in this page. Server execution is not available.",
+  suggestedQuestions:
+    "Questions the assistant can offer. Put one question on each line.",
+  constraints:
+    "Rules for the assistant, such as what it should avoid. Learners do not see this.",
+};
+function InfoHint({ label, text }: { label: string; text: string }) {
+  const tipId = useId();
+  return (
+    <span className="group/hint relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-400 text-[10px] font-semibold leading-none text-zinc-600 hover:border-zinc-700 hover:text-zinc-900"
+        aria-label={`About ${label}`}
+        aria-describedby={tipId}
+      >
+        i
+      </button>
+      <span
+        id={tipId}
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-64 rounded-md bg-zinc-900 px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug text-white shadow-lg group-hover/hint:block group-focus-within/hint:block"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+function LabelWithHint({ label, hintKey }: { label: string; hintKey: string }) {
+  const hint = hints[hintKey];
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {label}
+      {hint ? <InfoHint label={label} text={hint} /> : null}
+    </span>
+  );
+}
 const choices: Record<string, string[]> = {
   language: ["python", "r"],
   execution: ["browser", "server"],
   track: ["Python", "R", "literacy"],
-  level: ["year 1", "year 2", "advanced"],
-  mode: ["lesson", "exercise", "quiz"],
   programmingLanguage: ["", "Python", "R"],
-  runtimeScope: ["per-step", "lesson-wide"],
-  presentation: ["guided", "all-steps"],
 };
 function move<T>(items: T[], i: number, delta: number) {
   const next = [...items];
@@ -207,6 +240,7 @@ function Fields({
               "sourceMarkdown",
               "steps",
               "advanced",
+              "visible",
             ].includes(k),
         )
         .map(([key, v]) => {
@@ -223,7 +257,9 @@ function Fields({
           if (Array.isArray(v))
             return (
               <fieldset key={key} id={id} className="mt-3 rounded border p-2">
-                <legend>{label}</legend>
+                <legend>
+                  <LabelWithHint label={label} hintKey={key} />
+                </legend>
                 {v.map((item, i) =>
                   typeof item === "object" ? (
                     <div key={item.id ?? i} className="my-2 border-b pb-2">
@@ -283,7 +319,9 @@ function Fields({
           if (typeof v === "object" && v !== null)
             return (
               <fieldset key={key} className="mt-3 border p-2">
-                <legend>{label}</legend>
+                <legend>
+                  <LabelWithHint label={label} hintKey={key} />
+                </legend>
                 <Fields path={id} value={v} onChange={set} />
                 <FieldError path={id} />
               </fieldset>
@@ -296,7 +334,7 @@ function Fields({
                   checked={v}
                   onChange={(e) => set(e.target.checked)}
                 />
-                {label}
+                <LabelWithHint label={label} hintKey={key} />
                 <FieldError path={id} />
               </label>
             );
@@ -304,7 +342,7 @@ function Fields({
           if (options)
             return (
               <label key={key} htmlFor={id} className="label mt-3 block">
-                {label}
+                <LabelWithHint label={label} hintKey={key} />
                 <select
                   id={id}
                   className="field"
@@ -328,7 +366,7 @@ function Fields({
             );
           return (
             <label key={key} htmlFor={id} className="label mt-3 block">
-              {label}
+              <LabelWithHint label={label} hintKey={key} />
               {[
                 "title",
                 "slug",
@@ -353,6 +391,11 @@ function Fields({
                   onChange={(e) => set(e.target.value)}
                 />
               )}
+              {key === "additionalPenalties" || key === "ignoredIssues" ? (
+                <span className="mt-1 block text-xs font-normal text-zinc-500">
+                  One item per line.
+                </span>
+              ) : null}
               <FieldError path={id} />
             </label>
           );
@@ -371,6 +414,8 @@ function withOptionalFields(b: Block): Block {
           solution: b.solution ?? "",
           checkScript: b.checkScript ?? "",
           expectedOutput: b.expectedOutput ?? "",
+          additionalPenalties: b.additionalPenalties ?? "",
+          ignoredIssues: b.ignoredIssues ?? "",
         }
       : {}),
     ...(b.type === "figure" ? { caption: b.caption ?? "" } : {}),
@@ -378,39 +423,37 @@ function withOptionalFields(b: Block): Block {
   } as Block;
 }
 function AssistantForm({
-  legend,
+  labelledBy,
   description,
   value,
   onChange,
 }: {
-  legend: string;
+  labelledBy: string;
   description: string;
   value: AssistantSettings;
   onChange: (next: AssistantSettings) => void;
 }) {
   return (
-    <fieldset className="rounded-xl border bg-white p-4">
-      <legend className="px-1 font-semibold">{legend}</legend>
-      <p className="mt-1 text-sm text-zinc-600">{description}</p>
+    <div
+      role="tabpanel"
+      id={`${labelledBy}-panel`}
+      aria-labelledby={labelledBy}
+      className="rounded-xl border bg-white p-4"
+    >
+      <p className="text-sm text-zinc-600">{description}</p>
       <label className="label mt-3 block">
-        Mode
-        <input
-          className="field"
-          value={value.mode}
-          onChange={(e) => onChange({ ...value, mode: e.target.value })}
-        />
-      </label>
-      <label className="label mt-3 block">
-        Suggested questions
+        <LabelWithHint label="Suggested questions" hintKey="suggestedQuestions" />
         <textarea
           className="field"
           rows={3}
-          value={value.chips}
-          onChange={(e) => onChange({ ...value, chips: e.target.value })}
+          value={value.suggestedQuestions}
+          onChange={(e) =>
+            onChange({ ...value, suggestedQuestions: e.target.value })
+          }
         />
       </label>
       <label className="label mt-3 block">
-        Constraints
+        <LabelWithHint label="Constraints" hintKey="constraints" />
         <textarea
           className="field"
           rows={3}
@@ -418,27 +461,7 @@ function AssistantForm({
           onChange={(e) => onChange({ ...value, constraints: e.target.value })}
         />
       </label>
-      <label className="mt-3 flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={value.llmAllowed}
-          onChange={(e) =>
-            onChange({ ...value, llmAllowed: e.target.checked })
-          }
-        />
-        Allow LLM
-      </label>
-      <label className="mt-3 flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={value.copyingAllowed}
-          onChange={(e) =>
-            onChange({ ...value, copyingAllowed: e.target.checked })
-          }
-        />
-        Allow copying
-      </label>
-    </fieldset>
+    </div>
   );
 }
 export default function LessonEditor({
@@ -473,6 +496,9 @@ export default function LessonEditor({
     saving = useRef(false),
     paused = useRef(false);
   const [tab, setTab] = useState("rich"),
+    [assistantScope, setAssistantScope] = useState<"lesson" | "course">(
+      "lesson",
+    ),
     [mobile, setMobile] = useState("editor"),
     [status, setStatus] = useState("Saved"),
     [busy, setBusy] = useState(false),
@@ -657,9 +683,11 @@ export default function LessonEditor({
         setPinnedId(null);
         return;
       }
+      // Activate the component nearest the top once its top enters this band.
+      const lead = 100;
       let current = nodes[0];
       for (const node of nodes)
-        if (node.getBoundingClientRect().top - top <= 24) current = node;
+        if (node.getBoundingClientRect().top - top <= lead) current = node;
       const id = current.dataset.componentId ?? null;
       setPinnedId(id);
     };
@@ -675,7 +703,7 @@ export default function LessonEditor({
       wide.removeEventListener("change", onScroll);
       cancelAnimationFrame(frame);
     };
-  }, [showPreview, activeStepId, draft, mobile]);
+  }, [showPreview, activeStepId, draft, mobile, tab]);
   useEffect(() => {
     const editor = editorPaneRef.current;
     if (!editor || !pinnedId || !showPreview) return;
@@ -684,10 +712,12 @@ export default function LessonEditor({
       `[data-component-id="${CSS.escape(pinnedId)}"]`,
     );
     if (!card) return;
+    const gap = 32;
     const delta =
-      card.getBoundingClientRect().top - editor.getBoundingClientRect().top;
-    if (Math.abs(delta) > 4)
-      editor.scrollTo({ top: editor.scrollTop + delta });
+      card.getBoundingClientRect().top -
+      editor.getBoundingClientRect().top -
+      gap;
+    if (Math.abs(delta) > 4) editor.scrollTo({ top: editor.scrollTop + delta });
   }, [pinnedId, showPreview]);
   function parse(source: string) {
     setMarkdown(source);
@@ -831,27 +861,81 @@ export default function LessonEditor({
               onRestore={restore}
             />
           </header>
-          <section
-            className={`mx-auto mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-teal-100 bg-teal-50/70 p-4 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
-            aria-label="Authoring help"
+          <nav
+            className={`mx-auto mb-5 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-2 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
+            aria-label="Editor mode"
           >
-            <div>
-              <h2 className="text-sm font-semibold text-teal-900">
-                Have slides or a document?
-              </h2>
-              <p className="mt-1 text-sm text-zinc-600">
-                Start with a template or turn your source into a lesson with
-                AI.
-              </p>
-            </div>
-            <AuthoringGuide
-              {...resources}
-              template={resources.template.replace(
-                'slug="component-reference"',
-                `slug=${JSON.stringify(draft.slug)}`,
-              )}
-            />
-          </section>
+            <button
+              aria-pressed={tab === "rich"}
+              className={tab === "rich" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setTab("rich")}
+            >
+              Rich Editor
+            </button>
+            <button
+              aria-pressed={tab === "markdown"}
+              className={tab === "markdown" ? "btn-primary" : "btn-secondary"}
+              onClick={() => {
+                setTab("markdown");
+                if (!parseErrors.length)
+                  setMarkdown(serializeLessonMarkdown(latest.current));
+              }}
+            >
+              Markdown
+            </button>
+            <button
+              aria-pressed={tab === "assistant"}
+              className={tab === "assistant" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setTab("assistant")}
+            >
+              Assistant
+            </button>
+            <label className="btn-secondary cursor-pointer">
+              Import Markdown
+              <input
+                className="sr-only"
+                type="file"
+                accept=".md,.markdown,text/markdown,text/plain"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    parse(await file.text());
+                    setTab("markdown");
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob(
+                    [
+                      parseErrors.length
+                        ? markdown
+                        : serializeLessonMarkdown(latest.current),
+                    ],
+                    { type: "text/markdown" },
+                  ),
+                );
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${draft.slug}.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Export
+            </button>
+            <button
+              className="btn-secondary ml-auto hidden lg:inline-flex"
+              aria-pressed={showPreview}
+              onClick={() => setShowPreview(!showPreview)}
+            >
+              {showPreview ? "Hide preview" : "Show preview"}
+            </button>
+          </nav>
           {!!errors.length && (
             <section
               role="alert"
@@ -872,495 +956,513 @@ export default function LessonEditor({
               </ul>
             </section>
           )}
-          <div className="my-2 flex gap-2 lg:hidden">
-            <button
-              className="btn-secondary"
-              onClick={() => setMobile("editor")}
-            >
-              Editor
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => setMobile("preview")}
-            >
-              Preview
-            </button>
-          </div>
-          <section
-            className="mx-auto mb-6 grid max-w-7xl gap-4 lg:grid-cols-2"
-            aria-label="Learning Assistant"
-          >
-            <AssistantForm
-              legend="Course Learning Assistant"
-              description="These settings apply to every lesson in this course."
-              value={courseAssistant}
-              onChange={updateCourseAssistant}
-            />
-            <AssistantForm
-              legend="This lesson"
-              description="These settings apply only to this lesson."
-              value={lessonAssistant}
-              onChange={updateLessonAssistant}
-            />
-          </section>
-          <div
-            className={`mx-auto grid gap-6 ${showPreview ? "max-w-7xl lg:sticky lg:top-0 lg:z-10 lg:h-dvh lg:grid-cols-2 lg:items-stretch lg:overflow-hidden lg:bg-zinc-50" : "max-w-4xl"}`}
-          >
+          {tab === "assistant" ? (
             <section
-              ref={editorPaneRef}
-              className={`min-w-0 lg:min-h-0 ${mobile === "preview" ? "hidden lg:block" : ""} ${showPreview ? "lg:h-full lg:overflow-y-auto lg:overscroll-contain" : ""}`}
+              className={`mx-auto mb-6 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
+              aria-label="Learning Assistant"
             >
-              <nav
-                className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-2"
-                aria-label="Editor mode"
+              <div
+                role="tablist"
+                aria-label="Learning Assistant"
+                className="mb-4 flex flex-wrap gap-2"
               >
                 <button
-                  aria-pressed={tab === "rich"}
-                  className={tab === "rich" ? "btn-primary" : "btn-secondary"}
-                  onClick={() => setTab("rich")}
+                  id="assistant-lesson"
+                  role="tab"
+                  aria-selected={assistantScope === "lesson"}
+                  aria-controls="assistant-lesson-panel"
+                  className={
+                    assistantScope === "lesson"
+                      ? "btn-primary"
+                      : "btn-secondary"
+                  }
+                  onClick={() => setAssistantScope("lesson")}
                 >
-                  Rich Editor
+                  This lesson
                 </button>
                 <button
-                  aria-pressed={tab === "markdown"}
+                  id="assistant-course"
+                  role="tab"
+                  aria-selected={assistantScope === "course"}
+                  aria-controls="assistant-course-panel"
                   className={
-                    tab === "markdown" ? "btn-primary" : "btn-secondary"
+                    assistantScope === "course"
+                      ? "btn-primary"
+                      : "btn-secondary"
                   }
-                  onClick={() => {
-                    setTab("markdown");
-                    if (!parseErrors.length)
-                      setMarkdown(serializeLessonMarkdown(latest.current));
-                  }}
+                  onClick={() => setAssistantScope("course")}
                 >
-                  Markdown
+                  Course
                 </button>
-                <label className="btn-secondary cursor-pointer">
-                  Import Markdown
-                  <input
-                    className="sr-only"
-                    type="file"
-                    accept=".md,.markdown,text/markdown,text/plain"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        parse(await file.text());
-                        setTab("markdown");
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
+              </div>
+              {assistantScope === "lesson" ? (
+                <AssistantForm
+                  labelledBy="assistant-lesson"
+                  description="These settings apply only to this lesson."
+                  value={lessonAssistant}
+                  onChange={updateLessonAssistant}
+                />
+              ) : (
+                <AssistantForm
+                  labelledBy="assistant-course"
+                  description="These settings apply to every lesson in this course."
+                  value={courseAssistant}
+                  onChange={updateCourseAssistant}
+                />
+              )}
+            </section>
+          ) : (
+            <>
+              <section
+                className={`mx-auto mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-teal-100 bg-teal-50/70 p-4 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
+                aria-label="Authoring help"
+              >
+                <div>
+                  <h2 className="text-sm font-semibold text-teal-900">
+                    Have slides or a document?
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Start with a template or turn your source into a lesson with
+                    AI.
+                  </p>
+                </div>
+                <AuthoringGuide
+                  {...resources}
+                  template={resources.template.replace(
+                    'slug="component-reference"',
+                    `slug=${JSON.stringify(draft.slug)}`,
+                  )}
+                />
+              </section>
+              <div className="my-2 flex gap-2 lg:hidden">
                 <button
                   className="btn-secondary"
-                  onClick={() => {
-                    const url = URL.createObjectURL(
-                      new Blob(
-                        [
-                          parseErrors.length
-                            ? markdown
-                            : serializeLessonMarkdown(latest.current),
-                        ],
-                        { type: "text/markdown" },
-                      ),
-                    );
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${draft.slug}.md`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
+                  onClick={() => setMobile("editor")}
                 >
-                  Export
+                  Editor
                 </button>
                 <button
-                  className="btn-secondary ml-auto hidden lg:inline-flex"
-                  aria-pressed={showPreview}
-                  onClick={() => setShowPreview(!showPreview)}
+                  className="btn-secondary"
+                  onClick={() => setMobile("preview")}
                 >
-                  {showPreview ? "Hide preview" : "Show preview"}
+                  Preview
                 </button>
-              </nav>
-              {tab === "markdown" ? (
-                <label className="label mt-4 block">
-                  Lesson Markdown
-                  <textarea
-                    className="field h-[650px] font-mono"
-                    value={markdown}
-                    onChange={(e) => parse(e.target.value)}
-                    aria-invalid={!!parseErrors.length}
-                  />
-                </label>
-              ) : (
-                <>
-                  <details className="mt-4">
-                    <summary className="cursor-pointer font-semibold">
-                      Lesson details
-                    </summary>
-                    <Fields value={draft} path="metadata" onChange={change} />
-                  </details>
-                  <nav
-                    aria-label="Lesson steps"
-                    className="my-5 flex flex-wrap items-center gap-2"
-                  >
-                    {draft.steps.map((step, index) => (
-                      <button
-                        key={step.id}
-                        className={`rounded-full px-4 py-2 text-sm font-medium ${step.id === activeStep?.id ? "bg-teal-700 text-white" : "bg-white text-zinc-600 hover:bg-zinc-100 border"}`}
-                        aria-current={
-                          step.id === activeStep?.id ? "step" : undefined
-                        }
-                        onClick={() => setActiveStepId(step.id)}
+              </div>
+              <div
+                className={`mx-auto grid gap-6 ${showPreview ? "max-w-7xl lg:sticky lg:top-0 lg:z-10 lg:h-dvh lg:grid-cols-2 lg:items-stretch lg:overflow-hidden" : "max-w-4xl"}`}
+              >
+                <section
+                  ref={editorPaneRef}
+                  className={`min-w-0 lg:min-h-0 ${mobile === "preview" ? "hidden lg:block" : ""} ${showPreview ? "lg:h-full lg:overflow-y-auto lg:overscroll-contain" : ""}`}
+                >
+                  {tab === "markdown" ? (
+                    <label className="label mt-4 block">
+                      Lesson Markdown
+                      <textarea
+                        className="field h-[650px] font-mono"
+                        value={markdown}
+                        onChange={(e) => parse(e.target.value)}
+                        aria-invalid={!!parseErrors.length}
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <details className="mt-4">
+                        <summary className="cursor-pointer font-semibold">
+                          Lesson details
+                        </summary>
+                        <Fields
+                          value={draft}
+                          path="metadata"
+                          onChange={change}
+                        />
+                      </details>
+                      <nav
+                        aria-label="Lesson steps"
+                        className="my-5 flex flex-wrap items-center gap-2"
                       >
-                        {index + 1}. {step.title}
-                      </button>
-                    ))}
-                    <button
-                      className="rounded-full px-3 py-2 text-sm text-teal-800 hover:bg-teal-50"
-                      onClick={() => {
-                        const step = {
-                          id: crypto.randomUUID(),
-                          title: `Step ${draft.steps.length + 1}`,
-                          blocks: [],
-                        };
-                        steps([...draft.steps, step]);
-                        setActiveStepId(step.id);
-                      }}
-                    >
-                      ＋ Add step
-                    </button>
-                  </nav>
-                  {activeStep &&
-                    (() => {
-                      const s = activeStep,
-                        si = activeStepIndex;
-                      return (
-                        <section id={`steps.${si}`}>
-                          <div className="mb-4 flex items-center gap-3">
-                            <label className="min-w-0 flex-1">
-                              <span className="sr-only">Step title</span>
-                              <input
-                                aria-label="Step title"
-                                className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xl font-semibold hover:border-zinc-300 focus:bg-white"
-                                value={s.title}
-                                onChange={(e) =>
-                                  steps(
-                                    draft.steps.map((x, i) =>
-                                      i === si
-                                        ? { ...x, title: e.target.value }
-                                        : x,
-                                    ),
-                                  )
-                                }
-                              />
-                            </label>
-                            <span className="text-xs text-zinc-500">
-                              {s.blocks.length} cards
-                            </span>
-                            <ActionMenu label="Step actions">
-                              <button
-                                className="btn-secondary"
-                                disabled={!si}
-                                onClick={() => steps(move(draft.steps, si, -1))}
-                              >
-                                Move step earlier
-                              </button>
-                              <button
-                                className="btn-secondary"
-                                disabled={si === draft.steps.length - 1}
-                                onClick={() => steps(move(draft.steps, si, 1))}
-                              >
-                                Move step later
-                              </button>
-                              <button
-                                className="btn-secondary"
-                                onClick={() => {
-                                  const copy = clone(s);
-                                  steps([
-                                    ...draft.steps.slice(0, si + 1),
-                                    copy,
-                                    ...draft.steps.slice(si + 1),
-                                  ]);
-                                  setActiveStepId(copy.id);
-                                  setCollapsed(
-                                    new Set([
-                                      ...collapsed,
-                                      ...copy.blocks.map((b) => b.id),
-                                    ]),
-                                  );
-                                }}
-                              >
-                                Duplicate step
-                              </button>
-                              <button
-                                className="btn-secondary text-red-700"
-                                disabled={draft.steps.length === 1}
-                                onClick={() =>
-                                  setRemove(
-                                    () => () =>
+                        {draft.steps.map((step, index) => (
+                          <button
+                            key={step.id}
+                            className={`rounded-full px-4 py-2 text-sm font-medium ${step.id === activeStep?.id ? "bg-teal-700 text-white" : "bg-white text-zinc-600 hover:bg-zinc-100 border"}`}
+                            aria-current={
+                              step.id === activeStep?.id ? "step" : undefined
+                            }
+                            onClick={() => setActiveStepId(step.id)}
+                          >
+                            {index + 1}. {step.title}
+                          </button>
+                        ))}
+                        <button
+                          className="rounded-full px-3 py-2 text-sm text-teal-800 hover:bg-teal-50"
+                          onClick={() => {
+                            const step = {
+                              id: crypto.randomUUID(),
+                              title: `Step ${draft.steps.length + 1}`,
+                              blocks: [],
+                            };
+                            steps([...draft.steps, step]);
+                            setActiveStepId(step.id);
+                          }}
+                        >
+                          ＋ Add step
+                        </button>
+                      </nav>
+                      {activeStep &&
+                        (() => {
+                          const s = activeStep,
+                            si = activeStepIndex;
+                          return (
+                            <section id={`steps.${si}`}>
+                              <div className="mb-4 flex items-center gap-3">
+                                <label className="min-w-0 flex-1">
+                                  <span className="sr-only">Step title</span>
+                                  <input
+                                    aria-label="Step title"
+                                    className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xl font-semibold hover:border-zinc-300 focus:bg-white"
+                                    value={s.title}
+                                    onChange={(e) =>
                                       steps(
-                                        latest.current.steps.filter(
-                                          (x) => x.id !== s.id,
-                                        ),
-                                      ),
-                                  )
-                                }
-                              >
-                                Delete step
-                              </button>
-                            </ActionMenu>
-                          </div>
-                          <p className="mb-4 text-xs text-zinc-500">
-                            Drag a card to reorder. Select Edit to change its
-                            content.
-                          </p>
-                          <SortableList
-                            surface
-                            label={(b) => `${cardNames[b.type]} card`}
-                            items={s.blocks}
-                            onChange={(next) => blocks(si, next)}
-                            render={(b, bi) => (
-                              <div
-                                id={`steps.${si}.blocks.${bi}`}
-                                data-component-id={b.id}
-                                tabIndex={-1}
-                                className={
-                                  showPreview && pinnedId === b.id
-                                    ? "lg:sticky lg:top-0 lg:z-20"
-                                    : undefined
-                                }
-                              >
-                                <EditorCard
-                                  block={b}
-                                  index={bi}
-                                  highlighted={showPreview && pinnedId === b.id}
-                                  open={!collapsed.has(b.id)}
-                                  onToggle={() => toggle(b.id)}
-                                  actions={
-                                    <>
-                                      <button
-                                        className="btn-secondary"
-                                        disabled={!bi}
-                                        onClick={() =>
-                                          blocks(si, move(s.blocks, bi, -1))
-                                        }
-                                      >
-                                        Move card up
-                                      </button>
-                                      <button
-                                        className="btn-secondary"
-                                        disabled={bi === s.blocks.length - 1}
-                                        onClick={() =>
-                                          blocks(si, move(s.blocks, bi, 1))
-                                        }
-                                      >
-                                        Move card down
-                                      </button>
-                                      <button
-                                        className="btn-secondary"
-                                        onClick={() =>
-                                          setPicker({ step: si, index: bi })
-                                        }
-                                      >
-                                        Insert card above
-                                      </button>
-                                      <button
-                                        className="btn-secondary"
-                                        onClick={() => {
-                                          const copy = clone(b);
-                                          blocks(si, [
-                                            ...s.blocks.slice(0, bi + 1),
-                                            copy,
-                                            ...s.blocks.slice(bi + 1),
-                                          ]);
-                                          setCollapsed(
-                                            new Set([...collapsed, copy.id]),
-                                          );
-                                        }}
-                                      >
-                                        Duplicate card
-                                      </button>
-                                      <button
-                                        className="btn-secondary text-red-700"
-                                        onClick={() =>
-                                          setRemove(
-                                            () => () =>
-                                              blocks(
-                                                si,
-                                                latest.current.steps[
-                                                  si
-                                                ].blocks.filter(
-                                                  (x) => x.id !== b.id,
-                                                ),
-                                              ),
-                                          )
-                                        }
-                                      >
-                                        Delete card
-                                      </button>
-                                    </>
-                                  }
-                                >
-                                  <Fields
-                                    value={Object.fromEntries(
-                                      Object.entries(
-                                        withOptionalFields(b),
-                                      ).filter(
-                                        ([key]) =>
-                                          !advancedKeys.has(key) &&
-                                          !(
-                                            key === "markdown" &&
-                                            b.type !== "text" &&
-                                            b.type !== "quick-reference"
-                                          ),
-                                      ),
-                                    )}
-                                    path={`steps.${si}.blocks.${bi}`}
-                                    onChange={(next) =>
-                                      blocks(
-                                        si,
-                                        s.blocks.map((x, i) =>
-                                          i === bi ? { ...b, ...next } : x,
+                                        draft.steps.map((x, i) =>
+                                          i === si
+                                            ? { ...x, title: e.target.value }
+                                            : x,
                                         ),
                                       )
                                     }
                                   />
-                                  <details className="mt-4 border-t border-zinc-100 pt-3">
-                                    <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">
-                                      Additional settings
-                                    </summary>
-                                    <Fields
-                                      value={{
-                                        type: b.type,
-                                        ...Object.fromEntries(
+                                </label>
+                                <span className="text-xs text-zinc-500">
+                                  {s.blocks.length} cards
+                                </span>
+                                <ActionMenu label="Step actions">
+                                  <button
+                                    className="btn-secondary"
+                                    disabled={!si}
+                                    onClick={() =>
+                                      steps(move(draft.steps, si, -1))
+                                    }
+                                  >
+                                    Move step earlier
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    disabled={si === draft.steps.length - 1}
+                                    onClick={() =>
+                                      steps(move(draft.steps, si, 1))
+                                    }
+                                  >
+                                    Move step later
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    onClick={() => {
+                                      const copy = clone(s);
+                                      steps([
+                                        ...draft.steps.slice(0, si + 1),
+                                        copy,
+                                        ...draft.steps.slice(si + 1),
+                                      ]);
+                                      setActiveStepId(copy.id);
+                                      setCollapsed(
+                                        new Set([
+                                          ...collapsed,
+                                          ...copy.blocks.map((b) => b.id),
+                                        ]),
+                                      );
+                                    }}
+                                  >
+                                    Duplicate step
+                                  </button>
+                                  <button
+                                    className="btn-secondary text-red-700"
+                                    disabled={draft.steps.length === 1}
+                                    onClick={() =>
+                                      setRemove(
+                                        () => () =>
+                                          steps(
+                                            latest.current.steps.filter(
+                                              (x) => x.id !== s.id,
+                                            ),
+                                          ),
+                                      )
+                                    }
+                                  >
+                                    Delete step
+                                  </button>
+                                </ActionMenu>
+                              </div>
+                              <p className="mb-4 text-xs text-zinc-500">
+                                Drag a card to reorder. Select Edit to change
+                                its content.
+                              </p>
+                              <SortableList
+                                surface
+                                label={(b) => `${cardNames[b.type]} card`}
+                                items={s.blocks}
+                                onChange={(next) => blocks(si, next)}
+                                render={(b, bi) => (
+                                  <div
+                                    id={`steps.${si}.blocks.${bi}`}
+                                    data-component-id={b.id}
+                                    tabIndex={-1}
+                                    className={
+                                      showPreview && pinnedId === b.id
+                                        ? "lg:sticky lg:top-8 lg:z-20"
+                                        : undefined
+                                    }
+                                  >
+                                    <EditorCard
+                                      block={b}
+                                      index={bi}
+                                      highlighted={
+                                        showPreview && pinnedId === b.id
+                                      }
+                                      open={!collapsed.has(b.id)}
+                                      onToggle={() => toggle(b.id)}
+                                      actions={
+                                        <>
+                                          <button
+                                            className="btn-secondary"
+                                            disabled={!bi}
+                                            onClick={() =>
+                                              blocks(si, move(s.blocks, bi, -1))
+                                            }
+                                          >
+                                            Move card up
+                                          </button>
+                                          <button
+                                            className="btn-secondary"
+                                            disabled={
+                                              bi === s.blocks.length - 1
+                                            }
+                                            onClick={() =>
+                                              blocks(si, move(s.blocks, bi, 1))
+                                            }
+                                          >
+                                            Move card down
+                                          </button>
+                                          <button
+                                            className="btn-secondary"
+                                            onClick={() =>
+                                              setPicker({ step: si, index: bi })
+                                            }
+                                          >
+                                            Insert card above
+                                          </button>
+                                          <button
+                                            className="btn-secondary"
+                                            onClick={() => {
+                                              const copy = clone(b);
+                                              blocks(si, [
+                                                ...s.blocks.slice(0, bi + 1),
+                                                copy,
+                                                ...s.blocks.slice(bi + 1),
+                                              ]);
+                                              setCollapsed(
+                                                new Set([
+                                                  ...collapsed,
+                                                  copy.id,
+                                                ]),
+                                              );
+                                            }}
+                                          >
+                                            Duplicate card
+                                          </button>
+                                          <button
+                                            className="btn-secondary text-red-700"
+                                            onClick={() =>
+                                              setRemove(
+                                                () => () =>
+                                                  blocks(
+                                                    si,
+                                                    latest.current.steps[
+                                                      si
+                                                    ].blocks.filter(
+                                                      (x) => x.id !== b.id,
+                                                    ),
+                                                  ),
+                                              )
+                                            }
+                                          >
+                                            Delete card
+                                          </button>
+                                        </>
+                                      }
+                                    >
+                                      <Fields
+                                        value={Object.fromEntries(
                                           Object.entries(
                                             withOptionalFields(b),
                                           ).filter(
-                                            ([key, value]) =>
-                                              advancedKeys.has(key) ||
-                                              (key === "markdown" &&
+                                            ([key]) =>
+                                              !advancedKeys.has(key) &&
+                                              !(
+                                                key === "markdown" &&
                                                 b.type !== "text" &&
-                                                b.type !== "quick-reference" &&
-                                                !!value),
-                                          ),
-                                        ),
-                                      }}
-                                      path={`steps.${si}.blocks.${bi}`}
-                                      onChange={(next) =>
-                                        blocks(
-                                          si,
-                                          s.blocks.map((x, i) =>
-                                            i === bi ? { ...b, ...next } : x,
-                                          ),
-                                        )
-                                      }
-                                    />
-                                    {"markdown" in b &&
-                                      b.type !== "text" &&
-                                      b.markdown && (
-                                        <button
-                                          className="mt-3 text-sm text-teal-800 underline"
-                                          onClick={() => {
-                                            const text = {
-                                              ...defaults.text(),
-                                              markdown: b.markdown,
-                                            };
-                                            blocks(si, [
-                                              ...s.blocks.slice(0, bi),
-                                              { ...b, markdown: "" },
-                                              text,
-                                              ...s.blocks.slice(bi + 1),
-                                            ]);
-                                            setCollapsed(
-                                              new Set(
-                                                latest.current.steps
-                                                  .flatMap((step) =>
-                                                    step.blocks.map(
-                                                      (card) => card.id,
-                                                    ),
-                                                  )
-                                                  .filter(
-                                                    (id) => id !== text.id,
-                                                  ),
+                                                b.type !== "quick-reference"
                                               ),
-                                            );
-                                          }}
-                                        >
-                                          Move this text into a Markdown text
-                                          card
-                                        </button>
-                                      )}
-                                    <label className="mt-3 flex gap-2 text-sm">
-                                      <input
-                                        type="checkbox"
-                                        checked={b.advanced ?? false}
-                                        onChange={(e) =>
+                                          ),
+                                        )}
+                                        path={`steps.${si}.blocks.${bi}`}
+                                        onChange={(next) =>
                                           blocks(
                                             si,
                                             s.blocks.map((x, i) =>
-                                              i === bi
-                                                ? {
-                                                    ...x,
-                                                    advanced: e.target.checked,
-                                                  }
-                                                : x,
+                                              i === bi ? { ...b, ...next } : x,
                                             ),
                                           )
                                         }
                                       />
-                                      Mark as advanced
-                                    </label>
-                                  </details>
-                                </EditorCard>
-                              </div>
-                            )}
-                          />
-                          {!s.blocks.length && (
-                            <div className="rounded-xl border border-dashed p-8 text-center">
-                              <h3 className="font-medium">Start with a card</h3>
-                              <p className="mt-2 text-sm text-zinc-500">
-                                Add Markdown text, a question, or a code
-                                exercise.
-                              </p>
+                                      <details className="mt-4 border-t border-zinc-100 pt-3">
+                                        <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">
+                                          Additional settings
+                                        </summary>
+                                        <Fields
+                                          value={{
+                                            type: b.type,
+                                            ...Object.fromEntries(
+                                              Object.entries(
+                                                withOptionalFields(b),
+                                              ).filter(
+                                                ([key, value]) =>
+                                                  advancedKeys.has(key) ||
+                                                  (key === "markdown" &&
+                                                    b.type !== "text" &&
+                                                    b.type !==
+                                                      "quick-reference" &&
+                                                    !!value),
+                                              ),
+                                            ),
+                                          }}
+                                          path={`steps.${si}.blocks.${bi}`}
+                                          onChange={(next) =>
+                                            blocks(
+                                              si,
+                                              s.blocks.map((x, i) =>
+                                                i === bi
+                                                  ? { ...b, ...next }
+                                                  : x,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                        {"markdown" in b &&
+                                          b.type !== "text" &&
+                                          b.markdown && (
+                                            <button
+                                              className="mt-3 text-sm text-teal-800 underline"
+                                              onClick={() => {
+                                                const text = {
+                                                  ...defaults.text(),
+                                                  markdown: b.markdown,
+                                                };
+                                                blocks(si, [
+                                                  ...s.blocks.slice(0, bi),
+                                                  { ...b, markdown: "" },
+                                                  text,
+                                                  ...s.blocks.slice(bi + 1),
+                                                ]);
+                                                setCollapsed(
+                                                  new Set(
+                                                    latest.current.steps
+                                                      .flatMap((step) =>
+                                                        step.blocks.map(
+                                                          (card) => card.id,
+                                                        ),
+                                                      )
+                                                      .filter(
+                                                        (id) => id !== text.id,
+                                                      ),
+                                                  ),
+                                                );
+                                              }}
+                                            >
+                                              Move this text into a Markdown
+                                              text card
+                                            </button>
+                                          )}
+                                        <label className="mt-3 flex gap-2 text-sm">
+                                          <input
+                                            type="checkbox"
+                                            checked={b.advanced ?? false}
+                                            onChange={(e) =>
+                                              blocks(
+                                                si,
+                                                s.blocks.map((x, i) =>
+                                                  i === bi
+                                                    ? {
+                                                        ...x,
+                                                        advanced:
+                                                          e.target.checked,
+                                                      }
+                                                    : x,
+                                                ),
+                                              )
+                                            }
+                                          />
+                                          Mark as advanced
+                                        </label>
+                                      </details>
+                                    </EditorCard>
+                                  </div>
+                                )}
+                              />
+                              {!s.blocks.length && (
+                                <div className="rounded-xl border border-dashed p-8 text-center">
+                                  <h3 className="font-medium">
+                                    Start with a card
+                                  </h3>
+                                  <p className="mt-2 text-sm text-zinc-500">
+                                    Add Markdown text, a question, or a code
+                                    exercise.
+                                  </p>
+                                </div>
+                              )}
+                              {addControl(si, s.blocks.length)}
+                            </section>
+                          );
+                        })()}
+                      {showPreview && (
+                        <div className="hidden h-[70vh] lg:block" aria-hidden />
+                      )}
+                    </>
+                  )}
+                </section>
+                <aside
+                  ref={previewPaneRef}
+                  className={`min-w-0 lg:min-h-0 lg:pr-2 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block lg:h-full lg:overflow-y-auto lg:overscroll-contain" : "lg:hidden"}`}
+                >
+                  <p className="text-sm font-semibold text-teal-800">
+                    LEARNER PREVIEW
+                  </p>
+                  <h2 className="mt-2 text-2xl font-bold">{draft.title}</h2>
+                  <p className="my-3">{draft.description}</p>
+                  {[activeStep].filter(Boolean).map((s) => (
+                    <section key={s.id} className="my-6">
+                      <h3 className="mb-4 text-xl font-bold">{s.title}</h3>
+                      <div className="space-y-3">
+                        {s.blocks
+                          .filter((b) => b.visible)
+                          .map((b) => (
+                            <div
+                              className={`w-full rounded-xl border border-zinc-200 p-4 shadow-sm ${showPreview && pinnedId === b.id ? "bg-amber-50" : "bg-white"}`}
+                              data-component-id={b.id}
+                              key={b.id}
+                            >
+                              <BlockRenderer block={b} embedded />
                             </div>
-                          )}
-                          {addControl(si, s.blocks.length)}
-                        </section>
-                      );
-                    })()}
+                          ))}
+                      </div>
+                    </section>
+                  ))}
                   {showPreview && (
                     <div className="hidden h-[70vh] lg:block" aria-hidden />
                   )}
-                </>
-              )}
-            </section>
-            <aside
-              ref={previewPaneRef}
-              className={`card min-w-0 p-6 lg:min-h-0 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block lg:h-full lg:overflow-y-auto lg:overscroll-contain" : "lg:hidden"}`}
-            >
-              <p className="text-sm font-semibold text-teal-800">
-                LEARNER PREVIEW
-              </p>
-              <h2 className="mt-2 text-2xl font-bold">{draft.title}</h2>
-              <p className="my-3">{draft.description}</p>
-              {[activeStep].filter(Boolean).map((s) => (
-                <section key={s.id} className="my-6">
-                  <h3 className="mb-4 text-xl font-bold">{s.title}</h3>
-                  {s.blocks.map((b) => (
-                    <div
-                      className={`my-4 rounded-lg ${showPreview && pinnedId === b.id ? "ring-2 ring-teal-600" : ""}`}
-                      data-component-id={b.id}
-                      key={b.id}
-                    >
-                      <BlockRenderer block={b} />
-                    </div>
-                  ))}
-                </section>
-              ))}
-              {showPreview && (
-                <div className="hidden h-[70vh] lg:block" aria-hidden />
-              )}
-            </aside>
-          </div>
+                </aside>
+              </div>
+            </>
+          )}
           <Dialog.Root
             open={!!picker}
             onOpenChange={(open) => {
@@ -1415,7 +1517,6 @@ export default function LessonEditor({
                             "code-exercise": "Learner code and author checks",
                             reflection: "Prompt and review rubric",
                             "data-asset": "Resource and runtime path",
-                            "code-review": "Review purpose and criteria",
                           }[t]
                         }
                       </p>

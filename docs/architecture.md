@@ -50,7 +50,6 @@ erDiagram
   cms_content_blocks ||--o| cms_reflection_blocks : reflection
   cms_reflection_blocks ||--o| cms_reflection_rubrics : rubric
   cms_content_blocks ||--o| cms_data_asset_blocks : resource
-  cms_content_blocks ||--o| cms_code_review_blocks : review
 ```
 
-Each content block has exactly one matching typed detail record in repository writes; loaders report corruption rather than dropping incomplete blocks. Nested function references, options and rubrics use their own tables. JSON is limited to extensible style/randomisation settings and scalar lists in SQLite/text metadata; there is no generic lesson/block JSON payload column. Revision metadata is column-oriented, with source Markdown retained separately for editing. A local `cms_schema_migrations` table and an equivalent PostgreSQL table record migration history.
+Each content block has exactly one matching typed detail record in repository writes; loaders report corruption rather than dropping incomplete blocks. Nested function references, options and rubrics use their own tables. Scalar lists are stored as text arrays (JSON text in SQLite); there is no generic lesson/block JSON payload column. Revision metadata is column-oriented, with source Markdown retained separately for editing. A local `cms_schema_migrations` table and an equivalent PostgreSQL table record migration history.

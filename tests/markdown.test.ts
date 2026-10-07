@@ -12,12 +12,8 @@ const base: LessonDraft = {
   slug: "sample",
   description: "Line 1\nLine 2",
   track: "Python",
-  level: "year 1",
-  mode: "lesson",
   programmingLanguage: "Python",
   tags: ["one", "two"],
-  presentation: "guided",
-  runtimeScope: "per-step",
   steps: [{ id: "step", title: 'Step \\ "one"', blocks: [] }],
 };
 function normalize(d: LessonDraft) {
@@ -79,6 +75,13 @@ describe("strict Markdown", () => {
         base,
       ).errors[0],
     ).toMatchObject({ line: 2 }));
+  it("rejects a code-review directive", () =>
+    expect(
+      parseLessonMarkdown(
+        ':::step{id="s" title="S"}\n:::code-review{id="review"}\n:::\n:::',
+        base,
+      ).errors.some((e) => e.message.includes("Unknown component code-review")),
+    ).toBe(true));
   it("rejects unclosed directives", () =>
     expect(
       parseLessonMarkdown(':::step{id="s" title="S"}', base).errors.some((e) =>
@@ -101,6 +104,15 @@ describe("strict Markdown", () => {
     expect(
       parsed.draft?.steps.flatMap((s) => s.blocks).map((b) => b.type),
     ).toEqual(blockTypes);
+    expect(
+      parsed.draft?.steps
+        .flatMap((s) => s.blocks)
+        .find((b) => b.type === "code-exercise"),
+    ).toMatchObject({
+      instructions: 'Set `greeting` to `"Hello"`, then print it.',
+      additionalPenalties: "Deduct marks for missing the greeting variable.",
+      ignoredIssues: "Ignore quote style and extra blank lines.",
+    });
     expect(LessonSchema.safeParse(parsed.draft).success).toBe(true);
   });
 });

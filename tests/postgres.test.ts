@@ -35,12 +35,8 @@ suite("real PostgreSQL adapter on a disposable cluster", () => {
     slug: "pg-test",
     description: "",
     track: "Python",
-    level: "year 1",
-    mode: "lesson",
     programmingLanguage: "Python",
     tags: ["pg"],
-    presentation: "guided",
-    runtimeScope: "per-step",
     version: 0,
     steps: [
       {

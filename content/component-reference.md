@@ -1,4 +1,4 @@
-:::lesson{title="Component reference" slug="component-reference" description="Explore every lesson card, then practice with a short Python exercise." track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"reference\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
+:::lesson{title="Component reference" slug="component-reference" description="Explore every lesson card, then practice with a short Python exercise." track="Python" programmingLanguage="Python" tags="[\"reference\"]" schemaVersion=1}
 :::
 
 :::step{id="read-and-explore" title="Read and explore"}
@@ -158,7 +158,7 @@ print(greeting)
 :::execution{format="raw"}
 browser
 :::
-:::prompt{format="raw"}
+:::instructions{format="raw"}
 Set `greeting` to `"Hello"`, then print it.
 :::
 :::checkScript{format="raw"}
@@ -167,15 +167,11 @@ assert greeting == "Hello", "Set greeting to Hello."
 :::expectedOutput{format="raw"}
 Hello
 :::
-:::styleConfig{format="raw"}
-Prefer snake_case for variable names.
+:::additionalPenalties{format="raw"}
+Deduct marks for missing the greeting variable.
 :::
-:::randomisation{format="raw"}
-No randomisation for this introductory exercise.
-:::
-:::reviewPrinciples{format="raw"}
-Use a descriptive variable name.
-Print the stored value.
+:::ignoredIssues{format="raw"}
+Ignore quote style and extra blank lines.
 :::
 :::
 
@@ -208,36 +204,6 @@ example.csv
 :::
 :::description{format="raw"}
 Replace this example URL with your own downloadable data. Runtime files are not downloaded automatically.
-:::
-:::
-
-:::code-review{id="greeting-review" visible=true advanced=false}
-:::title{format="raw"}
-Greeting review
-:::
-:::purpose{format="raw"}
-Help the learner connect assignment with output.
-:::
-:::mechanism{format="raw"}
-Review the code against the criteria.
-:::
-:::output{format="raw"}
-One strength and one suggestion.
-:::
-:::keyIdeas{format="raw"}
-Correct assignment and output.
-:::
-:::misconceptions{format="raw"}
-Printing the variable name as a literal string.
-:::
-:::variants{format="raw"}
-Single or double quotes are acceptable.
-:::
-:::additionalPenalties{format="raw"}
-Deduct marks for missing the greeting variable.
-:::
-:::issuesToIgnore{format="raw"}
-Ignore quote style and extra blank lines.
 :::
 :::
 :::

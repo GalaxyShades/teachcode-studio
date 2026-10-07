@@ -77,12 +77,11 @@ export const detail: Record<
       starterCode: "starter_code",
       solution: "solution",
       execution: "execution",
-      prompt: "prompt",
+      instructions: "instructions",
       checkScript: "check_script",
-      styleConfig: "style_config",
-      randomisation: "randomisation",
-      reviewPrinciples: "review_principles",
       expectedOutput: "expected_output",
+      additionalPenalties: "additional_penalties",
+      ignoredIssues: "ignored_issues",
     },
   },
   reflection: { table: "reflection", fields: { prompt: "prompt" } },
@@ -95,57 +94,32 @@ export const detail: Record<
       description: "description",
     },
   },
-  "code-review": {
-    table: "code_review",
-    fields: {
-      title: "title",
-      purpose: "purpose",
-      mechanism: "mechanism",
-      output: "output",
-      keyIdeas: "key_ideas",
-      misconceptions: "misconceptions",
-      variants: "acceptable_variants",
-      additionalPenalties: "additional_penalties",
-      issuesToIgnore: "issues_to_ignore",
-    },
-  },
 };
 const listFields = new Set([
-  "chips",
-  "reviewPrinciples",
-  "keyIdeas",
-  "misconceptions",
-  "variants",
+  "suggestedQuestions",
   "additionalPenalties",
-  "issuesToIgnore",
+  "ignoredIssues",
 ]);
-const boolFields = new Set([
-  "runnable",
-  "multiple",
-  "llmAllowed",
-  "copyingAllowed",
-]);
+const boolFields = new Set(["runnable", "multiple"]);
 function encode(key: string, value: any) {
+  if (key === "additionalPenalties" || key === "ignoredIssues")
+    return arrayValue(
+      String(value ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
   if (listFields.has(key)) return arrayValue([value ?? ""]);
-  if (key === "styleConfig" || key === "randomisation")
-    return JSON.stringify({ text: value ?? "" });
   return value ?? null;
 }
 function decode(key: string, value: any) {
   if (listFields.has(key)) return arrayRead(value).join("\n");
-  if (key === "styleConfig" || key === "randomisation") {
-    const v = typeof value === "string" ? JSON.parse(value) : value;
-    return v?.text ?? "";
-  }
   if (boolFields.has(key)) return Boolean(value);
   return value;
 }
 const assistantColumns: Record<keyof AssistantSettings, string> = {
-  mode: "mode",
-  chips: "chips",
+  suggestedQuestions: "suggested_questions",
   constraints: "constraints",
-  llmAllowed: "llm_allowed",
-  copyingAllowed: "copying_allowed",
 };
 export async function writeAssistant(
   c: Queryable,
@@ -202,12 +176,8 @@ export async function writeRevision(
     slug: draft.slug,
     description: draft.description,
     track: draft.track,
-    level: draft.level,
-    mode: draft.mode,
     programming_language: draft.programmingLanguage,
     tags: JSON.stringify(draft.tags),
-    presentation: draft.presentation,
-    runtime_scope: draft.runtimeScope,
     source_markdown: draft.sourceMarkdown ?? "",
   });
   await writeAssistant(
@@ -298,12 +268,8 @@ export async function loadRevision(
     slug: meta.slug,
     description: meta.description,
     track: meta.track,
-    level: meta.level,
-    mode: meta.mode,
     programmingLanguage: meta.programming_language ?? "",
     tags: arrayRead(meta.tags),
-    presentation: meta.presentation,
-    runtimeScope: meta.runtime_scope,
     sourceMarkdown: meta.source_markdown ?? "",
     version: lesson.version ?? 0,
     steps: [],
@@ -430,18 +396,14 @@ async function save(
       courseAssistant,
     );
   await c.query(
-    "UPDATE cms_lessons SET title=$1,slug=$2,description=$3,track=$4,level=$5,mode=$6,programming_language=$7,tags=$8,presentation=$9,runtime_scope=$10,updated_by=$11,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=$12",
+    "UPDATE cms_lessons SET title=$1,slug=$2,description=$3,track=$4,programming_language=$5,tags=$6,updated_by=$7,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=$8",
     [
       draft.title,
       draft.slug,
       draft.description,
       draft.track,
-      draft.level,
-      draft.mode,
       draft.programmingLanguage,
       arrayValue(draft.tags),
-      draft.presentation,
-      draft.runtimeScope,
       userId,
       lessonId,
     ],
@@ -609,19 +571,15 @@ export function publicDraft(draft: LessonDraft): LessonDraft {
     steps: draft.steps.map((s) => ({
       ...s,
       blocks: s.blocks
-        .filter(
-          (b) =>
-            b.visible && b.type !== "code-review",
-        )
+        .filter((b) => b.visible)
         .map((b) => {
           if (b.type === "code-exercise")
             return {
               ...b,
               solution: undefined,
               checkScript: undefined,
-              reviewPrinciples: "",
-              styleConfig: "",
-              randomisation: "",
+              additionalPenalties: undefined,
+              ignoredIssues: undefined,
             };
           if (b.type === "reflection")
             return {

@@ -17,12 +17,8 @@ async function main() {
     description:
       "A reference lesson demonstrating all supported card types. Replace it with your authored lesson.",
     track: "Python",
-    level: "year 1",
-    mode: "lesson",
     programmingLanguage: "Python",
     tags: ["reference"],
-    presentation: "guided",
-    runtimeScope: "per-step",
     version: 0,
     steps: [
       {

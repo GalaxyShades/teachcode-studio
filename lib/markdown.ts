@@ -167,8 +167,6 @@ export function parseLessonMarkdown(
   const aliases: Record<string, string> = {
     note: "explanation",
     "automated-check": "checkScript",
-    "style-configuration": "styleConfig",
-    "review-principles": "reviewPrinciples",
     "expected-output": "expectedOutput",
     starter: "starterCode",
     solution: "solution",
@@ -279,7 +277,7 @@ export function parseLessonMarkdown(
         "quick-reference": "markdown",
         figure: "markdown",
         reflection: "prompt",
-        "code-exercise": "prompt",
+        "code-exercise": "instructions",
         mcq: "question",
         "worked-example": "code",
         "data-asset": "description",

@@ -7,7 +7,7 @@ Use [the complete reference](../content/component-reference.md), which the parse
 Directives open on a line of their own and close with `:::` on a line of its own. A document contains one optional `lesson` metadata directive and one or more `step` directives. Each step contains component directives. Strings in attributes use JSON quoting and escapes (`\"`, `\\`, `\n`); booleans are `true`/`false`. IDs are stable strings, not necessarily UUIDs. Prefer descriptive names such as `variables-overview`, `greeting-exercise`, and `assignment-quiz-assign`. Keep existing IDs when editing; use new IDs when adding or duplicating items. Duplicate step or card IDs block publication. If IDs are omitted during import, the editor assigns IDs; subsequent serialization retains them.
 
 ```text
-:::lesson{title="My Python lesson" slug="my-python-lesson" description="Learning outcomes" track="Python" level="year 1" mode="lesson" programmingLanguage="Python" tags="[\"intro\"]" presentation="guided" runtimeScope="per-step" schemaVersion=1}
+:::lesson{title="My Python lesson" slug="my-python-lesson" description="Learning outcomes" track="Python" programmingLanguage="Python" tags="[\"intro\"]" schemaVersion=1}
 :::
 
 :::step{id="introduction" title="Introduction"}
@@ -21,7 +21,7 @@ Write ordinary **Markdown** here.
 :::
 ```
 
-Metadata falls back to the existing lesson when omitted. `track` is `Python`, `R`, or `literacy`; `level` is `year 1`, `year 2`, or `advanced`; `mode` is `lesson`, `exercise`, or `quiz`; `programmingLanguage` is `Python`, `R`, or an empty string; `runtimeScope` is `per-step` or `lesson-wide`. The current browser exercises use fresh evaluation namespaces; runtime scope is retained for future shared-state runtime integration.
+Metadata falls back to the existing lesson when omitted. `track` is `Python`, `R`, or `literacy`. `programmingLanguage` is `Python`, `R`, or an empty string.
 
 ## Component fields
 
@@ -35,12 +35,11 @@ Every component accepts `id`, `visible`, and `advanced` attributes. Boolean comp
 | worked-example  | title, language, code, explanation, runnable, expectedOutput                                                                  |
 | figure          | imageUrl, alt, caption, markdown                                                                                              |
 | mcq             | question, multiple, choices, explanation                                                                                      |
-| code-exercise   | language, starterCode, solution, execution, prompt, checkScript, styleConfig, randomisation, reviewPrinciples, expectedOutput |
+| code-exercise   | language, starterCode, solution, execution, instructions, checkScript, expectedOutput, additionalPenalties, ignoredIssues    |
 | reflection      | prompt, rubric                                                                                                                |
 | data-asset      | url, filename, runtimePath, description                                                                                       |
-| code-review     | title, purpose, mechanism, output, keyIdeas, misconceptions, variants, additionalPenalties, issuesToIgnore                    |
 
-For compact input, direct component body text is accepted for text/quick-reference/figure Markdown, task statement, reflection/exercise prompt, MCQ question, worked-example code, and resource description. Prefer explicit named fields for lossless export.
+For compact input, direct component body text is accepted for text/quick-reference/figure Markdown, task statement, reflection prompt, code-exercise instructions, MCQ question, worked-example code, and resource description. Prefer explicit named fields for lossless export.
 
 ## Nested directives
 
@@ -48,7 +47,8 @@ For compact input, direct component body text is accepted for text/quick-referen
 - `choices` contains `choice{id="option-a" correct=true}` children; each body is its option text. At least two options are required. `multiple=false` requires exactly one correct option for publication.
 - `rubric` contains `keyIdeas`, `misconceptions`, and `variants` string fields.
 - `advanced` groups valid component fields and marks the card advanced.
-- Aliases: `note` → explanation; `automated-check` → checkScript; `style-configuration` → styleConfig; `review-principles` → reviewPrinciples; `expected-output` → expectedOutput; `starter` → starterCode; `system-prompt` → constraints. `randomisation` and `solution` are direct fields.
+- Aliases: `note` → explanation; `automated-check` → checkScript; `expected-output` → expectedOutput; `starter` → starterCode; `system-prompt` → constraints. `solution` is a direct field.
+- `additionalPenalties` and `ignoredIssues` on a code exercise are lists: one item per line. `ignoredIssues` lists possible issues in other situations that the teacher does not want flagged for this exercise.
 
 Code fields can contain raw code or a fenced code block. Use an outer fence longer than any internal fence if the field contains literal directive lines. Export handles this automatically. Use named fields instead of embedding JSON payloads.
 

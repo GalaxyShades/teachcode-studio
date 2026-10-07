@@ -54,11 +54,8 @@ export const PublicBlockSchema = z.discriminatedUnion("type", [
     language,
     starterCode: z.string(),
     execution: z.enum(["browser", "server"]),
-    prompt: z.string(),
+    instructions: z.string(),
     expectedOutput: z.string().optional(),
-    styleConfig: z.literal(""),
-    randomisation: z.literal(""),
-    reviewPrinciples: z.literal(""),
   }),
   z.object({
     ...base,
@@ -84,12 +81,8 @@ export const PublicDraftSchema = z.object({
   slug: z.string(),
   description: z.string(),
   track: z.enum(["Python", "R", "literacy"]),
-  level: z.enum(["year 1", "year 2", "advanced"]),
-  mode: z.enum(["lesson", "exercise", "quiz"]),
   programmingLanguage: z.enum(["Python", "R", ""]),
   tags: z.array(z.string()),
-  presentation: z.string(),
-  runtimeScope: z.enum(["per-step", "lesson-wide"]),
   sourceMarkdown: z.literal(""),
   steps: z
     .array(
@@ -106,11 +99,7 @@ export const ContentBlockSchema = z.discriminatedUnion("type", [
   blocks[3],
   blocks[4],
   blocks[5],
-  blocks[6].omit({
-    styleConfig: true,
-    randomisation: true,
-    reviewPrinciples: true,
-  }),
+  blocks[6],
   blocks[7].omit({ rubric: true }),
   blocks[8],
 ]);

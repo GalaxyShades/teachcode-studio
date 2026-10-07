@@ -5,6 +5,10 @@ export function coursePath(course: NamedRoute) {
   return `/courses/${encodeURIComponent(course.slug === "new" ? course.id : course.slug)}`;
 }
 
+export function assignmentsPath(course: NamedRoute) {
+  return `${coursePath(course)}/assignments`;
+}
+
 export function lessonPath(
   course: NamedRoute,
   lesson: { slug: string },

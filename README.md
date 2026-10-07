@@ -79,4 +79,4 @@ SQLite and browser tests use disposable databases. `TEST_POSTGRES=1` starts a di
 - [Architecture and schema](docs/architecture.md)
 - [Execution security and deployment follow-ups](docs/security.md)
 
-The implemented demo includes normalized storage, editor forms, Markdown round trips, autosave, immutable publication, permissions, assignment search, course/module management, ordering, shared learner rendering, and browser worker execution. The deployment-specific and runtime limitations are documented separately; this is not a claim that the shared TeachCode production environment has been verified.
+The implemented demo includes normalized storage, editor forms, Markdown round trips, autosave, immutable publication, permissions, assignment search, course and chapter management, ordering, shared learner rendering, and browser worker execution. The deployment-specific and runtime limitations are documented separately; this is not a claim that the shared TeachCode production environment has been verified.

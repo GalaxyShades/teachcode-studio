@@ -6,7 +6,7 @@ import type { Block } from "@/lib/content";
 import { CodeDisplay } from "./CodeDisplay";
 import { CodeRunner } from "./CodeRunner";
 const safeUrl = (url: string) => /^https?:\/\//i.test(url);
-function Markdown({ children }: { children: string }) {
+export function Markdown({ children }: { children: string }) {
   return (
     <div className="markdown">
       <ReactMarkdown skipHtml remarkPlugins={[remarkGfm]}>
@@ -60,7 +60,13 @@ function Mcq({ block }: { block: Extract<Block, { type: "mcq" }> }) {
     </fieldset>
   );
 }
-export function BlockRenderer({ block }: { block: Block }) {
+export function BlockRenderer({
+  block,
+  embedded = false,
+}: {
+  block: Block;
+  embedded?: boolean;
+}) {
   if (!block.visible) return null;
   switch (block.type) {
     case "text":
@@ -85,7 +91,7 @@ export function BlockRenderer({ block }: { block: Block }) {
       );
     case "quick-reference":
       return (
-        <aside className="rounded-lg bg-zinc-100 p-4">
+        <aside className={embedded ? undefined : "rounded-lg bg-zinc-100 p-4"}>
           <h4 className="font-bold">{block.title}</h4>
           <Markdown>{block.markdown}</Markdown>
         </aside>
@@ -109,7 +115,7 @@ export function BlockRenderer({ block }: { block: Block }) {
     case "code-exercise":
       return (
         <section>
-          <Markdown>{block.prompt}</Markdown>
+          <Markdown>{block.instructions}</Markdown>
           <CodeRunner
             language={block.language}
             starter={block.starterCode}
@@ -161,13 +167,6 @@ export function BlockRenderer({ block }: { block: Block }) {
           ) : (
             <p>Resource URL must use HTTP or HTTPS.</p>
           )}
-        </aside>
-      );
-    case "code-review":
-      return (
-        <aside>
-          <h4>{block.title}</h4>
-          <Markdown>{block.purpose}</Markdown>
         </aside>
       );
   }

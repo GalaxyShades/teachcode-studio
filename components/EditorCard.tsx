@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Block, BlockType } from "@/lib/content";
+import { Markdown } from "./BlockRenderer";
 export const cardNames: Record<BlockType, string> = {
   text: "Markdown text",
   task: "Task",
@@ -11,7 +12,6 @@ export const cardNames: Record<BlockType, string> = {
   "code-exercise": "Code exercise",
   reflection: "Reflection",
   "data-asset": "Resource",
-  "code-review": "Code review",
 };
 export const cardIcons: Record<BlockType, string> = {
   text: "¶",
@@ -23,7 +23,6 @@ export const cardIcons: Record<BlockType, string> = {
   "code-exercise": "⌨",
   reflection: "✎",
   "data-asset": "↗",
-  "code-review": "☷",
 };
 export function cardSummary(block: Block) {
   switch (block.type) {
@@ -40,13 +39,11 @@ export function cardSummary(block: Block) {
     case "mcq":
       return block.question;
     case "code-exercise":
-      return block.prompt;
+      return block.instructions;
     case "reflection":
       return block.prompt;
     case "data-asset":
       return block.filename;
-    case "code-review":
-      return block.title;
   }
 }
 export function ActionMenu({
@@ -96,6 +93,28 @@ export function ActionMenu({
     </details>
   );
 }
+function TextPreview({ markdown }: { markdown: string }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!markdown.trim())
+    return (
+      <p className="text-sm leading-relaxed text-zinc-600">No content yet</p>
+    );
+  return (
+    <div>
+      <div className={expanded ? undefined : "max-h-36 overflow-hidden"}>
+        <Markdown>{markdown}</Markdown>
+      </div>
+      <button
+        type="button"
+        className="btn-secondary mt-2"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((open) => !open)}
+      >
+        {expanded ? "Collapse" : "Expand"}
+      </button>
+    </div>
+  );
+}
 export function EditorCard({
   block,
   index,
@@ -115,7 +134,7 @@ export function EditorCard({
 }) {
   return (
     <article
-      className={`rounded-xl border bg-white transition-colors ${highlighted ? "border-teal-600 ring-2 ring-teal-600" : open ? "border-teal-600 shadow-sm" : "border-zinc-200 hover:border-teal-400"}`}
+      className={`rounded-xl border transition-colors ${highlighted ? (open ? "border-teal-600 bg-amber-50 shadow-sm" : "border-zinc-200 bg-amber-50 hover:border-teal-400") : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
       data-card-id={block.id}
     >
       <header
@@ -149,6 +168,10 @@ export function EditorCard({
       {open ? (
         <div className="cursor-auto border-t border-zinc-100 px-4 pb-4">
           {children}
+        </div>
+      ) : block.type === "text" ? (
+        <div className="px-4 pb-4">
+          <TextPreview markdown={block.markdown} />
         </div>
       ) : (
         <div className="px-4 pb-4">

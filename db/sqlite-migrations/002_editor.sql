@@ -6,8 +6,8 @@ ALTER TABLE cms_mcq_options ADD COLUMN stable_id text;
 ALTER TABLE cms_code_exercise_blocks ADD COLUMN expected_output text;
 CREATE TABLE IF NOT EXISTS cms_revision_metadata (
  revision_id text PRIMARY KEY REFERENCES cms_lesson_revisions(id) ON DELETE CASCADE,
- title text NOT NULL,slug text NOT NULL,description text NOT NULL,track text NOT NULL,level text NOT NULL,mode text NOT NULL,
- programming_language text NOT NULL,tags text NOT NULL,presentation text NOT NULL,runtime_scope text NOT NULL,source_markdown text NOT NULL DEFAULT ''
+ title text NOT NULL,slug text NOT NULL,description text NOT NULL,track text NOT NULL,
+ programming_language text NOT NULL,tags text NOT NULL,source_markdown text NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS cms_assignment_profile_idx ON cms_course_staff_assignments(profile_id,course_id);
 CREATE INDEX IF NOT EXISTS cms_lessons_course_idx ON cms_lessons(course_id,chapter_id,position);

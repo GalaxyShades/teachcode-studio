@@ -735,22 +735,6 @@
               "literacy"
             ]
           },
-          "level": {
-            "type": "string",
-            "enum": [
-              "year 1",
-              "year 2",
-              "advanced"
-            ]
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "lesson",
-              "exercise",
-              "quiz"
-            ]
-          },
           "programmingLanguage": {
             "type": "string",
             "enum": [
@@ -764,16 +748,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "presentation": {
-            "type": "string"
-          },
-          "runtimeScope": {
-            "type": "string",
-            "enum": [
-              "per-step",
-              "lesson-wide"
-            ]
           },
           "steps": {
             "type": "array",
@@ -1129,7 +1103,7 @@
                               "server"
                             ]
                           },
-                          "prompt": {
+                          "instructions": {
                             "type": "string"
                           },
                           "expectedOutput": {
@@ -1143,7 +1117,7 @@
                           "language",
                           "starterCode",
                           "execution",
-                          "prompt"
+                          "instructions"
                         ],
                         "additionalProperties": true
                       },
@@ -1263,12 +1237,8 @@
           "slug",
           "description",
           "track",
-          "level",
-          "mode",
           "programmingLanguage",
           "tags",
-          "presentation",
-          "runtimeScope",
           "steps",
           "apiVersion",
           "courseId",
@@ -1281,14 +1251,10 @@
           "slug": "first-python-program",
           "description": "Use print to display a message.",
           "track": "Python",
-          "level": "year 1",
-          "mode": "lesson",
           "programmingLanguage": "Python",
           "tags": [
             "beginner"
           ],
-          "presentation": "guided",
-          "runtimeScope": "per-step",
           "steps": [
             {
               "id": "first-program",
@@ -1659,7 +1625,7 @@
                   "server"
                 ]
               },
-              "prompt": {
+              "instructions": {
                 "type": "string"
               },
               "expectedOutput": {
@@ -1673,7 +1639,7 @@
               "language",
               "starterCode",
               "execution",
-              "prompt"
+              "instructions"
             ],
             "additionalProperties": true
           },

@@ -1,0 +1,9 @@
+ALTER TABLE cms_code_exercise_blocks DROP COLUMN style_config;
+ALTER TABLE cms_code_exercise_blocks DROP COLUMN randomisation;
+ALTER TABLE cms_code_exercise_blocks DROP COLUMN review_principles;
+ALTER TABLE cms_code_review_blocks DROP COLUMN purpose;
+ALTER TABLE cms_code_review_blocks DROP COLUMN mechanism;
+ALTER TABLE cms_code_review_blocks DROP COLUMN output;
+ALTER TABLE cms_code_review_blocks DROP COLUMN key_ideas;
+ALTER TABLE cms_code_review_blocks DROP COLUMN misconceptions;
+ALTER TABLE cms_code_review_blocks DROP COLUMN acceptable_variants;

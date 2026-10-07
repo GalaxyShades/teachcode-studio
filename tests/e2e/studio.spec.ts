@@ -155,14 +155,14 @@ test("management APIs validate, assign and reorder within the course", async ({
   expect(
     (
       await request.post(`/api/courses/${course}/chapters`, {
-        data: { title: "Second module" },
+        data: { title: "Second chapter" },
       })
     ).status(),
   ).toBe(200);
-  const modules = await (
+  const chapters = await (
       await request.get(`/api/courses/${course}/chapters`)
     ).json(),
-    ids = modules.map((m: any) => m.id).reverse();
+    ids = chapters.map((chapter: { id: string }) => chapter.id).reverse();
   expect(
     (
       await request.put(`/api/courses/${course}/reorder`, {

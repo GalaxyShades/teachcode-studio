@@ -10,12 +10,8 @@ describe("content validation", () =>
         slug: "t",
         description: "",
         track: "Python",
-        level: "year 1",
-        mode: "lesson",
         programmingLanguage: "Python",
         tags: [],
-        presentation: "guided",
-        runtimeScope: "per-step",
         steps: [{ id: "s", title: "S", blocks: [m] }],
       }),
     ).not.toEqual([]);
