@@ -22,7 +22,6 @@ import { BlockRenderer } from "./BlockRenderer";
 import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
 import { VersionHistory } from "./VersionHistory";
-import { AuthoringGuide } from "./AuthoringGuide";
 import { coursePath, lessonPath } from "@/lib/paths";
 
 function syncLessonAddress(path: string) {
@@ -137,73 +136,199 @@ function clone<T>(value: T): T {
   ids(copy);
   return copy;
 }
-function MarkdownField({
+const noMarkupKeys = new Set([
+  "slug",
+  "imageUrl",
+  "url",
+  "runtimePath",
+  "code",
+  "starterCode",
+  "solution",
+  "checkScript",
+  "additionalPenalties",
+  "ignoredIssues",
+  "keyIdeas",
+  "misconceptions",
+  "variants",
+  "constraints",
+  "suggestedQuestions",
+  "filename",
+  "name",
+]);
+const singleLineKeys = new Set(["title", "filename", "alt"]);
+const headingKeys = new Set(["title"]);
+function usesInlineMarkup(key: string) {
+  return !noMarkupKeys.has(key) && !headingKeys.has(key);
+}
+type MarkupControl = HTMLInputElement | HTMLTextAreaElement;
+function applyMarkup(
+  el: MarkupControl,
+  left: string,
+  right: string,
+  onChange: (next: string) => void,
+  emptyInner = "",
+) {
+  el.focus();
+  const start = el.selectionStart ?? 0;
+  const end = el.selectionEnd ?? start;
+  const current = el.value;
+  const selected = current.slice(start, end);
+  const inner = selected || emptyInner;
+  const inserted = left + inner + right;
+  const next = current.slice(0, start) + inserted + current.slice(end);
+  // A React state write does not enter the field undo stack. insertText does.
+  let applied = false;
+  try {
+    applied = document.execCommand("insertText", false, inserted);
+  } catch {
+    applied = false;
+  }
+  if (applied && el.value === next) {
+    const tracker = (
+      el as MarkupControl & {
+        _valueTracker?: { setValue: (value: string) => void };
+      }
+    )._valueTracker;
+    if (tracker) tracker.setValue(current);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  } else onChange(next);
+  const from = start + left.length;
+  const to = from + inner.length;
+  requestAnimationFrame(() => {
+    el.focus();
+    const max = el.value.length;
+    el.setSelectionRange(Math.min(from, max), Math.min(to, max));
+  });
+}
+const inlineMarks: [string, string, string, string][] = [
+  ["Bold", "B", "font-bold", "**"],
+  ["Code", "code", "font-mono", "`"],
+  ["Strikethrough", "S", "line-through", "~~"],
+  ["Underline", "U", "underline", "++"],
+];
+const markupButtonClass =
+  "rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-xs leading-none text-zinc-600 hover:border-teal-600 hover:text-teal-800";
+function FormattingToolbar({
   label,
-  value,
+  fieldRef,
   onChange,
 }: {
   label: string;
-  value: string;
-  onChange: (s: string) => void;
+  fieldRef: { current: MarkupControl | null };
+  onChange: (next: string) => void;
 }) {
-  const fieldId = useId();
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const inserts: [string, string, string][] = [
-    ["Heading", "## ", ""],
-    ["Paragraph", "\n\n", ""],
-    ["Bold", "**", "**"],
-    ["Italic", "*", "*"],
-    ["Link", "[", "](https://example.edu)"],
-    ["Bullets", "- ", ""],
-    ["Numbered", "1. ", ""],
-    ["Quote", "> ", ""],
-    ["Table", "| Column | Value |\n| --- | --- |\n| ", " |"],
-    ["Inline code", "`", "`"],
-    ["Code block", "```python\n", "\n```"],
-    ["Rule", "\n---\n", ""],
-  ];
+  function link() {
+    const el = fieldRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const entered = window.prompt("Link URL (http or https)");
+    el.focus();
+    el.setSelectionRange(start, end);
+    if (entered == null) return;
+    const href = entered.trim();
+    let ok = /^https?:\/\//i.test(href) && !/\s/.test(href);
+    if (ok) {
+      try {
+        const url = new URL(href);
+        ok =
+          (url.protocol === "http:" || url.protocol === "https:") &&
+          !!url.hostname;
+      } catch {
+        ok = false;
+      }
+    }
+    if (!ok) {
+      window.alert("Enter an http or https URL.");
+      return;
+    }
+    applyMarkup(el, "[", `](${href})`, onChange, "link");
+  }
   return (
-    <div className="label block mt-3">
-      <label htmlFor={fieldId}>{label}</label>
-      <div
-        role="toolbar"
-        aria-label={`${label} formatting`}
-        className="my-1 flex flex-wrap gap-1"
+    <div
+      role="toolbar"
+      aria-label={`${label} formatting`}
+      className="flex flex-nowrap items-center gap-1.5"
+    >
+      {inlineMarks.map(([name, text, look, marker]) => (
+        <button
+          key={name}
+          type="button"
+          aria-label={name}
+          className={`${markupButtonClass} ${look}`}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            const el = fieldRef.current;
+            if (el) applyMarkup(el, marker, marker, onChange);
+          }}
+        >
+          {text}
+        </button>
+      ))}
+      <button
+        type="button"
+        aria-label="Link"
+        className={markupButtonClass}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={link}
       >
-        {inserts.map(([name, left, right]) => (
-          <button
-            key={name}
-            type="button"
-            className="rounded border px-2 py-1 text-xs"
-            onClick={() => {
-              const t = ref.current!,
-                a = t.selectionStart,
-                b = t.selectionEnd;
-              onChange(
-                value.slice(0, a) +
-                  left +
-                  value.slice(a, b) +
-                  right +
-                  value.slice(b),
-              );
-              requestAnimationFrame(() => {
-                t.focus();
-                t.setSelectionRange(a + left.length, b + left.length);
-              });
-            }}
-          >
-            {name}
-          </button>
-        ))}
+        link
+      </button>
+    </div>
+  );
+}
+function InlineMarkupField({
+  id,
+  label,
+  hintKey,
+  value,
+  multiline,
+  onChange,
+  rows = 3,
+  mono = false,
+  hideLabel = false,
+}: {
+  id: string;
+  label: string;
+  hintKey: string;
+  value: string;
+  multiline: boolean;
+  onChange: (next: string) => void;
+  rows?: number;
+  mono?: boolean;
+  hideLabel?: boolean;
+}) {
+  const ref = useRef<MarkupControl>(null);
+  function setControl(node: MarkupControl | null) {
+    ref.current = node;
+  }
+  return (
+    <div className={hideLabel ? "mt-2" : "label mt-3 block"}>
+      <label htmlFor={id} className={hideLabel ? "sr-only" : undefined}>
+        <LabelWithHint label={label} hintKey={hintKey} />
+      </label>
+      <div className="mt-1 flex flex-col gap-2">
+        <FormattingToolbar label={label} fieldRef={ref} onChange={onChange} />
+        {multiline ? (
+          <textarea
+            id={id}
+            ref={setControl}
+            className={`field !mt-0${mono ? " font-mono" : ""}`}
+            rows={rows}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        ) : (
+          <input
+            id={id}
+            ref={setControl}
+            className="field !mt-0"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
       </div>
-      <textarea
-        id={fieldId}
-        ref={ref}
-        className="field font-mono"
-        rows={4}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <FieldError path={id} />
     </div>
   );
 }
@@ -277,6 +402,19 @@ function Fields({
                         Remove {key === "choices" ? "option" : "function"}
                       </button>
                     </div>
+                  ) : usesInlineMarkup(key) ? (
+                    <InlineMarkupField
+                      key={i}
+                      id={`${id}.${i}`}
+                      label={`${label} ${i + 1}`}
+                      hintKey={key}
+                      value={item ?? ""}
+                      multiline={false}
+                      hideLabel
+                      onChange={(next) =>
+                        set(v.map((x, j) => (j === i ? next : x)))
+                      }
+                    />
                   ) : (
                     <input
                       aria-label={`${label} ${i + 1}`}
@@ -358,11 +496,19 @@ function Fields({
                 <FieldError path={id} />
               </label>
             );
-          if (key === "markdown" && value.type === "text")
+          if (usesInlineMarkup(key))
             return (
-              <div id={id} key={key}>
-                <MarkdownField label={label} value={v ?? ""} onChange={set} />
-              </div>
+              <InlineMarkupField
+                key={key}
+                id={id}
+                label={label}
+                hintKey={key}
+                value={v ?? ""}
+                multiline={!singleLineKeys.has(key)}
+                rows={key === "markdown" ? 4 : 3}
+                mono={key === "markdown" && value.type === "text"}
+                onChange={set}
+              />
             );
           return (
             <label key={key} htmlFor={id} className="label mt-3 block">
@@ -472,7 +618,6 @@ export default function LessonEditor({
   initialCourseAssistant,
   initialLessonAssistant,
   canPublish,
-  resources,
 }: {
   courseId: string;
   courseSlug: string;
@@ -481,7 +626,6 @@ export default function LessonEditor({
   initialCourseAssistant: AssistantSettings;
   initialLessonAssistant: AssistantSettings;
   canPublish: boolean;
-  resources: { template: string; prompt: string };
 }) {
   const [ready, setReady] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -1013,27 +1157,6 @@ export default function LessonEditor({
             </section>
           ) : (
             <>
-              <section
-                className={`mx-auto mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-teal-100 bg-teal-50/70 p-4 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
-                aria-label="Authoring help"
-              >
-                <div>
-                  <h2 className="text-sm font-semibold text-teal-900">
-                    Have slides or a document?
-                  </h2>
-                  <p className="mt-1 text-sm text-zinc-600">
-                    Start with a template or turn your source into a lesson with
-                    AI.
-                  </p>
-                </div>
-                <AuthoringGuide
-                  {...resources}
-                  template={resources.template.replace(
-                    'slug="component-reference"',
-                    `slug=${JSON.stringify(draft.slug)}`,
-                  )}
-                />
-              </section>
               <div className="my-2 flex gap-2 lg:hidden">
                 <button
                   className="btn-secondary"
@@ -1118,6 +1241,7 @@ export default function LessonEditor({
                                 <label className="min-w-0 flex-1">
                                   <span className="sr-only">Step title</span>
                                   <input
+                                    key={s.id}
                                     aria-label="Step title"
                                     className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xl font-semibold hover:border-zinc-300 focus:bg-white"
                                     value={s.title}
@@ -1446,7 +1570,7 @@ export default function LessonEditor({
                           .filter((b) => b.visible)
                           .map((b) => (
                             <div
-                              className={`w-full rounded-xl border border-zinc-200 p-4 shadow-sm ${showPreview && pinnedId === b.id ? "bg-amber-50" : "bg-white"}`}
+                              className={`w-full rounded-xl border p-4 shadow-sm ${showPreview && pinnedId === b.id ? "border-[#dce8ff] bg-[#f4f8ff]" : "border-zinc-200 bg-white"}`}
                               data-component-id={b.id}
                               key={b.id}
                             >

@@ -78,13 +78,22 @@ describe("SQLite repository", () => {
     await assertDatabase();
     expect(
       (await db().query("SELECT * FROM cms_schema_migrations")).rowCount,
-    ).toBe(6);
+    ).toBe(7);
+    expect(
+      (await db().query("PRAGMA table_info(cms_openrouter_settings)")).rows.map(
+        (row) => row.name,
+      ),
+    ).toEqual(["profile_id", "api_key", "model"]);
     const exerciseColumns = (
       await db().query("PRAGMA table_info(cms_code_exercise_blocks)")
     ).rows.map((row) => row.name);
     for (const column of ["style_config", "randomisation", "review_principles"])
       expect(exerciseColumns).not.toContain(column);
-    for (const column of ["additional_penalties", "ignored_issues", "instructions"])
+    for (const column of [
+      "additional_penalties",
+      "ignored_issues",
+      "instructions",
+    ])
       expect(exerciseColumns).toContain(column);
     expect(exerciseColumns).not.toContain("prompt");
     expect(exerciseColumns).not.toContain("issues_to_ignore");

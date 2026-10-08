@@ -27,7 +27,7 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
   await expect(
     page.getByRole("button", { name: "⠿ Move", exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole("toolbar")).toHaveCount(0);
+  await expect(cards.getByRole("toolbar")).toHaveCount(0);
   await expect(
     page.getByText("LEARNER PREVIEW", { exact: true }),
   ).not.toBeVisible();
@@ -38,7 +38,12 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
   await task
     .getByRole("textbox", { name: "Instructions", exact: true })
     .fill("Plain task instructions");
-  await expect(task.getByRole("toolbar")).toHaveCount(0);
+  await expect(
+    task.getByRole("toolbar", { name: "Instructions formatting" }),
+  ).toHaveCount(1);
+  await expect(
+    task.getByRole("button", { name: "Heading", exact: true }),
+  ).toHaveCount(0);
   await task.getByRole("button", { name: "Done", exact: true }).click();
   const text = cards.filter({
     has: page.getByRole("heading", { name: "Markdown text", exact: true }),
@@ -95,7 +100,7 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
     .toEqual(original);
   await page.getByRole("button", { name: /2\. Practice and reflect/ }).click();
   await expect(cards).toHaveCount(4);
-  await expect(page.getByRole("toolbar")).toHaveCount(0);
+  await expect(cards.getByRole("toolbar")).toHaveCount(0);
   await page.getByRole("button", { name: "Show preview", exact: true }).click();
   await expect(
     page.getByText("LEARNER PREVIEW", { exact: true }),

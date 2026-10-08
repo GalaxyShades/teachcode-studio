@@ -3,7 +3,7 @@ import { getCourse } from "@/lib/cms";
 import { CourseSettings } from "@/components/CourseSettings";
 import { CourseManager } from "@/components/CourseManager";
 import { resolveEditorCourse } from "@/lib/editor-routes";
-import { assignmentsPath, coursePath } from "@/lib/paths";
+import { assignmentsPath, coursePath, generateLessonPath } from "@/lib/paths";
 import { redirect } from "next/navigation";
 export default async function Course({
   params,
@@ -26,6 +26,14 @@ export default async function Course({
           <h1 className="break-words text-3xl font-bold">{course.title}</h1>
           <p className="mt-2 max-w-2xl break-words text-zinc-600">
             {course.description}
+          </p>
+          <p className="mt-4">
+            <Link
+              href={generateLessonPath(resolved)}
+              className="text-teal-800 underline"
+            >
+              Create lesson with AI
+            </Link>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">

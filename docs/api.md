@@ -4,7 +4,9 @@ For student-app integration, start with the [lesson content API guide](lesson-co
 
 Studio content is Course → Chapter → Lesson. A chapter groups lessons. A lesson is the editable document. API path parameters use internal IDs, while UI links use readable slugs.
 
-Authoring endpoints under `/api/courses` require an admin or assigned-staff session. The public API lists published courses, retrieves their chapter/lesson outlines, and serves individual published lessons. Studio does not currently provide API-key or service-account authentication. Learning Assistant settings, source Markdown, solutions, check scripts, rubrics, additional penalties, and ignored issues are authoring data and are omitted from public responses.
+This app is the only place lessons are created and edited. The other app only reads. It must not get authoring write endpoints, and this app does not store student progress, attempts, completion, or scores. The other app stores progress against its own student id plus the stable ids this API returns (course, chapter, lesson, revision, step, component). A new revisionId means the lesson was republished; the other app decides whether old progress still counts.
+
+Authoring endpoints under `/api/courses` require an admin or assigned-staff session. The public read API is unauthenticated: there is no API key or service-account login. It lists published courses, returns each course's ordered chapters and lessons, and serves one published lesson. Solutions, automated checks, additional penalties, ignored issues, assistant settings, source Markdown, and drafts stay off that payload. Returning them on an unauthenticated endpoint would leak them to every client. A future authenticated read would be required before the other app can apply hidden checks or review lists. That read is not part of this API. Shapes and id rules are in the [lesson content API guide](lesson-content-api.md).
 
 All authenticated endpoints use the HTTP-only `teachcode_cms_session` cookie. Login rotates the current browser session; logout revokes the database token. Sessions expire after seven days. Cookies use SameSite=Lax and Secure in production. Only admin/staff roles receive CMS sessions. All mutations check authorization on the server, and cross-origin mutation requests are rejected.
 
@@ -45,25 +47,25 @@ Admins assign and unassign staff at `/courses/:courseSlug/assignments`. Assigned
 
 `LessonDraft` is defined in `lib/content.ts`; its discriminated block schemas are the same schemas used by import, editor and repositories. Save and publish return `{ok,version,errors,savedAt,editor}`; publish also returns `revisionId`. Resend only after adopting the returned version. A conflict needs a fresh GET and user review; never silently overwrite it.
 
-Public content includes ordered steps and visible learner blocks. A code exercise’s learner text is `instructions`. The response omits the mutable draft version counter, source Markdown, solutions, check scripts, `additionalPenalties`, `ignoredIssues`, reflection rubrics, and both Learning Assistant configurations (`suggestedQuestions` and `constraints`). MCQ correctness remains client-visible for interactive demo feedback and is not secure assessment grading. No author check can remain secret if shipped to a learner browser, so hidden checks run only in authenticated author preview until a dedicated sandbox service is integrated.
+Public content includes ordered steps and learner-visible components. A code exercise’s learner text is `instructions`. The response omits the mutable draft version counter, source Markdown, solutions, automated check scripts, `additionalPenalties`, `ignoredIssues`, reflection rubrics, and both Learning Assistant configurations (`suggestedQuestions` and `constraints`). MCQ `correct` flags and explanations stay on the payload for immediate demo feedback. They are not secure assessment grading. Hidden checks run only in authenticated author preview. They are not on this public API, because a secret sent to a browser is no longer a secret.
 
 Public API responses are `Cache-Control: no-store`; Studio public pages render dynamically. Publishing/unpublishing also revalidates the public layout. Exact origins listed in `ALLOWED_CORS_ORIGINS` receive read-only CORS headers with `Vary: Origin`. Other origins receive no CORS permission. This does not restrict direct access to public content.
 
-The learner page resolves `/published/courses/:courseSlug/lessons/:publishedLessonSlug` using the selected revision’s slug. Updating a draft slug does not change the published URL until the next publication. Existing student-app integration is separately scoped.
+The learner page resolves `/published/courses/:courseSlug/lessons/:publishedLessonSlug` using the selected revision’s slug. Updating a draft slug does not change the published URL until the next publication. The other app should call the public content API, not that HTML route, and not the authoring routes above.
 
 ## Published content for the student app
 
-Studio owns authoring, content validation, publication, and content delivery. The student app owns student authentication, enrolment, attempts, completion rules, scores, progress, and analytics. Studio's public player only keeps temporary UI state; its step-position indicator is not a completion record. It does not write student progress.
+This app is the only place lessons are created and edited. The other app only reads. It must not get authoring write endpoints, and this app does not store student progress, attempts, completion, or scores. The other app stores progress against its own student id plus the stable ids this API returns (course, chapter, lesson, revision, step, component). A new revisionId means the lesson was republished; the other app decides whether old progress still counts.
 
-1. `GET /api/v1/content/courses` lists published courses with at least one published lesson.
-2. `GET /api/v1/content/courses/:courseId` returns course details and ordered `chapters`, each containing `lessons`; lessons without a chapter appear in `unassignedLessons`. Draft/archived lessons and empty chapters are excluded.
-3. Follow a lesson's `contentUrl`, or request `GET /api/v1/content/courses/:courseId/lessons/:lessonId`, to fetch its public content.
+1. `GET /api/v1/content/courses` lists published courses that have at least one published lesson: `{id, slug, title, description}`.
+2. `GET /api/v1/content/courses/:courseId` returns the course plus ordered `chapters`. Each chapter is `{id, title, lessons}`. Each lesson summary is `{id, chapterId, slug, title, description, revisionId, contentUrl}`. Lessons with no chapter are in `unassignedLessons`, with `chapterId: null`. Drafts, archived lessons, and empty chapters are left out.
+3. `GET /api/v1/content/courses/:courseId/lessons/:lessonId`, or the lesson's `contentUrl`, returns the current published lesson: steps, learner-visible components, and `revisionId`.
 
-Lesson metadata comes from the published snapshot, so draft title/slug changes do not appear in this catalogue. Course and chapter names and ordering are live course structure. All these reads support the configured CORS allowlist and use `Cache-Control: no-store`.
+Lesson title, slug, description, and components come from the published snapshot. Course title, chapter title, chapter membership, and order come from the live course structure. Array order is the navigation order. These reads use the configured CORS allowlist and `Cache-Control: no-store`.
 
-Each lesson includes `courseId`, `lessonId`, and `revisionId` alongside its content. The student app should store progress against its own student ID plus the stable lesson/step/card IDs, and record `revisionId` with attempts. A changed revision signals republishing; the student app decides whether completion remains valid. Titles and slugs are display labels, not progress keys. Studio retains five published versions; the student app must retain any historical assessment records it needs. The public API serves the current publication only, not arbitrary old revisions.
+Titles and slugs are labels, not progress keys. Studio keeps five published snapshots for staff restore. The public API serves only the current publication. The other app keeps any older progress or assessment records it still needs.
 
-These content endpoints are public, not enrolment-gated, and do not provide secure grading. Student-only content access or server-side grading would need a separately designed authenticated integration. Correct answers for demo MCQs are client-visible; private author checks are omitted.
+These reads are public. They are not enrolment checks and they do not grade. A future authenticated read would be required before the other app can apply hidden checks or review lists. Do not add that read by calling the staff draft or publish routes.
 
 ## Course outline
 

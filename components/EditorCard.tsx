@@ -134,7 +134,7 @@ export function EditorCard({
 }) {
   return (
     <article
-      className={`rounded-xl border transition-colors ${highlighted ? (open ? "border-teal-600 bg-amber-50 shadow-sm" : "border-zinc-200 bg-amber-50 hover:border-teal-400") : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
+      className={`rounded-xl border transition-colors ${highlighted ? `bg-[#f4f8ff] ${open ? "border-teal-600 shadow-sm" : "border-[#dce8ff]"}` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
       data-card-id={block.id}
     >
       <header

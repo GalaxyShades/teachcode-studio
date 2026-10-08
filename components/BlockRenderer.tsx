@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import type { Block } from "@/lib/content";
 import { CodeDisplay } from "./CodeDisplay";
 import { CodeRunner } from "./CodeRunner";
+import { InlineText } from "./InlineText";
 const safeUrl = (url: string) => /^https?:\/\//i.test(url);
 export function Markdown({ children }: { children: string }) {
   return (
@@ -23,7 +24,10 @@ function Mcq({ block }: { block: Extract<Block, { type: "mcq" }> }) {
   );
   return (
     <fieldset className="rounded-lg border p-4">
-      <legend className="font-semibold">{block.question}</legend>
+      <legend className="sr-only">Question</legend>
+      <div className="font-semibold [&_.markdown>:first-child]:mt-0 [&_.markdown_pre]:font-normal">
+        <Markdown>{block.question}</Markdown>
+      </div>
       {block.choices.map((c) => (
         <label className="my-2 flex gap-2" key={c.id}>
           <input
@@ -41,7 +45,7 @@ function Mcq({ block }: { block: Extract<Block, { type: "mcq" }> }) {
               );
             }}
           />
-          {c.text}
+          <InlineText text={c.text} />
         </label>
       ))}
       <button
@@ -76,7 +80,7 @@ export function BlockRenderer({
         <aside className="rounded-lg border-l-4 border-teal-700 bg-teal-50 p-4">
           <b>Task</b>
           <Markdown>{block.context}</Markdown>
-          <Markdown>{block.statement}</Markdown>
+          <InlineText text={block.statement} className="my-3 block" />
           {!!block.functions.length && (
             <dl>
               {block.functions.map((f, i) => (
@@ -92,30 +96,36 @@ export function BlockRenderer({
     case "quick-reference":
       return (
         <aside className={embedded ? undefined : "rounded-lg bg-zinc-100 p-4"}>
-          <h4 className="font-bold">{block.title}</h4>
+          <h4 className="font-bold">
+            <InlineText text={block.title} />
+          </h4>
           <Markdown>{block.markdown}</Markdown>
         </aside>
       );
     case "worked-example":
       return (
         <section>
-          <h4 className="font-bold">{block.title}</h4>
+          <h4 className="font-bold">
+            <InlineText text={block.title} />
+          </h4>
           {block.runnable ? (
-            <CodeRunner
-              language={block.language}
-              starter={block.code}
-              expectedOutput={block.expectedOutput}
-            />
+            <CodeRunner language={block.language} starter={block.code} />
           ) : (
             <CodeDisplay code={block.code} language={block.language} />
           )}
           <Markdown>{block.explanation}</Markdown>
+          {block.expectedOutput ? (
+            <div className="mt-3">
+              <p className="font-semibold">Expected output</p>
+              <pre className="whitespace-pre-wrap">{block.expectedOutput}</pre>
+            </div>
+          ) : null}
         </section>
       );
     case "code-exercise":
       return (
         <section>
-          <Markdown>{block.instructions}</Markdown>
+          <InlineText text={block.instructions} className="block" />
           <CodeRunner
             language={block.language}
             starter={block.starterCode}
@@ -138,7 +148,9 @@ export function BlockRenderer({
           ) : (
             <p>Image URL must use HTTPS or HTTP.</p>
           )}
-          <figcaption>{block.caption}</figcaption>
+          <figcaption>
+            <InlineText text={block.caption} />
+          </figcaption>
           <Markdown>{block.markdown}</Markdown>
         </figure>
       );
@@ -147,14 +159,14 @@ export function BlockRenderer({
     case "reflection":
       return (
         <label className="block">
-          <Markdown>{block.prompt}</Markdown>
+          <InlineText text={block.prompt} className="mb-2 block" />
           <textarea aria-label="Your reflection" className="field" rows={4} />
         </label>
       );
     case "data-asset":
       return (
         <aside>
-          <Markdown>{block.description}</Markdown>
+          <InlineText text={block.description} className="block" />
           {safeUrl(block.url) ? (
             <a
               className="text-teal-800 underline"

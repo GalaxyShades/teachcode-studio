@@ -1,6 +1,5 @@
 import LessonEditor from "@/components/LessonEditor";
 import { requireCourse, getDraft } from "@/lib/cms";
-import { authoringResources } from "@/lib/authoring-resources";
 import { resolveEditorCourse, resolveEditorLesson } from "@/lib/editor-routes";
 import { lessonPath } from "@/lib/paths";
 import { redirect } from "next/navigation";
@@ -29,7 +28,6 @@ export default async function Edit({
       initial={draft}
       initialCourseAssistant={courseAssistant}
       initialLessonAssistant={lessonAssistant}
-      resources={authoringResources()}
       canPublish={(await requireCourse(courseId)).role === "admin"}
     />
   );

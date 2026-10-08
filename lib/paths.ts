@@ -9,6 +9,10 @@ export function assignmentsPath(course: NamedRoute) {
   return `${coursePath(course)}/assignments`;
 }
 
+export function generateLessonPath(course: NamedRoute) {
+  return `${coursePath(course)}/generate`;
+}
+
 export function lessonPath(
   course: NamedRoute,
   lesson: { slug: string },

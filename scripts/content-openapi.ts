@@ -126,7 +126,7 @@ export function contentOpenApi() {
       title: "TeachCode published content API",
       version: "1.0.0",
       description:
-        "Public read-only content delivery. Course → chapters → lessons → steps → blocks. Student identity, progress, and grading belong to the consuming app. All requests read current publications; no historical revision endpoint.",
+        "Unauthenticated read-only published content. TeachCode Studio is the only place lessons are created and edited. The other app only reads these three GET endpoints and must not call authoring write endpoints. Studio does not store student progress, attempts, completion, or scores. The other app stores progress against its own student id plus the stable ids returned here: course, chapter, lesson, revision, step, and component (block id). A new revisionId means the lesson was republished; the other app decides whether old progress still counts. Solutions, automated checks, additional penalties, ignored issues, assistant settings, source Markdown, and drafts are absent because this API has no login and cannot reveal them only to one client. A future authenticated read would be required before the other app can apply hidden checks or review lists. This API serves the current publication only.",
     },
     servers: [{ url: "/", description: "Current Studio origin" }],
     security: [],
