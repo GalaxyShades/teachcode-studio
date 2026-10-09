@@ -23,6 +23,23 @@ import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
 import { VersionHistory } from "./VersionHistory";
 import { coursePath, lessonPath } from "@/lib/paths";
+import {
+  activeFormats,
+  insertTable,
+  linkAt,
+  toggleBullets,
+  toggleCode,
+  toggleCodeBlock,
+  toggleHeading,
+  toggleItalic,
+  toggleNumbered,
+  toggleParagraph,
+  toggleQuote,
+  toggleRule,
+  toggleWrap,
+  wrapMarkers,
+  type WrapKind,
+} from "@/lib/field-markup";
 
 function syncLessonAddress(path: string) {
   if (window.location.pathname === path) return;
@@ -161,21 +178,19 @@ function usesInlineMarkup(key: string) {
   return !noMarkupKeys.has(key) && !headingKeys.has(key);
 }
 type MarkupControl = HTMLInputElement | HTMLTextAreaElement;
-function applyMarkup(
+function replaceRange(
   el: MarkupControl,
-  left: string,
-  right: string,
+  from: number,
+  to: number,
+  inserted: string,
   onChange: (next: string) => void,
-  emptyInner = "",
+  selectFrom = from,
+  selectTo = from + inserted.length,
 ) {
   el.focus();
-  const start = el.selectionStart ?? 0;
-  const end = el.selectionEnd ?? start;
   const current = el.value;
-  const selected = current.slice(start, end);
-  const inner = selected || emptyInner;
-  const inserted = left + inner + right;
-  const next = current.slice(0, start) + inserted + current.slice(end);
+  const next = current.slice(0, from) + inserted + current.slice(to);
+  el.setSelectionRange(from, to);
   // A React state write does not enter the field undo stack. insertText does.
   let applied = false;
   try {
@@ -192,88 +207,400 @@ function applyMarkup(
     if (tracker) tracker.setValue(current);
     el.dispatchEvent(new Event("input", { bubbles: true }));
   } else onChange(next);
-  const from = start + left.length;
-  const to = from + inner.length;
   requestAnimationFrame(() => {
     el.focus();
     const max = el.value.length;
-    el.setSelectionRange(Math.min(from, max), Math.min(to, max));
+    el.setSelectionRange(Math.min(selectFrom, max), Math.min(selectTo, max));
+    el.dispatchEvent(new Event("select", { bubbles: true }));
   });
 }
-const inlineMarks: [string, string, string, string][] = [
-  ["Bold", "B", "font-bold", "**"],
-  ["Code", "code", "font-mono", "`"],
-  ["Strikethrough", "S", "line-through", "~~"],
-  ["Underline", "U", "underline", "++"],
-];
 const markupButtonClass =
-  "rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-xs leading-none text-zinc-600 hover:border-teal-600 hover:text-teal-800";
+  "inline-flex items-center whitespace-nowrap rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-xs leading-none text-zinc-600 hover:border-teal-600 hover:text-teal-800";
+const pressedButtonClass = "border-teal-700 bg-teal-100 text-teal-900";
+const shortActions = [
+  "bold",
+  "code",
+  "strike",
+  "underline",
+  "bullet",
+  "numbered",
+  "link",
+] as const;
+const markdownActions = [
+  "heading",
+  "paragraph",
+  "bold",
+  "italic",
+  "strike",
+  "underline",
+  "link",
+  "bullet",
+  "numbered",
+  "quote",
+  "table",
+  "code",
+  "codeBlock",
+  "rule",
+] as const;
+type BarAction = (typeof markdownActions)[number];
+const actionButtons: Record<
+  BarAction,
+  { name: string; icon: string; word: string; look: string }
+> = {
+  heading: { name: "Heading", icon: "H", word: "heading", look: "font-bold" },
+  paragraph: { name: "Paragraph", icon: "¶", word: "paragraph", look: "" },
+  bold: { name: "Bold", icon: "B", word: "bold", look: "font-bold" },
+  italic: { name: "Italic", icon: "I", word: "italic", look: "italic" },
+  strike: {
+    name: "Strikethrough",
+    icon: "S",
+    word: "strike",
+    look: "line-through",
+  },
+  underline: {
+    name: "Underline",
+    icon: "U",
+    word: "underline",
+    look: "underline",
+  },
+  code: { name: "Code", icon: "`", word: "code", look: "font-mono" },
+  link: { name: "Link", icon: "↗", word: "link", look: "" },
+  bullet: { name: "Bullets", icon: "•", word: "bullet", look: "" },
+  numbered: {
+    name: "Numbered list",
+    icon: "1.",
+    word: "numbered",
+    look: "",
+  },
+  quote: { name: "Quote", icon: ">", word: "quote", look: "" },
+  table: { name: "Table", icon: "▦", word: "table", look: "" },
+  codeBlock: {
+    name: "Code block",
+    icon: "```",
+    word: "block",
+    look: "font-mono",
+  },
+  rule: { name: "Horizontal rule", icon: "—", word: "rule", look: "" },
+};
 function FormattingToolbar({
   label,
   fieldRef,
   onChange,
+  variant = "short",
 }: {
   label: string;
   fieldRef: { current: MarkupControl | null };
   onChange: (next: string) => void;
+  variant?: "short" | "markdown";
 }) {
-  function link() {
+  const [active, setActive] = useState(() => activeFormats("", 0, 0));
+  const [linkEdit, setLinkEdit] = useState<{
+    title: string;
+    url: string;
+    from: number;
+    to: number;
+    existing: boolean;
+  } | null>(null);
+  const [linkError, setLinkError] = useState("");
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+    const sync = () => {
+      if (document.activeElement !== el) return;
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      setActive(activeFormats(el.value, start, end));
+    };
+    el.addEventListener("keyup", sync);
+    el.addEventListener("mouseup", sync);
+    el.addEventListener("select", sync);
+    el.addEventListener("input", sync);
+    el.addEventListener("focus", sync);
+    document.addEventListener("selectionchange", sync);
+    return () => {
+      el.removeEventListener("keyup", sync);
+      el.removeEventListener("mouseup", sync);
+      el.removeEventListener("select", sync);
+      el.removeEventListener("input", sync);
+      el.removeEventListener("focus", sync);
+      document.removeEventListener("selectionchange", sync);
+    };
+  }, [fieldRef]);
+  function commit(
+    edit: { from: number; to: number; text: string },
+    selectFrom?: number,
+    selectTo?: number,
+  ) {
+    const el = fieldRef.current;
+    if (!el) return;
+    if (el.value.slice(edit.from, edit.to) === edit.text) return;
+    replaceRange(el, edit.from, edit.to, edit.text, onChange, selectFrom, selectTo);
+  }
+  function applyWrap(kind: WrapKind | "italic" | "code") {
     const el = fieldRef.current;
     if (!el) return;
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? start;
-    const entered = window.prompt("Link URL (http or https)");
-    el.focus();
-    el.setSelectionRange(start, end);
-    if (entered == null) return;
-    const href = entered.trim();
-    let ok = /^https?:\/\//i.test(href) && !/\s/.test(href);
-    if (ok) {
-      try {
-        const url = new URL(href);
-        ok =
-          (url.protocol === "http:" || url.protocol === "https:") &&
-          !!url.hostname;
-      } catch {
-        ok = false;
-      }
-    }
-    if (!ok) {
-      window.alert("Enter an http or https URL.");
+    const marker =
+      kind === "italic" ? "*" : kind === "code" ? "`" : wrapMarkers[kind];
+    const turningOn = !activeFormats(el.value, start, end)[kind];
+    const edit =
+      kind === "italic"
+        ? toggleItalic(el.value, start, end)
+        : kind === "code"
+          ? toggleCode(el.value, start, end)
+          : toggleWrap(el.value, start, end, marker);
+    commit(
+      edit,
+      turningOn ? edit.from + marker.length : edit.from,
+      turningOn
+        ? edit.from + edit.text.length - marker.length
+        : edit.from + edit.text.length,
+    );
+  }
+  function applyBlock(kind: Exclude<BarAction, WrapKind | "italic" | "code" | "link">) {
+    const el = fieldRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const value = el.value;
+    if (kind === "codeBlock") {
+      const turningOn = !activeFormats(value, start, end).codeBlock;
+      const edit = toggleCodeBlock(value, start, end);
+      const openAt = edit.text.indexOf("```python\n");
+      const innerFrom = edit.from + openAt + "```python\n".length;
+      commit(
+        edit,
+        turningOn ? innerFrom : edit.from,
+        turningOn ? innerFrom + (end - start) : edit.from + edit.text.length,
+      );
       return;
     }
-    applyMarkup(el, "[", `](${href})`, onChange, "link");
+    const edit =
+      kind === "bullet"
+        ? toggleBullets(value, start, end)
+        : kind === "numbered"
+          ? toggleNumbered(value, start, end)
+          : kind === "heading"
+            ? toggleHeading(value, start, end)
+            : kind === "quote"
+              ? toggleQuote(value, start, end)
+              : kind === "paragraph"
+                ? toggleParagraph(value, start, end)
+                : kind === "rule"
+                  ? toggleRule(value, start, end)
+                  : insertTable(value, start, end);
+    if (kind === "table") {
+      const lead = "| Column | Value |\n| --- | --- |\n| ";
+      commit(edit, start + lead.length, start + lead.length + (end - start));
+      return;
+    }
+    commit(edit);
   }
+  function openLink() {
+    const el = fieldRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const existing = linkAt(el.value, start, end);
+    setLinkError("");
+    if (existing)
+      setLinkEdit({
+        title: existing.title,
+        url: existing.url,
+        from: existing.from,
+        to: existing.to,
+        existing: true,
+      });
+    else
+      setLinkEdit({
+        title: el.value.slice(start, end) || "link",
+        url: "",
+        from: start,
+        to: end,
+        existing: false,
+      });
+  }
+  function applyLink() {
+    const el = fieldRef.current;
+    if (!el || !linkEdit) return;
+    const url = linkEdit.url.trim();
+    const title = linkEdit.title.trim() || "link";
+    if (!url) {
+      setLinkError("Enter a URL.");
+      return;
+    }
+    const inserted = `[${title}](${url})`;
+    replaceRange(
+      el,
+      linkEdit.from,
+      linkEdit.to,
+      inserted,
+      onChange,
+      linkEdit.from + 1,
+      linkEdit.from + 1 + title.length,
+    );
+    setLinkEdit(null);
+  }
+  function removeLink() {
+    const el = fieldRef.current;
+    if (!el || !linkEdit?.existing) return;
+    const title = linkEdit.title.trim() || linkEdit.title;
+    replaceRange(el, linkEdit.from, linkEdit.to, title, onChange);
+    setLinkEdit(null);
+  }
+  function pressedFor(action: BarAction) {
+    if (action === "link") return active.link || linkEdit !== null;
+    if (action === "table") return false;
+    return active[action];
+  }
+  function run(action: BarAction) {
+    if (action === "link") openLink();
+    else if (
+      action === "bold" ||
+      action === "italic" ||
+      action === "strike" ||
+      action === "underline" ||
+      action === "code"
+    )
+      applyWrap(action);
+    else applyBlock(action);
+  }
+  const actions = variant === "markdown" ? markdownActions : shortActions;
   return (
-    <div
-      role="toolbar"
-      aria-label={`${label} formatting`}
-      className="flex flex-nowrap items-center gap-1.5"
-    >
-      {inlineMarks.map(([name, text, look, marker]) => (
-        <button
-          key={name}
-          type="button"
-          aria-label={name}
-          className={`${markupButtonClass} ${look}`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            const el = fieldRef.current;
-            if (el) applyMarkup(el, marker, marker, onChange);
+    <div className="relative">
+      <div
+        role="toolbar"
+        aria-label={`${label} formatting`}
+        className="flex flex-wrap items-center gap-1"
+      >
+        {actions.map((action) => {
+          const meta = actionButtons[action];
+          const name =
+            action === "code" && variant === "markdown" ? "Inline code" : meta.name;
+          const pressed = pressedFor(action);
+          const toggles = action !== "table";
+          return (
+            <button
+              key={action}
+              type="button"
+              aria-label={name}
+              aria-pressed={toggles ? pressed : undefined}
+              aria-expanded={action === "link" ? linkEdit !== null : undefined}
+              className={`${markupButtonClass} ${pressed && toggles ? pressedButtonClass : ""}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => run(action)}
+            >
+              <span className={meta.look}>{meta.icon}</span>
+              <span className="font-sans font-normal not-italic no-underline">
+                {" "}
+                {meta.word}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {linkEdit && (
+        <div
+          role="dialog"
+          aria-label="Link"
+          className="absolute left-0 top-full z-30 mt-1 w-72 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setLinkEdit(null);
+            } else if (
+              event.key === "Enter" &&
+              event.target instanceof HTMLInputElement
+            ) {
+              event.preventDefault();
+              applyLink();
+            }
           }}
         >
-          {text}
-        </button>
-      ))}
-      <button
-        type="button"
-        aria-label="Link"
-        className={markupButtonClass}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={link}
-      >
-        link
-      </button>
+          <label className="label block">
+            Link title
+            <input
+              className="field"
+              value={linkEdit.title}
+              onChange={(event) =>
+                setLinkEdit({ ...linkEdit, title: event.target.value })
+              }
+            />
+          </label>
+          <label className="label mt-2 block">
+            URL
+            <input
+              className="field"
+              value={linkEdit.url}
+              placeholder="example.com"
+              onChange={(event) =>
+                setLinkEdit({ ...linkEdit, url: event.target.value })
+              }
+            />
+          </label>
+          {linkError ? (
+            <p className="mt-2 text-xs text-red-700" role="alert">
+              {linkError}
+            </p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="btn-primary" onClick={applyLink}>
+              Apply
+            </button>
+            {linkEdit.existing ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={removeLink}
+              >
+                Remove link
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setLinkEdit(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function MarkdownField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  return (
+    <div className="label mt-3 block">
+      <label htmlFor={id}>{label}</label>
+      <div className="mt-1">
+        <FormattingToolbar
+          variant="markdown"
+          label={label}
+          fieldRef={ref}
+          onChange={onChange}
+        />
+      </div>
+      <textarea
+        id={id}
+        ref={ref}
+        className="field font-mono"
+        rows={8}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }
@@ -495,6 +822,18 @@ function Fields({
                 </select>
                 <FieldError path={id} />
               </label>
+            );
+          if (key === "markdown" && value.type === "text")
+            return (
+              <div key={key}>
+                <MarkdownField
+                  id={id}
+                  label={label}
+                  value={v ?? ""}
+                  onChange={set}
+                />
+                <FieldError path={id} />
+              </div>
             );
           if (usesInlineMarkup(key))
             return (

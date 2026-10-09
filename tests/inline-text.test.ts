@@ -64,15 +64,42 @@ describe("parseInline", () => {
     ]);
   });
 
-  it("leaves unsafe and non-http links as text", () => {
+  it("leaves unsafe links as text", () => {
     for (const sample of [
       "[x](javascript:alert(1))",
+      "[x](JAVASCRIPT:alert(1))",
       "[x](data:text/html,hi)",
-      "[x](/relative)",
+      "[x](DATA:text/html,hi)",
       '[x](https://example.com" onclick=alert(1))',
     ]) {
       expect(parseInline(sample)).toEqual([{ type: "text", text: sample }]);
     }
+  });
+
+  it("keeps other schemes and schemeless links as typed", () => {
+    expect(parseInline("[docs](example.com)")).toEqual([
+      {
+        type: "link",
+        href: "example.com",
+        children: [{ type: "text", text: "docs" }],
+      },
+    ]);
+    expect(parseInline("[mail](mailto:teacher@school.edu)")[0]).toMatchObject({
+      type: "link",
+      href: "mailto:teacher@school.edu",
+    });
+    expect(parseInline("[rel](/relative)")[0]).toMatchObject({
+      type: "link",
+      href: "/relative",
+    });
+    expect(parseInline("[files](ftp://files.example.com/a)")[0]).toMatchObject({
+      type: "link",
+      href: "ftp://files.example.com/a",
+    });
+    expect(parseInline("[port](example.com:8080/path)")[0]).toMatchObject({
+      type: "link",
+      href: "example.com:8080/path",
+    });
   });
 
   it("does not treat python operators as markup", () => {

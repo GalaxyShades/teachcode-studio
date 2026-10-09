@@ -119,6 +119,7 @@ export async function createLesson(
   courseId: string,
   chapterId?: string | null,
   title?: string,
+  id?: string,
 ) {
   if (title !== undefined && (!title.trim() || title.trim().length > 200))
     throw new CmsError(
@@ -126,7 +127,7 @@ export async function createLesson(
       "Lesson name must be between 1 and 200 characters",
     );
   const u = await requireAdmin(courseId),
-    lessonId = crypto.randomUUID(),
+    lessonId = id ?? crypto.randomUUID(),
     revisionId = crypto.randomUUID();
   await db().transaction(async (c) => {
     // Serialize name allocation for concurrent lesson creation in this course.

@@ -16,17 +16,33 @@ export function CodeRunner({
 }) {
   const [code, setCode] = useState(starter),
     [out, setOut] = useState(""),
+    [figures, setFigures] = useState<string[]>([]),
+    [figureIndex, setFigureIndex] = useState(0),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
-    cancel = useRef<(() => void) | undefined>(undefined);
+    cancel = useRef<(() => void) | undefined>(undefined),
+    seenStarter = useRef(starter);
+  useEffect(() => {
+    if (seenStarter.current === starter) return;
+    seenStarter.current = starter;
+    setCode(starter);
+  }, [starter]);
   useEffect(() => () => cancel.current?.(), []);
+  useEffect(() => {
+    setFigureIndex((index) =>
+      figures.length === 0 ? 0 : Math.min(index, figures.length - 1),
+    );
+  }, [figures]);
   async function run() {
     setBusy(true);
     setOut("");
+    setFigures([]);
     try {
       const task = execute(language, code, setStatus, check);
       cancel.current = task.cancel;
-      setOut(await task.promise);
+      const result = await task.promise;
+      setOut(result.output);
+      setFigures(result.figures);
     } catch (e) {
       setOut(e instanceof Error ? e.message : String(e));
     } finally {
@@ -35,6 +51,7 @@ export function CodeRunner({
       cancel.current = undefined;
     }
   }
+  const figure = figures[figureIndex];
   return (
     <section className="rounded-lg border bg-zinc-950 p-3 text-zinc-100">
       <textarea
@@ -68,6 +85,7 @@ export function CodeRunner({
             onClick={() => {
               setCode(starter);
               setOut("");
+              setFigures([]);
             }}
           >
             Reset code
@@ -80,6 +98,40 @@ export function CodeRunner({
       >
         {out}
       </pre>
+      {figure ? (
+        <div className="mt-3">
+          <img
+            alt={`Plot ${figureIndex + 1} of ${figures.length}`}
+            className="max-h-80 w-full rounded bg-white object-contain"
+            src={`data:image/png;base64,${figure}`}
+          />
+          {figures.length > 1 ? (
+            <div className="mt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                className="btn-secondary text-zinc-900"
+                aria-label="Previous plot"
+                disabled={figureIndex === 0}
+                onClick={() => setFigureIndex((index) => index - 1)}
+              >
+                ←
+              </button>
+              <span className="text-sm">
+                {figureIndex + 1} / {figures.length}
+              </span>
+              <button
+                type="button"
+                className="btn-secondary text-zinc-900"
+                aria-label="Next plot"
+                disabled={figureIndex === figures.length - 1}
+                onClick={() => setFigureIndex((index) => index + 1)}
+              >
+                →
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {expectedOutput && (
         <details>
           <summary>Expected output</summary>

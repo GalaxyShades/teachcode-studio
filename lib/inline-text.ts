@@ -1,3 +1,5 @@
+import { safeLinkHref } from "./link-href";
+
 export type InlineNode =
   | { type: "text"; text: string }
   | { type: "bold"; children: InlineNode[] }
@@ -83,7 +85,7 @@ function matchLink(text: string, i: number): Match | null {
   const label = text.slice(i + 1, labelEnd);
   const url = text.slice(labelEnd + 2, urlEnd);
   if (!label || label.includes("\n") || /\s/.test(url)) return null;
-  const href = safeHref(url);
+  const href = safeLinkHref(url);
   if (!href) return null;
   return {
     end: urlEnd + 1,
@@ -91,23 +93,3 @@ function matchLink(text: string, i: number): Match | null {
   };
 }
 
-function hasUnsafeUrlChar(raw: string) {
-  for (let i = 0; i < raw.length; i++) {
-    const code = raw.charCodeAt(i);
-    if (code < 32 || code === 127) return true;
-    if ("<>\"'`".includes(raw[i])) return true;
-  }
-  return false;
-}
-
-function safeHref(raw: string): string | null {
-  if (!/^https?:\/\//i.test(raw)) return null;
-  if (hasUnsafeUrlChar(raw)) return null;
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.href;
-  } catch {
-    return null;
-  }
-}

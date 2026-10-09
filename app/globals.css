@@ -111,6 +111,11 @@
   .markdown a {
     @apply text-teal-800 underline;
   }
+  .markdown .katex-display {
+    margin: 0.75rem 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 }
 
 .hljs-keyword,

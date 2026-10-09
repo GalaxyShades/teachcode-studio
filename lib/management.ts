@@ -12,6 +12,7 @@ export const CourseUpdate = z.object({
 export const ChapterInput = z.object({
   id: z.string().optional(),
   title: z.string().min(1),
+  create: z.boolean().optional(),
 });
 export const OrderInput = z.object({
   kind: z.enum(["chapters", "lessons"]),
@@ -97,9 +98,9 @@ export async function saveOutline(courseId: string, input: unknown) {
 export async function editChapter(courseId: string, input: unknown) {
   await requireAdmin(courseId);
   const p = ChapterInput.parse(input);
-  await db().transaction(async (c) => {
+  return await db().transaction(async (c) => {
     await lockCourse(c, courseId);
-    if (p.id) {
+    if (p.id && !p.create) {
       if (
         !(
           await c.query(
@@ -109,18 +110,20 @@ export async function editChapter(courseId: string, input: unknown) {
         ).rowCount
       )
         throw new CmsError(404, "Chapter not found");
-    } else {
-      const n = (
-        await c.query(
-          "SELECT coalesce(max(position),-1)+1 n FROM cms_chapters WHERE course_id=$1",
-          [courseId],
-        )
-      ).rows[0].n;
-      await c.query(
-        "INSERT INTO cms_chapters(id,course_id,title,position) VALUES($1,$2,$3,$4)",
-        [crypto.randomUUID(), courseId, p.title, n],
-      );
+      return p.id;
     }
+    const id = p.id ?? crypto.randomUUID();
+    const n = (
+      await c.query(
+        "SELECT coalesce(max(position),-1)+1 n FROM cms_chapters WHERE course_id=$1",
+        [courseId],
+      )
+    ).rows[0].n;
+    await c.query(
+      "INSERT INTO cms_chapters(id,course_id,title,position) VALUES($1,$2,$3,$4)",
+      [id, courseId, p.title, n],
+    );
+    return id;
   });
 }
 export async function deleteChapter(courseId: string, id: string) {

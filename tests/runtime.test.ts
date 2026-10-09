@@ -30,11 +30,11 @@ describe("browser runtime controller", () => {
     const first = execute("python", "print(1)", () => {});
     const worker = FakeWorker.last;
     worker.send({ done: true, output: "1" });
-    expect(await first.promise).toBe("1");
+    expect(await first.promise).toEqual({ output: "1", figures: [] });
     const next = execute("python", "print(2)", () => {});
     expect(FakeWorker.last).toBe(worker);
     worker.send({ done: true, output: "2" });
-    expect(await next.promise).toBe("2");
+    expect(await next.promise).toEqual({ output: "2", figures: [] });
   });
   it("terminates infinite execution and allows a fresh runtime", async () => {
     vi.useFakeTimers();

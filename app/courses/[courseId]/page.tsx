@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCourse } from "@/lib/cms";
 import { CourseSettings } from "@/components/CourseSettings";
+import { CoursePublish } from "@/components/CoursePublish";
 import { CourseManager } from "@/components/CourseManager";
 import { resolveEditorCourse } from "@/lib/editor-routes";
 import { assignmentsPath, coursePath, generateLessonPath } from "@/lib/paths";
@@ -27,19 +28,12 @@ export default async function Course({
           <p className="mt-2 max-w-2xl break-words text-zinc-600">
             {course.description}
           </p>
-          <p className="mt-4">
-            <Link
-              href={generateLessonPath(resolved)}
-              className="text-teal-800 underline"
-            >
-              Create lesson with AI
-            </Link>
-          </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="rounded-full border border-teal-100 bg-teal-50 px-3 py-1 text-sm font-medium capitalize text-teal-800">
-            {course.status}
-          </span>
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <CoursePublish
+            course={course as any}
+            admin={user.role === "admin"}
+          />
           {user.role === "admin" && (
             <Link href={assignmentsPath(resolved)} className="btn-secondary">
               Staff assignments
@@ -48,6 +42,12 @@ export default async function Course({
           {user.role === "admin" && <CourseSettings course={course as any} />}
         </div>
       </header>
+      <Link
+        href={generateLessonPath(resolved)}
+        className="btn-primary mt-6"
+      >
+        Create lesson with AI
+      </Link>
       <CourseManager
         course={course as any}
         initialChapters={chapters as any}

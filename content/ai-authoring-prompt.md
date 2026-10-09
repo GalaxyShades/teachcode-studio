@@ -17,7 +17,9 @@ If no source is attached, ask for it. Do not invent a lesson.
 - Keep each directive on its own line. Do not split `{...}` across lines.
 - Use the copy-ready template at the end. Replace every SAMPLE sentence, id, and code block so they match the source.
 - IDs are lowercase with hyphens (`greeting-exercise`). One id per step, card, and choice. Keep existing ids when revising a lesson.
-- No JSON document, YAML front matter, raw HTML, LaTeX, or Mermaid.
+- No JSON document, YAML front matter, raw HTML, or Mermaid.
+- In learner-facing Markdown, write display math as `$$...$$` and inline math as `$...$`, using real LaTeX commands such as `\beta_0` and `\epsilon_i` (subscripts with `_`). Do not write words like `beta_0` outside math delimiters.
+- Example: `$y_i = \beta_0 + \beta_1 x_i + \epsilon_i$`
 - Do not invent citations, image URLs, or data files. Omit an image or resource card when the source has no real URL.
 
 ## Allowed cards

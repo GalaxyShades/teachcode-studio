@@ -57,8 +57,8 @@ Use the Figure card below for an image with a caption.
 
 Supported: headings 1–6 (use `#` for level 1), paragraphs, emphasis, lists,
 checklists, quotes, links, images, tables, code fences, inline code, escapes,
-and horizontal rules. Raw HTML, math rendering, Mermaid diagrams, and custom
-Markdown extensions are not enabled.
+horizontal rules, inline math (`$...$`), and display math (`$$...$$`). Raw HTML,
+Mermaid diagrams, and custom Markdown extensions are not enabled.
 :::
 :::
 

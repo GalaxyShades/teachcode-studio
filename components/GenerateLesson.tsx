@@ -10,8 +10,56 @@ type View = {
   hasKey: boolean;
   model: string | null;
   models: Model[];
+  apiKey?: string;
   error?: string;
 };
+
+function creationTabClass(selected: boolean) {
+  return selected
+    ? "btn min-h-11 w-full bg-teal-700 text-white shadow-inner ring-2 ring-inset ring-teal-950 hover:bg-teal-800"
+    : "btn-secondary min-h-11 w-full";
+}
+
+function isPdf(file: File) {
+  const name = file.name.trim().toLowerCase();
+  const dot = name.lastIndexOf(".");
+  return dot !== -1 && name.slice(dot + 1) === "pdf";
+}
+
+function assignFiles(input: HTMLInputElement, files: File[]) {
+  const transfer = new DataTransfer();
+  for (const file of files) transfer.items.add(file);
+  input.files = transfer.files;
+}
+
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {off ? (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+          <path d="M9.9 5.1A10.8 10.8 0 0 1 12 5c5 0 9.3 3.1 11 7a11.6 11.6 0 0 1-3.2 4.1" />
+          <path d="M6.1 6.1C4.2 7.4 2.7 9.1 1 12c1.7 3.9 6 7 11 7 1.6 0 3.1-.3 4.5-.9" />
+        </>
+      ) : (
+        <>
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+          <circle cx="12" cy="12" r="3" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 export function GenerateLesson({
   courseId,
@@ -28,25 +76,30 @@ export function GenerateLesson({
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const sourcesRef = useRef<File[]>([]);
+  const selectionTicket = useRef(0);
+  const assigning = useRef(false);
+  const checkingRef = useRef(false);
   const [hasKey, setHasKey] = useState(false);
-  const [replacing, setReplacing] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [models, setModels] = useState<Model[]>([]);
   const [paste, setPaste] = useState("");
-  const [busy, setBusy] = useState<"save" | "create" | "remove" | "">("");
+  const [sources, setSources] = useState<File[]>([]);
+  const [sourceAlert, setSourceAlert] = useState("");
+  const [busy, setBusy] = useState<"save" | "create" | "remove" | "check" | "">(
+    "",
+  );
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"generate" | "prompt">("generate");
+  const [revealKey, setRevealKey] = useState(false);
 
   function apply(view: View) {
     setHasKey(view.hasKey);
     setModel(view.model ?? "");
     setModels(view.models ?? []);
     setError(view.error ?? "");
-    if (view.hasKey) {
-      setApiKey("");
-      setReplacing(false);
-    }
+    setApiKey(view.apiKey ?? "");
   }
 
   useEffect(() => {
@@ -125,28 +178,96 @@ export function GenerateLesson({
     }
   }
 
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    if (!hasKey || busy) return;
-    setError("");
-    const file = fileRef.current?.files?.[0];
-    let source = paste.trim();
-    if (file) {
-      const text = (await file.text()).trim();
-      source = text && source ? `${text}\n\n${source}` : text || source;
+  function keepSources(files: File[]) {
+    sourcesRef.current = files;
+    setSources(files);
+    const input = fileRef.current;
+    if (!input) return;
+    assigning.current = true;
+    try {
+      assignFiles(input, files);
+    } catch {
+      input.value = "";
+    } finally {
+      assigning.current = false;
     }
-    if (!source) {
-      setError("Add a source file or paste some text.");
+  }
+
+  async function chooseSources(list: FileList | null) {
+    if (assigning.current) return;
+    const chosen = [...(list ?? [])];
+    setError("");
+    const ticket = ++selectionTicket.current;
+    const pdfs = chosen.filter(isPdf);
+    keepSources(chosen.filter((file) => !isPdf(file)));
+    if (!pdfs.length) {
+      checkingRef.current = false;
+      setSourceAlert("");
+      setBusy((current) => (current === "check" ? "" : current));
       return;
     }
+    checkingRef.current = true;
+    setSourceAlert("");
+    setBusy("check");
+    const checked = await Promise.all(
+      chosen.map(async (file) => {
+        if (!isPdf(file)) return { file, keep: true, error: "" };
+        const form = new FormData();
+        form.append("file", file);
+        try {
+          const response = await fetch(
+            `/api/courses/${courseId}/lessons/pdf-text`,
+            { method: "POST", body: form },
+          );
+          const result = (await response.json().catch(() => ({}))) as {
+            error?: unknown;
+          };
+          if (!response.ok)
+            return {
+              file,
+              keep: false,
+              error:
+                typeof result.error === "string"
+                  ? result.error
+                  : `${file.name} looks like a scan with no selectable text and cannot be used.`,
+            };
+          return { file, keep: true, error: "" };
+        } catch {
+          return { file, keep: false, error: `Could not read ${file.name}.` };
+        }
+      }),
+    );
+    if (ticket !== selectionTicket.current) return;
+    checkingRef.current = false;
+    keepSources(checked.filter((item) => item.keep).map((item) => item.file));
+    setSourceAlert(
+      checked
+        .map((item) => item.error)
+        .filter(Boolean)
+        .join("\n"),
+    );
+    setBusy((current) => (current === "check" ? "" : current));
+  }
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    if (!hasKey || busy || checkingRef.current) return;
+    setError("");
+    const files = sourcesRef.current;
+    if (!files.length && !paste.trim()) {
+      setError("Add a source file, additional text, or both.");
+      return;
+    }
+    const form = new FormData();
+    form.set("additional", paste);
+    for (const file of files) form.append("files", file);
     setBusy("create");
     try {
       const response = await fetch(
         `/api/courses/${courseId}/lessons/generate`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source }),
+          body: form,
         },
       );
       const result = await response.json();
@@ -159,7 +280,6 @@ export function GenerateLesson({
     }
   }
 
-  const showKeyField = !hasKey || replacing;
   return (
     <main className="mx-auto max-w-5xl p-4 sm:p-6">
       <Link href={courseHref} className="text-teal-800 underline">
@@ -170,164 +290,189 @@ export function GenerateLesson({
           Create lesson with AI
         </h1>
         <p className="mt-2 max-w-2xl text-zinc-600">
-          Save an OpenRouter key, choose a model, then add a source file or a
-          short excerpt. The new lesson is added to the course outline.
+          Save an OpenRouter key, choose a model, then add source files and any
+          additional text. The new lesson is added to the course outline.
         </p>
       </header>
-      <nav
-        className="mt-6 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-2"
-        aria-label="Lesson creation"
-      >
-        <button
-          type="button"
-          aria-pressed={tab === "generate"}
-          className={tab === "generate" ? "btn-primary" : "btn-secondary"}
-          onClick={() => setTab("generate")}
+      <div className="mt-6 w-full">
+        <p
+          id="lesson-creation-label"
+          className="mb-2 text-sm font-medium text-zinc-700"
         >
-          Generate
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === "prompt"}
-          className={tab === "prompt" ? "btn-primary" : "btn-secondary"}
-          onClick={() => setTab("prompt")}
+          How to create the lesson
+        </p>
+        <nav
+          className="grid grid-cols-2 gap-2"
+          aria-labelledby="lesson-creation-label"
         >
-          Copy a prompt
-        </button>
-      </nav>
-      <form
-        className="card mt-6 max-w-3xl p-5 sm:p-6"
-        hidden={tab !== "generate"}
-        onSubmit={create}
-        aria-label="Create a lesson from source"
-        aria-busy={busy === "create"}
-      >
-        {showKeyField ? (
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="label min-w-0 flex-1 basis-64">
-              OpenRouter API key
+          <button
+            type="button"
+            aria-pressed={tab === "generate"}
+            className={creationTabClass(tab === "generate")}
+            onClick={() => setTab("generate")}
+          >
+            Generate
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "prompt"}
+            className={creationTabClass(tab === "prompt")}
+            onClick={() => setTab("prompt")}
+          >
+            Copy a prompt
+          </button>
+        </nav>
+        <form
+          className="card mt-3 p-5 sm:p-6"
+          hidden={tab !== "generate"}
+          onSubmit={create}
+          aria-label="Create a lesson from source"
+          aria-busy={busy === "create"}
+        >
+          <label className="label block" htmlFor="openrouter-api-key">
+            OpenRouter API key
+            <span className="relative mt-1 block">
               <input
-                className="field"
-                type="password"
+                id="openrouter-api-key"
+                className="field mt-0 pr-10"
+                type={revealKey ? "text" : "password"}
                 name="openrouter-api-key"
                 autoComplete="off"
                 value={apiKey}
                 disabled={!!busy}
                 onChange={(event) => setApiKey(event.target.value)}
               />
-            </label>
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-zinc-500 hover:text-zinc-800"
+                aria-label={revealKey ? "Hide API key" : "Show API key"}
+                aria-pressed={revealKey}
+                disabled={!!busy}
+                onClick={() => setRevealKey((current) => !current)}
+              >
+                <EyeIcon off={revealKey} />
+              </button>
+            </span>
+          </label>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
               className="btn-primary"
               disabled={!!busy || apiKey.trim().length < 20}
               onClick={() => void saveKey()}
             >
-              Save key
+              {busy === "save" ? "Saving key…" : "Save key"}
             </button>
-            {replacing && (
+            {hasKey && (
               <button
                 type="button"
                 className="btn-secondary"
                 disabled={!!busy}
-                onClick={() => {
-                  setReplacing(false);
-                  setApiKey("");
-                }}
+                onClick={() => void removeKey()}
               >
-                Cancel
+                Remove
               </button>
             )}
           </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-teal-800">Key saved</p>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={!!busy}
-              onClick={() => setReplacing(true)}
-            >
-              Replace
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={!!busy}
-              onClick={() => void removeKey()}
-            >
-              Remove
-            </button>
-          </div>
-        )}
-        <label className="label mt-5 block" htmlFor="openrouter-model">
-          Model
-        </label>
-        <select
-          id="openrouter-model"
-          className="field"
-          value={model}
-          disabled={!hasKey || !!busy}
-          onChange={(event) => void saveModel(event.target.value)}
-        >
-          <option value="">
-            {hasKey ? "Choose a model" : "Save a key first"}
-          </option>
-          {models.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} ({item.id})
+          <label className="label mt-5 block" htmlFor="openrouter-model">
+            Model
+          </label>
+          <select
+            id="openrouter-model"
+            className="field"
+            value={model}
+            disabled={!hasKey || !!busy}
+            onChange={(event) => void saveModel(event.target.value)}
+          >
+            <option value="">
+              {hasKey ? "Choose a model" : "Save a key first"}
             </option>
-          ))}
-        </select>
-        <label className="label mt-5 block">
-          Source file
-          <input
-            ref={fileRef}
-            className="field"
-            type="file"
-            accept=".md,.txt,.markdown,text/markdown,text/plain"
-            aria-label="Source file"
-            disabled={!!busy}
-          />
-        </label>
-        <p className="mt-1 text-xs text-zinc-500">.md, .txt, or .markdown</p>
-        <label className="label mt-5 block">
-          Or paste
-          <textarea
-            className="field"
-            rows={4}
-            placeholder="Short excerpt"
-            value={paste}
-            maxLength={80000}
-            disabled={!!busy}
-            onChange={(event) => setPaste(event.target.value)}
-          />
-        </label>
-        {busy === "create" && (
-          <p
-            role="status"
-            className="mt-4 rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-800"
-          >
-            Creating lesson…
+            {models.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} ({item.id})
+              </option>
+            ))}
+          </select>
+          <label className="label mt-5 block">
+            Source files
+            <input
+              ref={fileRef}
+              className="field"
+              type="file"
+              multiple
+              accept=".md,.txt,.markdown,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              aria-label="Source files"
+              aria-describedby={
+                sourceAlert ? "source-file-alert" : undefined
+              }
+              disabled={!!busy}
+              onChange={(event) => void chooseSources(event.target.files)}
+            />
+          </label>
+          <p className="mt-1 text-xs text-zinc-500">
+            .md, .txt, .markdown, .pdf, or .docx. You can choose more than one.
           </p>
-        )}
-        {error && (
-          <p
-            role="alert"
-            className="mt-4 whitespace-pre-wrap text-sm text-red-700"
+          {sources.length > 0 && (
+            <ul aria-label="Selected source files" className="mt-2 text-sm">
+              {sources.map((file, index) => (
+                <li key={`${file.name}-${file.size}-${index}`}>{file.name}</li>
+              ))}
+            </ul>
+          )}
+          {busy === "check" && (
+            <p role="status" className="mt-2 text-sm text-zinc-600">
+              Checking PDF text…
+            </p>
+          )}
+          {sourceAlert && (
+            <p
+              id="source-file-alert"
+              role="alert"
+              className="mt-2 whitespace-pre-wrap text-sm text-red-700"
+            >
+              {sourceAlert}
+            </p>
+          )}
+          <label className="label mt-5 block">
+            Additional text
+            <textarea
+              className="field"
+              rows={4}
+              placeholder="Course content"
+              aria-label="Additional text"
+              value={paste}
+              maxLength={80000}
+              disabled={!!busy}
+              onChange={(event) => setPaste(event.target.value)}
+            />
+          </label>
+          {busy === "create" && (
+            <p
+              role="status"
+              className="mt-4 rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-800"
+            >
+              Creating lesson…
+            </p>
+          )}
+          {error && (
+            <p
+              role="alert"
+              className="mt-4 whitespace-pre-wrap text-sm text-red-700"
+            >
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="btn-primary mt-5"
+            disabled={!hasKey || !!busy}
           >
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          className="btn-primary mt-5"
-          disabled={!hasKey || !!busy}
-        >
-          {busy === "create" ? "Creating lesson…" : "Create lesson"}
-        </button>
-      </form>
-      <div className="card mt-6 p-5 sm:p-6" hidden={tab !== "prompt"}>
-        <AuthoringGuide template={template} prompt={prompt} />
+            {busy === "create" ? "Creating lesson…" : "Create lesson"}
+          </button>
+        </form>
+        <div className="card mt-3 p-5 sm:p-6" hidden={tab !== "prompt"}>
+          <AuthoringGuide template={template} prompt={prompt} />
+        </div>
       </div>
     </main>
   );

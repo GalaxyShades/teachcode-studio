@@ -22,6 +22,7 @@ import { db } from "../lib/db";
 import { migrate } from "../scripts/migrate";
 import { defaults, type LessonDraft } from "../lib/content";
 import { serializeLessonMarkdown } from "../lib/markdown";
+import { lessonWritingModelIds } from "../lib/openrouter";
 import { loadRevision, publishRevision } from "../lib/repository";
 import {
   GET as settingsGet,
@@ -29,6 +30,7 @@ import {
   DELETE as settingsDelete,
 } from "../app/api/authoring/openrouter/route";
 import { POST as generate } from "../app/api/courses/[courseId]/lessons/generate/route";
+import { POST as pdfText } from "../app/api/courses/[courseId]/lessons/pdf-text/route";
 import { GET as publicLesson } from "../app/api/v1/content/courses/[courseId]/lessons/[lessonId]/route";
 
 const dir = mkdtempSync(join(tmpdir(), "teachcode-openrouter-"));
@@ -64,6 +66,29 @@ function asUser(token?: string) {
     get: (name: string) =>
       token && name === "teachcode_cms_session" ? { value: token } : undefined,
   } as never);
+}
+
+function tinyPdf(text: string) {
+  const stream = `BT /F1 18 Tf 36 100 Td (${text}) Tj ET`;
+  const objects = [
+    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n",
+    "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n",
+    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n",
+    `4 0 obj<</Length ${stream.length}>>stream\n${stream}\nendstream\nendobj\n`,
+    "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(body));
+    body += object;
+  }
+  const xrefAt = Buffer.byteLength(body);
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i < offsets.length; i++)
+    xref += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  body += `${xref}trailer<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefAt}\n%%EOF`;
+  return Buffer.from(body);
 }
 
 function request(url: string, method: string, body?: unknown, origin?: string) {
@@ -132,7 +157,7 @@ beforeEach(() => {
 });
 
 describe("OpenRouter settings", () => {
-  it("requires a signed-in teacher and never echoes the key", async () => {
+  it("returns the owner's key only on their settings response", async () => {
     const anonymous = await settingsGet();
     expect(anonymous.status).toBe(401);
     expect(await anonymous.json()).toMatchObject({
@@ -162,12 +187,12 @@ describe("OpenRouter settings", () => {
     const body = await saved.json();
     expect(body).toMatchObject({
       hasKey: true,
+      apiKey: secret,
       model: null,
       models: [],
       error: "Could not reach OpenRouter.",
     });
-    expect(JSON.stringify(body)).not.toContain(secret);
-    expect(body.apiKey).toBeUndefined();
+    expect(body.error).not.toContain(secret);
     expect(body.api_key).toBeUndefined();
     const logged = vi.mocked(console.error).mock.calls.flat().join(" ");
     expect(logged).not.toContain(secret);
@@ -191,14 +216,18 @@ describe("OpenRouter settings", () => {
         return new Response(
           JSON.stringify({
             data: [
+              ...lessonWritingModelIds.map((id) => ({
+                id,
+                name: id,
+              })),
               {
                 id: "openai/gpt-4o",
                 name: "GPT-4o",
                 pricing: { prompt: secret },
               },
               {
-                id: "anthropic/claude",
-                name: "Claude",
+                id: "black-forest-labs/flux-pro",
+                name: "Flux",
                 description: "raw-provider-payload",
               },
             ],
@@ -210,15 +239,22 @@ describe("OpenRouter settings", () => {
     const viewed = await (await settingsGet()).json();
     expect(viewed).toEqual({
       hasKey: true,
+      apiKey: secret,
       model: null,
-      models: [
-        { id: "anthropic/claude", name: "Claude" },
-        { id: "openai/gpt-4o", name: "GPT-4o" },
-      ],
+      models: lessonWritingModelIds.map((id) => ({ id, name: id })),
     });
-    expect(JSON.stringify(viewed)).not.toContain(secret);
-    expect(JSON.stringify(viewed)).not.toContain("raw-provider-payload");
-    expect(JSON.stringify(viewed)).not.toContain("pricing");
+    const { apiKey: ownerKey, ...viewedRest } = viewed;
+    expect(ownerKey).toBe(secret);
+    expect(JSON.stringify(viewedRest)).not.toContain(secret);
+    expect(JSON.stringify(viewedRest)).not.toContain("raw-provider-payload");
+    expect(JSON.stringify(viewedRest)).not.toContain("pricing");
+
+    asUser(sessions.staff);
+    const staffView = await (await settingsGet()).json();
+    expect(staffView).toMatchObject({ hasKey: false, models: [] });
+    expect(staffView.apiKey).toBeUndefined();
+    expect(JSON.stringify(staffView)).not.toContain(secret);
+    asUser(sessions.admin);
 
     const chosen = await (
       await settingsPut(
@@ -228,7 +264,10 @@ describe("OpenRouter settings", () => {
       )
     ).json();
     expect(chosen.model).toBe("openai/gpt-4o");
-    expect(JSON.stringify(chosen)).not.toContain(secret);
+    expect(chosen.apiKey).toBe(secret);
+    const { apiKey: chosenKey, ...chosenRest } = chosen;
+    expect(chosenKey).toBe(secret);
+    expect(JSON.stringify(chosenRest)).not.toContain(secret);
 
     const removed = await (
       await settingsDelete(
@@ -240,6 +279,7 @@ describe("OpenRouter settings", () => {
       model: "openai/gpt-4o",
       models: [],
     });
+    expect(removed.apiKey).toBeUndefined();
     expect(JSON.stringify(removed)).not.toContain(secret);
     const stored = (
       await db().query(
@@ -403,5 +443,117 @@ describe("OpenRouter settings", () => {
     expect(invalidBody.error).toMatch(/Line /);
     expect(JSON.stringify(invalidBody)).not.toContain(secret);
     expect(JSON.stringify(invalidBody)).not.toContain("This is not a lesson.");
+  });
+
+  it("combines an uploaded text file with additional text in the model prompt", async () => {
+    asUser(sessions.admin);
+    await settingsPut(
+      request("http://localhost:3000/api/authoring/openrouter", "PUT", {
+        apiKey: secret,
+        model: "openai/gpt-4o",
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith("/models"))
+          return new Response(
+            JSON.stringify({ data: [{ id: "openai/gpt-4o", name: "GPT-4o" }] }),
+            { status: 200 },
+          );
+        const sent = JSON.parse(String(init?.body));
+        expect(sent.messages[0].content).toContain(
+          "SOURCE DOCUMENT / SLIDE CONTENT:\nFrom the file\n\nTyped alongside",
+        );
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: lessonMarkdown } }],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const form = new FormData();
+    form.set("additional", "Typed alongside");
+    form.append(
+      "files",
+      new File(["From the file"], "notes.txt", { type: "text/plain" }),
+    );
+    const response = await generate(
+      new Request(
+        `http://localhost:3000/api/courses/${courseId}/lessons/generate`,
+        { method: "POST", body: form },
+      ),
+      { params: Promise.resolve({ courseId }) },
+    );
+    expect(response.status).toBe(201);
+  });
+
+  it("rejects a textless PDF before calling OpenRouter and checks it on upload", async () => {
+    const calls = vi.mocked(fetch);
+    const checkUrl = `http://localhost:3000/api/courses/${courseId}/lessons/pdf-text`;
+    const scanName = "Parametric Estimation.pdf";
+    const check = (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return pdfText(new Request(checkUrl, { method: "POST", body: form }), {
+        params: Promise.resolve({ courseId }),
+      });
+    };
+    const scan = () =>
+      new File([tinyPdf("")], scanName, { type: "application/pdf" });
+
+    expect((await check(scan())).status).toBe(401);
+    expect(calls).not.toHaveBeenCalled();
+
+    asUser(sessions.outsider);
+    expect((await check(scan())).status).toBe(403);
+
+    asUser(sessions.admin);
+    const blocked = await check(scan());
+    expect(blocked.status).toBe(400);
+    expect((await blocked.json()).error).toBe(
+      `${scanName} looks like a scan with no selectable text and cannot be used.`,
+    );
+    expect(
+      (
+        await check(
+          new File([tinyPdf("Hello PDF")], "notes.pdf", {
+            type: "application/pdf",
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    const plain = await check(
+      new File(["From the file"], "notes.txt", { type: "text/plain" }),
+    );
+    expect(plain.status).toBe(400);
+    expect((await plain.json()).error).toBe("Choose a PDF to check.");
+
+    await settingsPut(
+      request("http://localhost:3000/api/authoring/openrouter", "PUT", {
+        apiKey: secret,
+        model: "openai/gpt-4o",
+      }),
+    );
+    calls.mockClear();
+    const generateForm = new FormData();
+    generateForm.append("files", scan());
+    generateForm.append(
+      "files",
+      new File(["From the file"], "notes.txt", { type: "text/plain" }),
+    );
+    const response = await generate(
+      new Request(
+        `http://localhost:3000/api/courses/${courseId}/lessons/generate`,
+        { method: "POST", body: generateForm },
+      ),
+      { params: Promise.resolve({ courseId }) },
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe(
+      `${scanName} looks like a scan with no selectable text and cannot be used.`,
+    );
+    expect(calls).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,8 @@ export type OpenRouterView = {
   hasKey: boolean;
   model: string | null;
   models: OpenRouterModel[];
+  /** The signed-in owner's own key, so the password field can show it masked. */
+  apiKey?: string;
   error?: string;
 };
 
@@ -105,6 +107,22 @@ export function lessonMarkdownFromModel(content: string) {
   return balanceLessonDirectives(text);
 }
 
+/** Chat models that returned usable lesson Markdown from a short source. */
+export const lessonWritingModelIds = [
+  "qwen/qwen3.7-max",
+  "x-ai/grok-4.7",
+  "anthropic/claude-sonnet-5.5",
+  "openai/gpt-5.5",
+] as const;
+
+export function lessonWritingModels(models: OpenRouterModel[]) {
+  const byId = new Map(models.map((model) => [model.id, model]));
+  return lessonWritingModelIds.flatMap((id) => {
+    const model = byId.get(id);
+    return model ? [model] : [];
+  });
+}
+
 export function readableModels(
   models: OpenRouterModel[],
   selected: string | null,
@@ -182,13 +200,16 @@ export async function listOpenRouterModels(apiKey: string) {
     .filter((model: OpenRouterModel) => model.id && model.name);
 }
 
-/** Settings for the browser. The API key is never included. */
+/**
+ * Settings for the signed-in owner. Includes that owner's key so the password
+ * field can show it masked. Error text is redacted and never includes the key.
+ */
 export async function openRouterView(userId: string): Promise<OpenRouterView> {
   const { apiKey, model } = await readRow(userId);
   if (!apiKey) return { hasKey: false, model, models: [] };
   try {
-    const models = readableModels(await listOpenRouterModels(apiKey), model);
-    return { hasKey: true, model, models };
+    const models = lessonWritingModels(await listOpenRouterModels(apiKey));
+    return { hasKey: true, apiKey, model, models };
   } catch (e) {
     const message =
       e instanceof CmsError
@@ -196,8 +217,9 @@ export async function openRouterView(userId: string): Promise<OpenRouterView> {
         : "Could not load models from OpenRouter.";
     return {
       hasKey: true,
+      apiKey,
       model,
-      models: readableModels([], model),
+      models: [],
       error: redactSecret(message, apiKey),
     };
   }

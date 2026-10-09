@@ -4,7 +4,9 @@ type Message = {
   done?: boolean;
   output?: string;
   error?: string;
+  figures?: string[];
 };
+export type RunResult = { output: string; figures: string[] };
 const workers = new Map<string, { worker: Worker; busy: boolean }>();
 export function execute(
   language: "python" | "r",
@@ -23,7 +25,7 @@ export function execute(
   const active = entry,
     id = crypto.randomUUID();
   let timer: ReturnType<typeof setTimeout>, finish: (reason: string) => void;
-  const promise = new Promise<string>((resolve, reject) => {
+  const promise = new Promise<RunResult>((resolve, reject) => {
     function cleanup() {
       clearTimeout(timer);
       active.busy = false;
@@ -39,7 +41,7 @@ export function execute(
     timer = setTimeout(
       () =>
         finish("Runtime loading timed out. Check your connection and retry."),
-      60000,
+      180000,
     );
     active.worker.onerror = () =>
       finish("Runtime unavailable. Check your connection and retry.");
@@ -47,19 +49,25 @@ export function execute(
       if (data.id !== id) return;
       if (data.status) {
         onStatus(data.status);
-        if (data.status === "Running…") {
-          clearTimeout(timer);
-          timer = setTimeout(
-            () => finish("Execution stopped after 10 seconds."),
-            10000,
-          );
-        }
+        clearTimeout(timer);
+        timer = setTimeout(
+          () =>
+            finish(
+              data.status === "Running…"
+                ? "Execution stopped after 10 seconds."
+                : "Runtime loading timed out. Check your connection and retry.",
+            ),
+          data.status === "Running…" ? 10000 : 180000,
+        );
       }
       if (data.done) {
         cleanup();
+        const figures = Array.isArray(data.figures)
+          ? data.figures.filter((item) => typeof item === "string")
+          : [];
         if (data.error)
           reject(new Error((data.output ?? "") + "\n" + data.error));
-        else resolve(data.output ?? "");
+        else resolve({ output: data.output ?? "", figures });
       }
     };
     active.worker.postMessage({ id, language, code, check });

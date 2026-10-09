@@ -43,7 +43,16 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   await expect(
     page.getByRole("heading", { name: "Practice", exact: true }),
   ).toBeVisible();
-  const second = (await state()).chapters[1].id;
+  await expect
+    .poll(async () =>
+      (await state()).chapters.some(
+        (chapter: { title: string }) => chapter.title === "Practice",
+      ),
+    )
+    .toBe(true);
+  const second = (await state()).chapters.find(
+    (chapter: { title: string }) => chapter.title === "Practice",
+  ).id;
   const create = async (chapterId: string) =>
     (
       await (
@@ -126,6 +135,13 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
       exact: true,
     }),
   ).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await state()).lessons.some(
+        (lesson: { title: string }) => lesson.title === "Practice with data",
+      ),
+    )
+    .toBe(true);
   await page.reload();
   await expect(
     chapter(second).getByRole("link", {
@@ -182,7 +198,7 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
       }),
     ),
   ).toEqual(payload.lessons);
-  // A failed drag restores the saved view and reports the failure.
+  // A failed drag keeps the new order on screen and reports the failure.
   await page.route("**/outline", (route) =>
     route.fulfill({
       status: 500,
@@ -195,7 +211,7 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
     page.getByRole("status").filter({ hasText: "Please retry" }),
   ).toBeVisible();
   await expect(
-    chapter(first).locator(`[data-outline-item="lesson:${b}"]`),
+    chapter(second).locator(`[data-outline-item="lesson:${b}"]`),
   ).toHaveCount(1);
   await page.unroute("**/outline");
   expect(

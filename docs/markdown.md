@@ -27,17 +27,17 @@ Metadata falls back to the existing lesson when omitted. `track` is `Python`, `R
 
 Every component accepts `id`, `visible`, and `advanced` attributes. Boolean component fields may be attributes. String fields use named child directives; their body is preserved including whitespace. Ordinary Markdown and code fences are supported inside rich-text fields. Runnable language is `python` or `r`.
 
-| Component       | Fields                                                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| text            | markdown                                                                                                                      |
-| task            | statement, context, functions                                                                                                 |
-| quick-reference | title, markdown                                                                                                               |
-| worked-example  | title, language, code, explanation, runnable, expectedOutput                                                                  |
-| figure          | imageUrl, alt, caption, markdown                                                                                              |
-| mcq             | question, multiple, choices, explanation                                                                                      |
-| code-exercise   | language, starterCode, solution, execution, instructions, checkScript, expectedOutput, additionalPenalties, ignoredIssues    |
-| reflection      | prompt, rubric                                                                                                                |
-| data-asset      | url, filename, runtimePath, description                                                                                       |
+| Component       | Fields                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| text            | markdown                                                                                                                  |
+| task            | statement, context, functions                                                                                             |
+| quick-reference | title, markdown                                                                                                           |
+| worked-example  | title, language, code, explanation, runnable, expectedOutput                                                              |
+| figure          | imageUrl, alt, caption, markdown                                                                                          |
+| mcq             | question, multiple, choices, explanation                                                                                  |
+| code-exercise   | language, starterCode, solution, execution, instructions, checkScript, expectedOutput, additionalPenalties, ignoredIssues |
+| reflection      | prompt, rubric                                                                                                            |
+| data-asset      | url, filename, runtimePath, description                                                                                   |
 
 For compact input, direct component body text is accepted for text/quick-reference/figure Markdown, task statement, reflection prompt, code-exercise instructions, MCQ question, worked-example code, and resource description. Prefer explicit named fields for lossless export.
 
@@ -54,7 +54,7 @@ Code fields can contain raw code or a fenced code block. Use an outer fence long
 
 ## Validation and preservation
 
-Unknown components/fields, malformed attributes, unmatched closers, unclosed directives and invalid field types produce line/column diagnostics. Structural errors point at their directive’s opening line. Future schema versions are rejected without silently converting their source. Source remains in the editor and database; the last valid structured model remains active. No raw HTML is rendered.
+Unknown components/fields, malformed attributes, unmatched closers, unclosed directives and invalid field types produce line/column diagnostics. Structural errors point at their directive’s opening line. Future schema versions are rejected without silently converting their source. Source remains in the editor and database; the last valid structured model remains active. No raw HTML is rendered. Inline math (`$...$` or `\(...\)`) and display math (`$$...$$` or `\[...\]`) are rendered with KaTeX.
 
 The serializer emits deterministic field order for a given typed model, stable IDs, explicit visibility/advanced values, code/checks/rubrics and metadata. Round-trip tests compare models for every supported block. Source formatting may be canonicalized on export; semantic field contents and IDs are preserved. Do not store secrets in authored code, URLs or runtime settings.
 

@@ -16,8 +16,8 @@ export async function GET(_: Request, { params }: C) {
 export async function POST(req: Request, { params }: C) {
   try {
     sameOrigin(req);
-    await editChapter((await params).courseId, await req.json());
-    return NextResponse.json({ ok: true });
+    const id = await editChapter((await params).courseId, await req.json());
+    return NextResponse.json({ ok: true, id });
   } catch (e) {
     return apiError(e);
   }

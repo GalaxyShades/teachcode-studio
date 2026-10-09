@@ -1,8 +1,12 @@
 "use client";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import type { Block } from "@/lib/content";
+import { prepareLearnerMarkdown } from "@/lib/learner-math";
+import { markdownLinkHref } from "@/lib/link-href";
 import { CodeDisplay } from "./CodeDisplay";
 import { CodeRunner } from "./CodeRunner";
 import { InlineText } from "./InlineText";
@@ -10,8 +14,13 @@ const safeUrl = (url: string) => /^https?:\/\//i.test(url);
 export function Markdown({ children }: { children: string }) {
   return (
     <div className="markdown">
-      <ReactMarkdown skipHtml remarkPlugins={[remarkGfm]}>
-        {children}
+      <ReactMarkdown
+        skipHtml
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { trust: false, strict: "ignore" }]]}
+        urlTransform={markdownLinkHref}
+      >
+        {prepareLearnerMarkdown(children)}
       </ReactMarkdown>
     </div>
   );
