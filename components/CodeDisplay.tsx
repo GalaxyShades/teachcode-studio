@@ -15,7 +15,7 @@ export function CodeDisplay({
     ? hljs.highlight(code, { language, ignoreIllegals: true }).value
     : code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return (
-    <pre className="overflow-auto rounded bg-zinc-950 p-4 text-zinc-100">
+    <pre className="min-h-[calc(15lh+2rem)] overflow-auto rounded bg-zinc-950 p-4 text-zinc-100">
       <code dangerouslySetInnerHTML={{ __html: html }} />
     </pre>
   );

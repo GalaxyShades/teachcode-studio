@@ -57,7 +57,7 @@ export function CodeRunner({
       <textarea
         aria-label={`${language} code`}
         className="w-full bg-transparent font-mono text-sm"
-        rows={8}
+        rows={15}
         value={code}
         onChange={(e) => setCode(e.target.value)}
       />

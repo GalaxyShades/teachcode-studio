@@ -173,6 +173,12 @@ const noMarkupKeys = new Set([
   "name",
 ]);
 const singleLineKeys = new Set(["title", "filename", "alt"]);
+const codeEditorKeys = new Set([
+  "code",
+  "starterCode",
+  "solution",
+  "checkScript",
+]);
 const headingKeys = new Set(["title"]);
 function usesInlineMarkup(key: string) {
   return !noMarkupKeys.has(key) && !headingKeys.has(key);
@@ -870,8 +876,8 @@ function Fields({
               ) : (
                 <textarea
                   id={id}
-                  className={`field ${["code", "starterCode", "solution", "checkScript"].includes(key) ? "font-mono" : ""}`}
-                  rows={3}
+                  className={`field ${codeEditorKeys.has(key) ? "font-mono" : ""}`}
+                  rows={codeEditorKeys.has(key) ? 15 : 3}
                   value={v ?? ""}
                   onChange={(e) => set(e.target.value)}
                 />
