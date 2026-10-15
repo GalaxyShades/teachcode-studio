@@ -1,5 +1,5 @@
 import { newLessonAction } from "@/app/actions";
-import { requireAdmin } from "@/lib/cms";
+import { requireCourse } from "@/lib/cms";
 import { resolveEditorCourse } from "@/lib/editor-routes";
 import { coursePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
@@ -11,7 +11,7 @@ export default async function NewLesson({
   const { courseId: key } = await params;
   const course = await resolveEditorCourse(key);
   const courseId = course.id;
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const canonical = `${coursePath(course)}/lessons/new`;
   if (`/courses/${key}/lessons/new` !== canonical) redirect(canonical);
   return (

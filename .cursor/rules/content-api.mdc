@@ -1,0 +1,15 @@
+---
+description: Public content API and authoring route boundaries
+globs: app/api/**/*.ts,lib/public-*.ts,lib/published-catalog.ts,lib/content.ts
+alwaysApply: false
+---
+
+# Content API
+
+- Public reads live only under `/api/v1/content`. They are unauthenticated `GET`/`HEAD`/`OPTIONS`. No cookies, no API key.
+- The wire format is `lib/public-contract.ts` plus `docs/lesson-content-api.md`. Path ids are UUIDs. Slugs are labels.
+- The public payload must not gain solutions, automated checks, additional penalties, ignored issues, reflection rubrics, assistant settings (`suggestedQuestions`, `constraints`), source Markdown, drafts, or hidden components.
+- Adding an authoring field is not permission to expose it. Update the explicit public allowlist, or the field stays off the response.
+- Authoring routes under `/api/courses` require an admin or assigned-staff session. The student app must not receive those routes.
+- Responses stay `Cache-Control: no-store` with `X-Content-API-Version`. CORS is the exact `ALLOWED_CORS_ORIGINS` list, credentials omitted.
+- A new `revisionId` means republish. This app does not decide whether old student progress still counts.

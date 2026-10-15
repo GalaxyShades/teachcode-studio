@@ -1,8 +1,5 @@
 function blockedLinkScheme(value: string) {
-  const normalized = value
-    .replace(/[\u0000-\u001F\u007F]/g, "")
-    .trim()
-    .toLowerCase();
+  const normalized = stripControlChars(value).trim().toLowerCase();
   return normalized.startsWith("javascript:") || normalized.startsWith("data:");
 }
 
@@ -22,6 +19,16 @@ export function safeLinkHref(raw: string): string | null {
     }
   }
   return raw;
+}
+
+function stripControlChars(value: string) {
+  let result = "";
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 31 || code === 127) continue;
+    result += value[i];
+  }
+  return result;
 }
 
 function hasUnsafeUrlChar(raw: string) {

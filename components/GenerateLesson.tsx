@@ -4,13 +4,14 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthoringGuide } from "./AuthoringGuide";
+import { withBase } from "@/lib/paths";
 
 type Model = { id: string; name: string };
 type View = {
   hasKey: boolean;
   model: string | null;
   models: Model[];
-  apiKey?: string;
+  usingServerKey?: boolean;
   error?: string;
 };
 
@@ -81,6 +82,7 @@ export function GenerateLesson({
   const assigning = useRef(false);
   const checkingRef = useRef(false);
   const [hasKey, setHasKey] = useState(false);
+  const [usingServerKey, setUsingServerKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [models, setModels] = useState<Model[]>([]);
@@ -99,14 +101,16 @@ export function GenerateLesson({
     setModel(view.model ?? "");
     setModels(view.models ?? []);
     setError(view.error ?? "");
-    setApiKey(view.apiKey ?? "");
+    setUsingServerKey(Boolean(view.usingServerKey));
+    // Never echo a secret from the server. Clear after save/remove.
+    setApiKey("");
   }
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/authoring/openrouter");
+        const response = await fetch(withBase("/api/authoring/openrouter"));
         const view = await response.json();
         if (!response.ok)
           throw new Error(view.error || "Could not load settings");
@@ -125,7 +129,7 @@ export function GenerateLesson({
     setBusy("save");
     setError("");
     try {
-      const response = await fetch("/api/authoring/openrouter", {
+      const response = await fetch(withBase("/api/authoring/openrouter"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey }),
@@ -145,7 +149,7 @@ export function GenerateLesson({
     if (!next) return;
     setError("");
     try {
-      const response = await fetch("/api/authoring/openrouter", {
+      const response = await fetch(withBase("/api/authoring/openrouter"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: next }),
@@ -164,7 +168,7 @@ export function GenerateLesson({
     setBusy("remove");
     setError("");
     try {
-      const response = await fetch("/api/authoring/openrouter", {
+      const response = await fetch(withBase("/api/authoring/openrouter"), {
         method: "DELETE",
       });
       const view = await response.json();
@@ -216,7 +220,7 @@ export function GenerateLesson({
         form.append("file", file);
         try {
           const response = await fetch(
-            `/api/courses/${courseId}/lessons/pdf-text`,
+            withBase(`/api/courses/${courseId}/lessons/pdf-text`),
             { method: "POST", body: form },
           );
           const result = (await response.json().catch(() => ({}))) as {
@@ -264,7 +268,7 @@ export function GenerateLesson({
     setBusy("create");
     try {
       const response = await fetch(
-        `/api/courses/${courseId}/lessons/generate`,
+        withBase(`/api/courses/${courseId}/lessons/generate`),
         {
           method: "POST",
           body: form,
@@ -331,6 +335,13 @@ export function GenerateLesson({
         >
           <label className="label block" htmlFor="openrouter-api-key">
             OpenRouter API key
+            {hasKey ? (
+              <span className="mt-1 block font-normal text-zinc-600">
+                {usingServerKey
+                  ? "Using the server OpenRouter key. Leave this blank to keep it, or paste a personal key to override."
+                  : "A personal key is saved on the server. Paste a new key to replace it, or remove it to fall back to the server key."}
+              </span>
+            ) : null}
             <span className="relative mt-1 block">
               <input
                 id="openrouter-api-key"

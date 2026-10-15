@@ -22,7 +22,7 @@ import { BlockRenderer } from "./BlockRenderer";
 import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
 import { VersionHistory } from "./VersionHistory";
-import { coursePath, lessonPath } from "@/lib/paths";
+import { coursePath, lessonPath, withBase } from "@/lib/paths";
 import {
   activeFormats,
   insertTable,
@@ -42,7 +42,8 @@ import {
 } from "@/lib/field-markup";
 
 function syncLessonAddress(path: string) {
-  if (window.location.pathname === path) return;
+  const next = withBase(path);
+  if (window.location.pathname === next) return;
   const current = window.history.state;
   window.history.replaceState(
     {
@@ -50,7 +51,7 @@ function syncLessonAddress(path: string) {
       __NA: true,
     },
     "",
-    path,
+    next,
   );
 }
 
@@ -1100,7 +1101,7 @@ export default function LessonEditor({
     setBusy(true);
     try {
       const response = await fetch(
-        `/api/courses/${courseId}/lessons/${lessonId}/history`,
+        withBase(`/api/courses/${courseId}/lessons/${lessonId}/history`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1329,10 +1330,12 @@ export default function LessonEditor({
                         onClick={() =>
                           setRemove(() => async () => {
                             await unpublishDraft(courseId, lessonId, true);
-                            window.location.href = coursePath({
-                              id: courseId,
-                              slug: courseSlug,
-                            });
+                            window.location.href = withBase(
+                              coursePath({
+                                id: courseId,
+                                slug: courseSlug,
+                              }),
+                            );
                           })
                         }
                       >
@@ -1345,7 +1348,9 @@ export default function LessonEditor({
             </div>
             <VersionHistory
               status={status}
-              endpoint={`/api/courses/${courseId}/lessons/${lessonId}/history`}
+              endpoint={withBase(
+                `/api/courses/${courseId}/lessons/${lessonId}/history`,
+              )}
               busy={busy}
               onRestore={restore}
             />

@@ -41,10 +41,27 @@ export function prepareLearnerMarkdown(source: string) {
     .replace(/(?<!\\)\$\$([^\n]*?)\$\$/g, (match, body: string) =>
       body.trim() ? displayMath(body) : match,
     );
-  return converted.replace(
-    /\u0000(\d+)\u0000/g,
-    (_match, index: string) => blocks[Number(index)] ?? "",
-  );
+  return restoreMaskedBlocks(converted, blocks);
+}
+
+function restoreMaskedBlocks(source: string, blocks: string[]) {
+  let result = "";
+  for (let i = 0; i < source.length; ) {
+    if (source[i] !== "\u0000") {
+      result += source[i];
+      i++;
+      continue;
+    }
+    const close = source.indexOf("\u0000", i + 1);
+    if (close === -1) {
+      result += source.slice(i);
+      break;
+    }
+    const index = Number(source.slice(i + 1, close));
+    result += blocks[index] ?? "";
+    i = close + 1;
+  }
+  return result;
 }
 
 function displayMath(body: string) {
@@ -68,7 +85,7 @@ function fenceAt(source: string, index: number) {
 function fencedEnd(source: string, index: number, fence: string) {
   const close = source.indexOf(`\n${fence}`, index + fence.length);
   if (close === -1) return source.length;
-  let end = close + 1 + fence.length;
+  const end = close + 1 + fence.length;
   const newline = source.indexOf("\n", end);
   return newline === -1 ? source.length : newline + 1;
 }

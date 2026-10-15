@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 export default function ErrorPage({
   error,
   reset,
@@ -15,9 +16,9 @@ export default function ErrorPage({
       <button className="btn-primary" onClick={reset}>
         Try again
       </button>
-      <a href="/courses" className="ml-4 underline">
+      <Link href="/courses" className="ml-4 underline">
         Courses
-      </a>
+      </Link>
     </main>
   );
 }

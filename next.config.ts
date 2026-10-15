@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 const nextConfig = (phase: string): NextConfig => ({
+  ...(process.env.STUDIO_BASE_PATH
+    ? { basePath: process.env.STUDIO_BASE_PATH }
+    : {}),
+  env: {
+    NEXT_PUBLIC_STUDIO_BASE_PATH: process.env.STUDIO_BASE_PATH || "",
+  },
   distDir:
     process.env.NEXT_DIST_DIR ||
     (phase === PHASE_DEVELOPMENT_SERVER ? ".next-dev" : ".next"),

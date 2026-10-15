@@ -1,0 +1,17 @@
+---
+description: Core Content Studio boundaries, layout, and pedagogy ownership
+alwaysApply: true
+---
+
+# Content Studio core
+
+- This repo is the authoring app only. Do not import TeachCode student-app components, YAML lesson packs, or FastAPI code.
+- Next.js **15**. Read `node_modules/next/dist/docs/` before changing App Router APIs. Dev port is **3000** (`npm run dev`). Production output is `.next`; dev output is `.next-dev`.
+- Studio writes courses, chapters, and lessons. The student app only reads `GET /api/v1/content`. Do not add student progress, attempts, scores, or enrollment tables here.
+- Roles: **admin** sees every course and may assign teachers; **staff** see assigned/shared courses and may create courses they own (or create for another teacher); learners have no CMS session.
+- YAML migration of legacy lessons is out of scope. Do not add a YAML loader.
+- Layers: `app/` routes and actions, `components/` render, `lib/` schema and repository. `lib/content.ts` is the typed lesson schema. `lib/repository.ts` is the only writer of normalized rows.
+- UI stack is MUI plus Tailwind utility classes already in `app/globals.css` (`.btn-primary`, `.card`, `.field`). Do not introduce a second component kit.
+- Naming: keep existing PascalCase component files. New layout-only helpers may be kebab-case next to the caller.
+- Soft size limits: React components ~400 lines, `lib/` modules ~500 lines, any file ~800 lines. Extract in the same change when you touch a file past those limits.
+- When a helper is replaced, migrate callers and delete the old export in the same change. No parallel `*V2` modules.

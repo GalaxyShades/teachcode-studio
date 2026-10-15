@@ -1,0 +1,15 @@
+---
+description: Editor and learner UI, accessibility, and lazy browser runtimes
+globs: app/**/*.tsx,components/**/*.tsx,lib/runtime.ts,public/runtime-worker.js
+alwaysApply: false
+---
+
+# UI and runtime
+
+- Reuse `.btn-primary`, `.btn-secondary`, `.card`, `.field`, and `.label` before adding new control styles. MUI is for dense editor widgets already on that pattern.
+- Authoring links use readable slugs. APIs keep internal ids. Old UUID links redirect; do not drop that redirect when editing routes.
+- Keyboard: drag-and-drop cards must keep the Space / arrow / Space / Escape path. Label icon-only buttons.
+- Preview and the public learner share `components/BlockRenderer.tsx`. Do not fork a second block renderer.
+- Pyodide and WebR load only after a learner runs code, inside `public/runtime-worker.js`. Do not import them from server components or the courses list.
+- `runnable: false` shows code without a Run button. `execution: "server"` shows unavailable. It does not call a server shell.
+- Autosave stays debounced. Version conflicts return 409 and must not be overwritten silently.

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { withBase } from "@/lib/paths";
 
 type Course = {
   id: string;
@@ -23,7 +24,7 @@ export function CoursePublish({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/courses/${course.id}`, {
+      const response = await fetch(withBase(`/api/courses/${course.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

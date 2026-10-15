@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { withBase } from "@/lib/paths";
 type Person = { id: string; display_name: string; email: string };
 export function StaffAssignments({
   courseId,
@@ -16,14 +17,14 @@ export function StaffAssignments({
   async function assign(userId: string, assigned: boolean) {
     setBusy(true);
     try {
-      const res = await fetch(`/api/courses/${courseId}/assignments`, {
+      const res = await fetch(withBase(`/api/courses/${courseId}/assignments`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId, assigned }),
         }),
         result = await res.json();
       if (!res.ok) throw new Error(result.error);
-      const next = await fetch(`/api/courses/${courseId}/assignments`);
+      const next = await fetch(withBase(`/api/courses/${courseId}/assignments`));
       if (!next.ok) throw new Error("Could not reload assignments");
       setStaff(await next.json());
       setStatus(assigned ? "Assigned" : "Assignment removed");
@@ -37,8 +38,7 @@ export function StaffAssignments({
     <section className="card mt-6 p-4">
       <h2 className="text-xl font-bold">Assign staff</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Assigned staff can edit drafts for this course. They cannot assign
-        other people.
+        Assigned teachers can edit and publish lessons for this course.
       </p>
       <p role="status" className="my-3 text-sm empty:my-0">
         {status}
@@ -60,7 +60,9 @@ export function StaffAssignments({
         className="my-3 flex items-end gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
-          const res = await fetch("/api/users?q=" + encodeURIComponent(query));
+          const res = await fetch(
+            withBase("/api/users?q=" + encodeURIComponent(query)),
+          );
           if (res.ok) setUsers(await res.json());
           else setStatus("User search failed");
         }}

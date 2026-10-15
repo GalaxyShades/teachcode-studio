@@ -25,7 +25,7 @@ export default async function Courses({
           <h1 className="text-3xl font-bold">Course content</h1>
         </div>
         <div className="flex gap-2">
-          {u.role === "admin" && (
+          {["admin", "staff"].includes(u.role) && (
             <Link className="btn-primary" href="/courses/new">
               New course
             </Link>
@@ -34,8 +34,8 @@ export default async function Courses({
         </div>
       </header>
       <p className="mt-3 max-w-2xl text-zinc-600">
-        Create lessons, bring your teaching materials to life, and preview the
-        learner experience.
+        Teachers see courses they created or were assigned. Admins see every
+        course. Create lessons, then publish them for TeachCode.
       </p>
       <form className="mt-6 flex items-end gap-2">
         <label className="label flex-1">

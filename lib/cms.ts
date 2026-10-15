@@ -42,7 +42,7 @@ export async function coursesForUser(user: User) {
     throw new CmsError(403, "No CMS access");
   return (
     await db().query(
-      "SELECT DISTINCT c.*, (SELECT count(*) FROM cms_lessons l WHERE l.course_id=c.id) lesson_count FROM cms_courses c LEFT JOIN cms_course_staff_assignments a ON a.course_id=c.id WHERE $1='admin' OR a.profile_id=$2 ORDER BY c.updated_at DESC",
+      "SELECT c.*, (SELECT count(*) FROM cms_lessons l WHERE l.course_id=c.id) lesson_count FROM cms_courses c WHERE $1='admin' OR c.created_by=$2 OR EXISTS (SELECT 1 FROM cms_course_staff_assignments a WHERE a.course_id=c.id AND a.profile_id=$2) ORDER BY c.updated_at DESC",
       [user.role, user.id],
     )
   ).rows;
@@ -64,29 +64,48 @@ export async function getCourse(id: string) {
         [id],
       )
     ).rows,
-    staff:
-      user.role === "admin"
-        ? (
-            await db().query(
-              "SELECT p.id,p.display_name,p.email FROM cms_course_staff_assignments a JOIN profiles p ON p.id=a.profile_id WHERE a.course_id=$1",
-              [id],
-            )
-          ).rows
-        : [],
+    staff: (
+      await db().query(
+        "SELECT p.id,p.display_name,p.email FROM cms_course_staff_assignments a JOIN profiles p ON p.id=a.profile_id WHERE a.course_id=$1 ORDER BY p.display_name,p.email",
+        [id],
+      )
+    ).rows,
     user,
   };
 }
+export async function requireAuthor() {
+  const u = await requireUser();
+  if (!["admin", "staff"].includes(u.role))
+    throw new CmsError(403, "Only teachers and admins may create courses");
+  return u;
+}
+
+/**
+ * Admin or staff may create a course.
+ * The owner (creator by default, or another teacher from ownerId) is assigned
+ * so the course appears in their list. The creator is also assigned when they
+ * are staff and different from the owner.
+ */
 export async function createCourse(form: FormData) {
-  const u = await requireAdmin(),
-    courseId = crypto.randomUUID();
+  const creator = await requireAuthor();
+  const courseId = crypto.randomUUID();
   const title = String(form.get("title") || "").trim(),
     slug = String(form.get("slug") || "");
   if (!title || !/^[a-z0-9-]+$/.test(slug))
     throw new CmsError(400, "Title and lowercase URL slug are required");
+  const ownerId = String(form.get("ownerId") || "").trim() || creator.id;
+  const owner = (
+    await db().query<{ id: string; role: string }>(
+      "SELECT id, role FROM profiles WHERE id=$1",
+      [ownerId],
+    )
+  ).rows[0];
+  if (!owner || !["admin", "staff"].includes(owner.role))
+    throw new CmsError(400, "Select a teacher or admin as the course owner");
   await db().transaction(async (c) => {
     await c.query(
       "INSERT INTO cms_courses(id,slug,title,description,created_by) VALUES($1,$2,$3,$4,$5)",
-      [courseId, slug, title, String(form.get("description") || ""), u.id],
+      [courseId, slug, title, String(form.get("description") || ""), creator.id],
     );
     const chapterId = crypto.randomUUID();
     await c.query(
@@ -100,6 +119,16 @@ export async function createCourse(form: FormData) {
       courseId,
       emptyAssistant(),
     );
+    // Admins see every course without an assignment row. Staff need one.
+    const assignees = new Set<string>();
+    if (owner.role === "staff") assignees.add(owner.id);
+    if (creator.role === "staff") assignees.add(creator.id);
+    for (const profileId of assignees) {
+      await c.query(
+        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+        [courseId, profileId, creator.id],
+      );
+    }
   });
   return courseId;
 }
@@ -126,7 +155,7 @@ export async function createLesson(
       400,
       "Lesson name must be between 1 and 200 characters",
     );
-  const u = await requireAdmin(courseId),
+  const u = await requireCourse(courseId),
     lessonId = id ?? crypto.randomUUID(),
     revisionId = crypto.randomUUID();
   await db().transaction(async (c) => {

@@ -9,6 +9,12 @@ export type User = {
   role: string;
 };
 const cookie = "teachcode_cms_session";
+
+/** Hosted Studio uses /studio so this cookie is not sent to the student app. */
+export function cmsCookiePath(): string {
+  const base = (process.env.STUDIO_BASE_PATH || "").replace(/\/$/, "");
+  return base || "/";
+}
 export function verifyPassword(password: string, stored: string) {
   const [kind, count, salt, digest] = String(stored).split("$"),
     iterations = Number(count);
@@ -82,8 +88,8 @@ export async function login(email: string, password: string) {
   jar.set(cookie, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    secure: (process.env.APP_URL ?? "").startsWith("https://"),
+    path: cmsCookiePath(),
     maxAge: 604800,
   });
   return true;
@@ -102,5 +108,5 @@ export async function logout() {
     token = jar.get(cookie)?.value;
   if (token)
     await db().query("DELETE FROM auth_sessions WHERE token=$1", [token]);
-  jar.delete(cookie);
+  jar.delete({ name: cookie, path: cmsCookiePath() });
 }

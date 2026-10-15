@@ -1,6 +1,7 @@
 "use client";
 import { useState, useId } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { withBase } from "@/lib/paths";
 
 type Course = {
   id: string;
@@ -60,7 +61,7 @@ export function CourseSettings({ course }: { course: Course }) {
               setBusy(true);
               setError("");
               try {
-                const response = await fetch(`/api/courses/${course.id}`, {
+                const response = await fetch(withBase(`/api/courses/${course.id}`), {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(data),
@@ -70,7 +71,7 @@ export function CourseSettings({ course }: { course: Course }) {
                   throw new Error(
                     result.error || "Could not save course settings",
                   );
-                window.location.assign(`/courses/${course.id}`);
+                window.location.assign(withBase(`/courses/${course.id}`));
               } catch (e) {
                 setError(
                   e instanceof Error

@@ -2,12 +2,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { login, logout } from "@/lib/auth";
-import {
-  createCourse,
-  createLesson,
-  requireCourse,
-  requireAdmin,
-} from "@/lib/cms";
+import { createCourse, createLesson, requireCourse } from "@/lib/cms";
 import { persistDraft, publishRevision, CmsError } from "@/lib/repository";
 import { db } from "@/lib/db";
 import type { AssistantSettings, LessonDraft } from "@/lib/content";
@@ -63,7 +58,7 @@ export async function publishDraft(
   courseAssistant?: AssistantSettings,
 ) {
   try {
-    const u = await requireAdmin(courseId);
+    const u = await requireCourse(courseId);
     const result = await publishRevision(
       courseId,
       lessonId,
@@ -84,7 +79,7 @@ export async function unpublishDraft(
   lessonId: string,
   archive = false,
 ) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const result = await db().query(
     "UPDATE cms_lessons SET published_revision_id=NULL,status=$1,version=version+1 WHERE id=$2 AND course_id=$3",
     [archive ? "archived" : "draft", lessonId, courseId],

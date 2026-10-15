@@ -187,13 +187,15 @@ describe("OpenRouter settings", () => {
     const body = await saved.json();
     expect(body).toMatchObject({
       hasKey: true,
-      apiKey: secret,
+      usingServerKey: false,
       model: null,
       models: [],
       error: "Could not reach OpenRouter.",
     });
+    expect(body.apiKey).toBeUndefined();
     expect(body.error).not.toContain(secret);
     expect(body.api_key).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain(secret);
     const logged = vi.mocked(console.error).mock.calls.flat().join(" ");
     expect(logged).not.toContain(secret);
     expect(vi.mocked(console.log).mock.calls.flat().join(" ")).not.toContain(
@@ -239,15 +241,14 @@ describe("OpenRouter settings", () => {
     const viewed = await (await settingsGet()).json();
     expect(viewed).toEqual({
       hasKey: true,
-      apiKey: secret,
+      usingServerKey: false,
       model: null,
       models: lessonWritingModelIds.map((id) => ({ id, name: id })),
     });
-    const { apiKey: ownerKey, ...viewedRest } = viewed;
-    expect(ownerKey).toBe(secret);
-    expect(JSON.stringify(viewedRest)).not.toContain(secret);
-    expect(JSON.stringify(viewedRest)).not.toContain("raw-provider-payload");
-    expect(JSON.stringify(viewedRest)).not.toContain("pricing");
+    expect(viewed.apiKey).toBeUndefined();
+    expect(JSON.stringify(viewed)).not.toContain(secret);
+    expect(JSON.stringify(viewed)).not.toContain("raw-provider-payload");
+    expect(JSON.stringify(viewed)).not.toContain("pricing");
 
     asUser(sessions.staff);
     const staffView = await (await settingsGet()).json();
@@ -264,10 +265,9 @@ describe("OpenRouter settings", () => {
       )
     ).json();
     expect(chosen.model).toBe("openai/gpt-4o");
-    expect(chosen.apiKey).toBe(secret);
-    const { apiKey: chosenKey, ...chosenRest } = chosen;
-    expect(chosenKey).toBe(secret);
-    expect(JSON.stringify(chosenRest)).not.toContain(secret);
+    expect(chosen.apiKey).toBeUndefined();
+    expect(chosen.usingServerKey).toBe(false);
+    expect(JSON.stringify(chosen)).not.toContain(secret);
 
     const removed = await (
       await settingsDelete(

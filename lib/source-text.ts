@@ -61,7 +61,7 @@ export async function extractSourceText(name: string, bytes: Uint8Array) {
     if (error instanceof CmsError) throw error;
     unreadable(file);
   }
-  const trimmed = text.replace(/\u0000/g, "").trim();
+  const trimmed = text.split("\u0000").join("").trim();
   if (!trimmed) {
     if (ext === "pdf")
       throw new CmsError(

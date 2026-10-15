@@ -1,0 +1,15 @@
+---
+description: How Studio is hosted beside the student app
+globs: scripts/build-and-host.sh,deploy/**/*
+alwaysApply: false
+---
+
+# Hosting
+
+- Studio is a separate process from the student app. Bind Next to `127.0.0.1:3010`. nginx publishes it at `https://codewithAI.hku.hk/studio/` on port 443. Do not listen on port 8080.
+- Production sets `STUDIO_BASE_PATH=/studio` so Next `basePath` matches that URL. Local `npm run dev` leaves the variable unset and stays on `http://localhost:3000` with no prefix.
+- The student app server calls `http://127.0.0.1:3010/studio/api/v1/content`. That hop does not use the CMS session cookie.
+- `APP_URL` is `https://codewithAI.hku.hk/studio`. `ALLOWED_CORS_ORIGINS` is the student site origin when a browser calls Studio directly.
+- Hosted OpenRouter settings live in `.env.production.local` (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL=deepseek/deepseek-v4-flash`, …). Keep them identical to the student API env. Do not put keys in `.env.local` for production.
+- `./scripts/build-and-host.sh` typechecks, builds, migrates when `DATABASE_MODE=postgres`, and reloads pm2. It does not seed users and it does not run the student app’s `scripts/migrate.sh`.
+- Processes stay on localhost. Do not listen on `0.0.0.0`.

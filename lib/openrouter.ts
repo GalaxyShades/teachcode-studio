@@ -4,16 +4,41 @@ import { db } from "./db";
 import { CmsError } from "./repository";
 
 const APP_TITLE = "TeachCode Content Studio";
-const MODELS_URL = "https://openrouter.ai/api/v1/models";
-const COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+function openRouterBase() {
+  return (
+    process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1"
+  ).replace(/\/$/, "");
+}
+
+/** Same server-side key as the student app. Not sent to the browser. */
+export function serverOpenRouterKey(): string | null {
+  const key = (process.env["OPENROUTER_API_KEY"] ?? "").trim();
+  if (!key || key === "sk-or-v1" || key.length < 20) return null;
+  return key;
+}
+
+function serverOpenRouterModel() {
+  return (
+    (process.env["OPENROUTER_MODEL"] ?? "").trim() ||
+    "deepseek/deepseek-v4-flash"
+  );
+}
+
+function serverNumber(name: string, fallback: number) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
 
 export type OpenRouterModel = { id: string; name: string };
 export type OpenRouterView = {
   hasKey: boolean;
   model: string | null;
   models: OpenRouterModel[];
-  /** The signed-in owner's own key, so the password field can show it masked. */
-  apiKey?: string;
+  /** True when the key is the shared server env key, not a personal saved key. */
+  usingServerKey?: boolean;
   error?: string;
 };
 
@@ -109,6 +134,7 @@ export function lessonMarkdownFromModel(content: string) {
 
 /** Chat models that returned usable lesson Markdown from a short source. */
 export const lessonWritingModelIds = [
+  "deepseek/deepseek-v4-flash",
   "qwen/qwen3.7-max",
   "x-ai/grok-4.7",
   "anthropic/claude-sonnet-5.5",
@@ -138,6 +164,18 @@ export function readableModels(
   if (selected && !byId.has(selected))
     list.unshift({ id: selected, name: selected });
   return list;
+}
+
+/** Personal key if saved; otherwise the shared server key and its model. */
+export async function authoringOpenRouter(userId: string) {
+  const row = await readRow(userId);
+  const personalKey = row.apiKey;
+  const sharedKey = personalKey ? null : serverOpenRouterKey();
+  return {
+    apiKey: personalKey || sharedKey,
+    model: row.model || (sharedKey ? serverOpenRouterModel() : null),
+    personalKey: Boolean(personalKey),
+  };
 }
 
 async function readRow(userId: string) {
@@ -177,7 +215,7 @@ export async function clearOpenRouterKey(userId: string) {
 export async function listOpenRouterModels(apiKey: string) {
   let response: Response;
   try {
-    response = await fetch(MODELS_URL, {
+    response = await fetch(`${openRouterBase()}/models`, {
       headers: headers(apiKey),
       signal: AbortSignal.timeout(20000),
     });
@@ -201,15 +239,17 @@ export async function listOpenRouterModels(apiKey: string) {
 }
 
 /**
- * Settings for the signed-in owner. Includes that owner's key so the password
- * field can show it masked. Error text is redacted and never includes the key.
+ * Settings for the signed-in owner. Never returns the API key to the browser.
+ * Error text is redacted and never includes the key.
  */
 export async function openRouterView(userId: string): Promise<OpenRouterView> {
-  const { apiKey, model } = await readRow(userId);
+  const settings = await authoringOpenRouter(userId);
+  const { apiKey, model } = settings;
   if (!apiKey) return { hasKey: false, model, models: [] };
+  const usingServerKey = !settings.personalKey;
   try {
     const models = lessonWritingModels(await listOpenRouterModels(apiKey));
-    return { hasKey: true, apiKey, model, models };
+    return { hasKey: true, usingServerKey, model, models };
   } catch (e) {
     const message =
       e instanceof CmsError
@@ -217,7 +257,7 @@ export async function openRouterView(userId: string): Promise<OpenRouterView> {
         : "Could not load models from OpenRouter.";
     return {
       hasKey: true,
-      apiKey,
+      usingServerKey,
       model,
       models: [],
       error: redactSecret(message, apiKey),
@@ -232,13 +272,22 @@ export async function completeLesson(
 ) {
   let response: Response;
   try {
-    response = await fetch(COMPLETIONS_URL, {
+    const body: Record<string, unknown> = {
+      model,
+      messages: [{ role: "user", content: authoringRequest(source) }],
+      temperature: serverNumber("OPENROUTER_TEMPERATURE", 0.4),
+      // Cap authoring cost / runaway replies. Env may raise this; hard max 8192.
+      max_tokens: Math.min(
+        Math.max(1, serverNumber("OPENROUTER_MAX_TOKENS", 1024)),
+        8192,
+      ),
+    };
+    if (process.env["OPENROUTER_REASONING_ENABLED"] === "true")
+      body.reasoning = { enabled: true };
+    response = await fetch(`${openRouterBase()}/chat/completions`, {
       method: "POST",
       headers: { ...headers(apiKey), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: authoringRequest(source) }],
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(90000),
     });
   } catch (e) {

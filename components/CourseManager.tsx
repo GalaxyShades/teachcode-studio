@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { CourseOutline, type OutlineItem } from "./CourseOutline";
+import { withBase } from "@/lib/paths";
 type Item = OutlineItem;
 export function CourseManager({
   course,
@@ -18,7 +19,7 @@ export function CourseManager({
     [status, setStatus] = useState(""),
     [statusError, setStatusError] = useState(false),
     [busy, setBusy] = useState(false);
-  const base = `/api/courses/${course.id}`;
+  const base = withBase(`/api/courses/${course.id}`);
   const chaptersRef = useRef(initialChapters);
   const lessonsRef = useRef(initialLessons);
   const dragging = useRef(false);

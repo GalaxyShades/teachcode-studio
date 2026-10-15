@@ -32,14 +32,12 @@ export default async function Course({
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <CoursePublish
             course={course as any}
-            admin={user.role === "admin"}
+            admin={user.role === "admin" || user.role === "staff"}
           />
-          {user.role === "admin" && (
-            <Link href={assignmentsPath(resolved)} className="btn-secondary">
-              Staff assignments
-            </Link>
-          )}
-          {user.role === "admin" && <CourseSettings course={course as any} />}
+          <Link href={assignmentsPath(resolved)} className="btn-secondary">
+            Staff assignments
+          </Link>
+          <CourseSettings course={course as any} />
         </div>
       </header>
       <Link

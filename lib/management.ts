@@ -1,7 +1,7 @@
 import { z } from "zod";
 import crypto from "node:crypto";
 import { db, isSqlite } from "./db";
-import { requireAdmin } from "./cms";
+import { requireCourse } from "./cms";
 import { CmsError } from "./repository";
 export const CourseUpdate = z.object({
   title: z.string().min(1),
@@ -22,7 +22,7 @@ export const OrderInput = z.object({
   chapterId: z.string().nullable().optional(),
 });
 export async function updateCourse(courseId: string, input: unknown) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const p = CourseUpdate.parse(input);
   await db().query(
     "UPDATE cms_courses SET title=$1,slug=$2,description=$3,status=$4,updated_at=CURRENT_TIMESTAMP WHERE id=$5",
@@ -37,7 +37,7 @@ async function lockCourse(c: import("./db").Queryable, courseId: string) {
   );
 }
 export async function saveOutline(courseId: string, input: unknown) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const p = z
     .object({
       chapters: z.array(z.string()),
@@ -96,7 +96,7 @@ export async function saveOutline(courseId: string, input: unknown) {
   });
 }
 export async function editChapter(courseId: string, input: unknown) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const p = ChapterInput.parse(input);
   return await db().transaction(async (c) => {
     await lockCourse(c, courseId);
@@ -127,7 +127,7 @@ export async function editChapter(courseId: string, input: unknown) {
   });
 }
 export async function deleteChapter(courseId: string, id: string) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   await db().transaction(async (c) => {
     await lockCourse(c, courseId);
     if (
@@ -151,7 +151,7 @@ export async function deleteChapter(courseId: string, id: string) {
   });
 }
 export async function reorder(courseId: string, input: unknown) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const p = OrderInput.parse(input);
   await db().transaction(async (c) => {
     await lockCourse(c, courseId);
@@ -184,7 +184,7 @@ export async function moveLesson(
   lessonId: string,
   chapterId: string | null,
 ) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   await db().transaction(async (c) => {
     await lockCourse(c, courseId);
     if (
@@ -209,7 +209,7 @@ export async function moveLesson(
   });
 }
 export async function assignStaff(courseId: string, input: unknown) {
-  const u = await requireAdmin(courseId),
+  const u = await requireCourse(courseId),
     p = z.object({ userId: z.string(), assigned: z.boolean() }).parse(input);
   await db().transaction(async (c) => {
     await lockCourse(c, courseId);

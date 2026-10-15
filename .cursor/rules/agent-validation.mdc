@@ -1,0 +1,16 @@
+---
+description: Checks agents must run, and host builds they must not run
+alwaysApply: true
+---
+
+# Agent validation
+
+After a code change, before marking work complete:
+
+1. `npm run typecheck`
+2. When TS/TSX changed: `npm run lint`
+3. When repository, API, markdown, or auth behavior changed: `npm test`
+
+Do not run `npm run build`, `next build`, or `./scripts/build-and-host.sh`. The human hosts Studio with `./scripts/build-and-host.sh`.
+
+`npm run db:seed` and `npm run db:init:sqlite` are local demo only. Do not run them against PostgreSQL.

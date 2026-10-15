@@ -1,0 +1,15 @@
+---
+description: SQLite demo vs PostgreSQL deployment and migration rules
+globs: db/**/*.sql,lib/db.ts,lib/auth.ts,scripts/migrate.ts,scripts/*sqlite*
+alwaysApply: false
+---
+
+# Database
+
+- `DATABASE_MODE=sqlite` is the isolated local demo (`npm run db:init:sqlite`). Never point it at the TeachCode student database.
+- PostgreSQL is the shared deployment target. Migrations may add `cms_*` tables only. They must not create, alter, seed, or drop `profiles` or `auth_sessions`.
+- `lib/auth.ts` is a replaceable identity adapter. It reads `profiles` and `auth_sessions`. It does not provision users.
+- Do not set production `DATABASE_URL` to the student database `teachcode` until `profiles.id` types match. Student `profiles.id` is `TEXT`; current `cms_*` foreign keys are `uuid`. Use a separate Studio database until that migration is agreed.
+- Never edit an applied migration file. Add the next numbered SQL file. Checksums live in `cms_schema_migrations`.
+- Parameterized queries only (`$1` or the SQLite adapter’s positional rewrite). No string-built SQL with user input.
+- Demo accounts (`admin@hku.hk` and the local staff users) are SQLite seed only. Do not insert them from the host script.

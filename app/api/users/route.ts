@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/cms";
+import { requireAuthor } from "@/lib/cms";
 import { db } from "@/lib/db";
 import { apiError } from "@/lib/api";
+
+/** Teachers and admins may search staff when creating or sharing a course. */
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    await requireAuthor();
     const q = new URL(req.url).searchParams.get("q") ?? "";
     return NextResponse.json(
       (
