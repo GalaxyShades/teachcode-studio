@@ -42,6 +42,7 @@ export function prepareLearnerMarkdown(source: string) {
       body.trim() ? displayMath(body) : match,
     );
   return converted.replace(
+    // eslint-disable-next-line no-control-regex
     /\u0000(\d+)\u0000/g,
     (_match, index: string) => blocks[Number(index)] ?? "",
   );
@@ -68,6 +69,7 @@ function fenceAt(source: string, index: number) {
 function fencedEnd(source: string, index: number, fence: string) {
   const close = source.indexOf(`\n${fence}`, index + fence.length);
   if (close === -1) return source.length;
+  // eslint-disable-next-line prefer-const
   let end = close + 1 + fence.length;
   const newline = source.indexOf("\n", end);
   return newline === -1 ? source.length : newline + 1;

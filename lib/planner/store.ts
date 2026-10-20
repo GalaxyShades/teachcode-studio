@@ -146,9 +146,8 @@ export async function deletePlannerAttachment(
   userId: string,
   attachmentId: string,
 ) {
-  const removed = await db().query(
+  await db().query(
     "DELETE FROM cms_planner_attachments WHERE id=$1 AND thread_id IN (SELECT id FROM cms_planner_threads WHERE profile_id=$2)",
     [attachmentId, userId],
   );
-  if (!removed.rowCount) throw new CmsError(404, "Attachment not found");
 }

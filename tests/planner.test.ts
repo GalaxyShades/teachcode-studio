@@ -780,6 +780,27 @@ describe("planner attachments", () => {
       ),
     );
     expect(removed.status).toBe(200);
+    const removedAgain = await removeAttachment(
+      new Request(
+        `http://localhost:3000/api/planner/attachments?id=${textBody.id}`,
+        { method: "DELETE", headers: { origin: "http://localhost:3000" } },
+      ),
+    );
+    expect(removedAgain.status).toBe(200);
+    const missing = await removeAttachment(
+      new Request(
+        "http://localhost:3000/api/planner/attachments?id=missing-attachment",
+        { method: "DELETE", headers: { origin: "http://localhost:3000" } },
+      ),
+    );
+    expect(missing.status).toBe(200);
+    expect(
+      (
+        await db().query("SELECT id FROM cms_planner_attachments WHERE id=$1", [
+          textBody.id,
+        ])
+      ).rowCount,
+    ).toBe(0);
   });
 });
 

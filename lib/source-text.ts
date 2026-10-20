@@ -61,6 +61,7 @@ export async function extractSourceText(name: string, bytes: Uint8Array) {
     if (error instanceof CmsError) throw error;
     unreadable(file);
   }
+  // eslint-disable-next-line no-control-regex
   const trimmed = text.replace(/\u0000/g, "").trim();
   if (!trimmed) {
     if (ext === "pdf")

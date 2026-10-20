@@ -87,6 +87,7 @@ export function CoursePlanner() {
   const fileRef = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const removingAttachment = useRef(new Set<string>());
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -192,15 +193,26 @@ export function CoursePlanner() {
   }
 
   async function removeAttachment(id: string) {
-    const response = await fetch(
-      `/api/planner/attachments?id=${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-    );
-    if (!response.ok) {
-      setError(await readError(response));
-      return;
-    }
+    if (removingAttachment.current.has(id)) return;
+    removingAttachment.current.add(id);
     setAttachments((current) => current.filter((file) => file.id !== id));
+    try {
+      const response = await fetch(
+        `/api/planner/attachments?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      if (response.ok || response.status === 404) {
+        setError("");
+        return;
+      }
+      setError(await readError(response));
+      await reloadThread();
+    } catch {
+      setError("The course planner could not finish.");
+      await reloadThread();
+    } finally {
+      removingAttachment.current.delete(id);
+    }
   }
 
   async function attachFiles(list: FileList | null) {
