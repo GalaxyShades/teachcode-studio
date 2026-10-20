@@ -11,12 +11,18 @@ export async function POST(req: Request) {
         password: z.string().min(1).max(1024),
       })
       .parse(await req.json());
-    return (await login(p.email, p.password))
-      ? NextResponse.json({ ok: true })
-      : NextResponse.json(
-          { error: "Invalid email, password, or CMS role" },
-          { status: 401 },
-        );
+    const result = await login(p.email, p.password);
+    if (result === "ok") return NextResponse.json({ ok: true });
+    if (result === "password_change") {
+      return NextResponse.json(
+        { error: "Change your TeachCode password, then sign in to Studio." },
+        { status: 403 },
+      );
+    }
+    return NextResponse.json(
+      { error: "Invalid email, password, or CMS role" },
+      { status: 401 },
+    );
   } catch (e) {
     return apiError(e);
   }

@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
+import type { User } from "./auth";
 import { coursesForUser } from "./cms";
 import { db } from "./db";
-import type { User } from "./auth";
+import { upsertStudioProfile } from "./teachcode-session";
 
 export type ManagedCourseRow = {
   id: string;
@@ -12,50 +13,140 @@ export type ManagedCourseRow = {
   hasPublishedLesson: boolean;
   ownerName: string;
   ownerEmail: string;
+  lessonCount: number;
 };
 
-export function managementRequestAllowed(req: Request): boolean {
+/**
+ * Localhost with the shared secret is allowed.
+ * A public or forwarded request is 404. A localhost request with a bad secret is 401.
+ */
+export function managementDenial(req: Request): 401 | 404 | null {
   const host = (req.headers.get("host") || new URL(req.url).hostname).split(":")[0];
-  if (host !== "127.0.0.1" && host !== "localhost") return false;
-  if (req.headers.get("x-forwarded-for")) return false;
+  if (host !== "127.0.0.1" && host !== "localhost") return 404;
+  if (req.headers.get("x-forwarded-for")) return 404;
   const expected = process.env.STUDIO_MANAGEMENT_SECRET || "";
   const given = req.headers.get("x-studio-management-secret") || "";
-  if (expected.length < 16 || given.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+  if (
+    expected.length < 16 ||
+    given.length !== expected.length ||
+    !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+  ) {
+    return 401;
+  }
+  return null;
 }
 
-async function enrichCourses(
-  courses: { id: string; slug: string; title: string; description: string; status: string; created_by: string }[],
-): Promise<ManagedCourseRow[]> {
+type OwnerProfile = { id: string; display_name: string; email: string };
+
+/** Assigned teacher wins. The creator is the owner only when nobody else is assigned. */
+export function ownerFromAssignment(
+  createdBy: string,
+  assignees: OwnerProfile[],
+  creator: { display_name: string; email: string } | undefined,
+): { ownerName: string; ownerEmail: string } {
+  const designated =
+    assignees.find((person) => person.id !== createdBy) ?? assignees[0];
+  const owner = designated ?? creator;
+  return {
+    ownerName: owner?.display_name || owner?.email || "Unknown",
+    ownerEmail: owner?.email || "",
+  };
+}
+
+function placeholders(ids: string[], offset = 0): string {
+  return ids.map((_, index) => `$${index + 1 + offset}`).join(",");
+}
+
+type EnrichableCourse = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  status: string;
+  created_by: string;
+  lesson_count?: number | string | null;
+};
+
+async function enrichCourses(courses: EnrichableCourse[]): Promise<ManagedCourseRow[]> {
   if (courses.length === 0) return [];
-  const owners = (
-    await db().query<{ id: string; display_name: string; email: string }>(
-      "SELECT id, display_name, email FROM profiles WHERE id = ANY($1::uuid[])",
-      [courses.map((course) => course.created_by)],
-    )
-  ).rows;
-  const byId = new Map(owners.map((row) => [row.id, row]));
-  return Promise.all(
-    courses.map(async (course) => {
-      const published = (
-        await db().query(
-          "SELECT 1 FROM cms_lessons WHERE course_id=$1 AND status='published' AND published_revision_id IS NOT NULL",
-          [course.id],
-        )
-      ).rowCount;
-      const owner = byId.get(course.created_by);
-      return {
-        id: course.id,
-        slug: course.slug,
-        title: course.title,
-        description: course.description || "",
-        status: course.status,
-        hasPublishedLesson: published > 0,
-        ownerName: owner?.display_name || owner?.email || "Unknown",
-        ownerEmail: owner?.email || "",
-      };
-    }),
-  );
+  const courseIds = courses.map((course) => course.id);
+  const creatorIds = [...new Set(courses.map((course) => course.created_by))];
+  const [creators, assignees, published] = await Promise.all([
+    db().query<OwnerProfile>(
+      `SELECT id, display_name, email FROM profiles WHERE id IN (${placeholders(creatorIds)})`,
+      creatorIds,
+    ),
+    db().query<OwnerProfile & { course_id: string }>(
+      `SELECT a.course_id, p.id, p.display_name, p.email
+       FROM cms_course_staff_assignments a
+       JOIN profiles p ON p.id = a.profile_id
+       WHERE a.course_id IN (${placeholders(courseIds)})
+       ORDER BY p.display_name, p.email`,
+      courseIds,
+    ),
+    db().query<{ course_id: string }>(
+      `SELECT DISTINCT course_id FROM cms_lessons
+       WHERE status='published' AND published_revision_id IS NOT NULL
+       AND course_id IN (${placeholders(courseIds)})`,
+      courseIds,
+    ),
+  ]);
+  const byCreator = new Map(creators.rows.map((row) => [row.id, row]));
+  const byCourse = new Map<string, OwnerProfile[]>();
+  for (const row of assignees.rows) {
+    const list = byCourse.get(row.course_id) ?? [];
+    list.push(row);
+    byCourse.set(row.course_id, list);
+  }
+  const publishedIds = new Set(published.rows.map((row) => row.course_id));
+  return courses.map((course) => {
+    const owner = ownerFromAssignment(
+      course.created_by,
+      byCourse.get(course.id) ?? [],
+      byCreator.get(course.created_by),
+    );
+    return {
+      id: course.id,
+      slug: course.slug,
+      title: course.title,
+      description: course.description || "",
+      status: course.status,
+      hasPublishedLesson: publishedIds.has(course.id),
+      ownerName: owner.ownerName,
+      ownerEmail: owner.ownerEmail,
+      lessonCount: Number(course.lesson_count ?? 0),
+    };
+  });
+}
+
+export function groupCoursesByOwner<T extends { ownerName: string; ownerEmail: string }>(
+  courses: T[],
+): { heading: string; courses: T[] }[] {
+  const order: string[] = [];
+  const groups = new Map<string, T[]>();
+  for (const course of courses) {
+    const key = course.ownerEmail || course.ownerName || "unknown";
+    if (!groups.has(key)) {
+      order.push(key);
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(course);
+  }
+  return order.map((key) => {
+    const list = groups.get(key) ?? [];
+    const first = list[0];
+    const heading =
+      first && first.ownerName && first.ownerEmail
+        ? `${first.ownerName} (${first.ownerEmail})`
+        : first?.ownerName || first?.ownerEmail || "Unknown owner";
+    return { heading, courses: list };
+  });
+}
+
+/** Admin and staff course lists with the same owner labels as the management API. */
+export async function listCoursesWithOwners(user: User): Promise<ManagedCourseRow[]> {
+  const courses = (await coursesForUser(user)) as EnrichableCourse[];
+  return enrichCourses(courses);
 }
 
 /**
@@ -78,26 +169,31 @@ export async function managedCoursesForEmail(
         status: string;
         created_by: string;
       }>(
-        "SELECT id, slug, title, description, status, created_by FROM cms_courses ORDER BY title, id",
+        `SELECT id, slug, title, description, status, created_by,
+                (SELECT count(*) FROM cms_lessons l WHERE l.course_id=cms_courses.id) AS lesson_count
+         FROM cms_courses ORDER BY title, id`,
       )
     ).rows;
     return enrichCourses(courses);
   }
 
-  const profile = (
+  const normalized = email.trim().toLowerCase();
+  if (!normalized.includes("@")) return [];
+  let profile = (
     await db().query<User>(
       "SELECT id, email, display_name, role FROM profiles WHERE lower(email)=lower($1)",
-      [email],
+      [normalized],
     )
   ).rows[0];
-  if (!profile || !["admin", "staff"].includes(profile.role)) return [];
-  const courses = (await coursesForUser(profile)) as {
-    id: string;
-    slug: string;
-    title: string;
-    description: string;
-    status: string;
-    created_by: string;
-  }[];
+  if (!profile || profile.role === "student") {
+    profile = await upsertStudioProfile({
+      email: normalized,
+      displayName: normalized,
+      role: "staff",
+    });
+  } else if (profile.role !== "admin" && profile.role !== "staff") {
+    return [];
+  }
+  const courses = (await coursesForUser({ ...profile, role: "staff" })) as EnrichableCourse[];
   return enrichCourses(courses);
 }

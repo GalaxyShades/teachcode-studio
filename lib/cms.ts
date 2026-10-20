@@ -15,7 +15,13 @@ export async function canAccess(courseId: string, user: User) {
   if (user.role !== "staff") return false;
   return !!(
     await db().query(
-      "SELECT 1 FROM cms_course_staff_assignments WHERE course_id=$1 AND profile_id=$2",
+      `SELECT 1 FROM cms_courses c
+       WHERE c.id=$1 AND (
+         c.created_by=$2 OR EXISTS (
+           SELECT 1 FROM cms_course_staff_assignments a
+           WHERE a.course_id=c.id AND a.profile_id=$2
+         )
+       )`,
       [courseId, user.id],
     )
   ).rowCount;

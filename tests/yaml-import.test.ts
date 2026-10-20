@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { lessonFromPack } from "../lib/yaml-import";
-import { managementRequestAllowed } from "../lib/management-access";
+import {
+  groupCoursesByOwner,
+  managementDenial,
+  ownerFromAssignment,
+} from "../lib/management-access";
 
 describe("yaml lesson import", () => {
   it("maps a pack step onto Studio blocks", () => {
@@ -85,8 +89,71 @@ describe("management request", () => {
         "x-studio-management-secret": "test-secret-value-ok",
       },
     });
-    expect(managementRequestAllowed(allowed)).toBe(true);
-    expect(managementRequestAllowed(forwarded)).toBe(false);
+    const wrongSecret = new Request("http://127.0.0.1:3010/studio/api/v1/management/courses", {
+      headers: {
+        host: "127.0.0.1:3010",
+        "x-studio-management-secret": "wrong-secret-value!",
+      },
+    });
+    const publicHost = new Request("https://codewithai.hku.hk/studio/api/v1/management/courses", {
+      headers: {
+        host: "codewithai.hku.hk",
+        "x-studio-management-secret": "test-secret-value-ok",
+      },
+    });
+    expect(managementDenial(allowed)).toBeNull();
+    expect(managementDenial(forwarded)).toBe(404);
+    expect(managementDenial(wrongSecret)).toBe(401);
+    expect(managementDenial(publicHost)).toBe(404);
     process.env.STUDIO_MANAGEMENT_SECRET = previous;
+  });
+});
+
+describe("course owner label", () => {
+  it("uses the assigned teacher instead of the admin who created the course", () => {
+    expect(
+      ownerFromAssignment(
+        "admin",
+        [{ id: "staff", display_name: "Cheti", email: "cheti_staff@hku.hk" }],
+        { display_name: "Admin", email: "admin@hku.hk" },
+      ),
+    ).toEqual({ ownerName: "Cheti", ownerEmail: "cheti_staff@hku.hk" });
+    expect(
+      ownerFromAssignment("admin", [], { display_name: "Admin", email: "admin@hku.hk" }),
+    ).toEqual({ ownerName: "Admin", ownerEmail: "admin@hku.hk" });
+  });
+
+  it("groups courses under the owner heading", () => {
+    expect(
+      groupCoursesByOwner([
+        {
+          ownerName: "Cheti",
+          ownerEmail: "cheti_staff@hku.hk",
+          title: "Python",
+        },
+        {
+          ownerName: "Admin",
+          ownerEmail: "admin@hku.hk",
+          title: "R",
+        },
+        {
+          ownerName: "Cheti",
+          ownerEmail: "cheti_staff@hku.hk",
+          title: "Plots",
+        },
+      ]),
+    ).toEqual([
+      {
+        heading: "Cheti (cheti_staff@hku.hk)",
+        courses: [
+          { ownerName: "Cheti", ownerEmail: "cheti_staff@hku.hk", title: "Python" },
+          { ownerName: "Cheti", ownerEmail: "cheti_staff@hku.hk", title: "Plots" },
+        ],
+      },
+      {
+        heading: "Admin (admin@hku.hk)",
+        courses: [{ ownerName: "Admin", ownerEmail: "admin@hku.hk", title: "R" }],
+      },
+    ]);
   });
 });

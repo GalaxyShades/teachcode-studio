@@ -1,18 +1,25 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { login, logout } from "@/lib/auth";
+import { login, logout, type LoginResult } from "@/lib/auth";
+import { teachcodePasswordHref } from "@/lib/teachcode-public";
 import { createCourse, createLesson, requireCourse } from "@/lib/cms";
 import { persistDraft, publishRevision, CmsError } from "@/lib/repository";
 import { db } from "@/lib/db";
 import type { AssistantSettings, LessonDraft } from "@/lib/content";
 export async function loginAction(_: unknown, form: FormData) {
+  let result: LoginResult;
   try {
-    if (!(await login(String(form.get("email")), String(form.get("password")))))
-      return { error: "Invalid email, password, or CMS role." };
+    result = await login(String(form.get("email")), String(form.get("password")));
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Sign in failed" };
   }
+  if (result === "password_change") {
+    const href = teachcodePasswordHref();
+    if (href) redirect(href);
+    return { error: "Change your TeachCode password, then sign in to Studio." };
+  }
+  if (result !== "ok") return { error: "Invalid email, password, or CMS role." };
   redirect("/courses");
 }
 export async function logoutAction() {

@@ -238,6 +238,10 @@ describe("SQLite repository", () => {
     expect(await canAccess(cid, user("admin"))).toBe(true);
     expect(await canAccess(cid, user("staff"))).toBe(false);
     await db().query(
+      "INSERT INTO cms_courses(id,slug,title,created_by) VALUES('owned','owned','Owned by staff','s')",
+    );
+    expect(await canAccess("owned", user("staff"))).toBe(true);
+    await db().query(
       "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES('c','s','a')",
     );
     expect(await canAccess(cid, user("staff"))).toBe(true);

@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import {
   managedCoursesForEmail,
-  managementRequestAllowed,
+  managementDenial,
 } from "@/lib/management-access";
 
 export async function GET(req: Request) {
-  if (!managementRequestAllowed(req)) {
-    return NextResponse.json({ courses: [] });
+  const denial = managementDenial(req);
+  if (denial) {
+    return NextResponse.json(
+      { error: denial === 401 ? "Unauthorized" : "Not found" },
+      {
+        status: denial,
+        headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+      },
+    );
   }
   const email = req.headers.get("x-teachcode-user-email") || "";
   const role = req.headers.get("x-teachcode-user-role") || "";

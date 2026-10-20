@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { db, assertDatabase } from "./db";
 import { CmsError } from "./repository";
+import { teachCodePasswordLogin, upsertStudioProfile } from "./teachcode-session";
 export type User = {
   id: string;
   email: string;
@@ -9,6 +10,8 @@ export type User = {
   role: string;
 };
 const cookie = "teachcode_cms_session";
+export const CMS_SESSION_COOKIE = cookie;
+export type LoginResult = "ok" | "invalid" | "password_change";
 
 /** Hosted Studio uses /studio so this cookie is not sent to the student app. */
 export function cmsCookiePath(): string {
@@ -33,7 +36,7 @@ export function verifyPassword(password: string, stored: string) {
     Buffer.from(digest, "hex"),
   );
 }
-// Replaceable shared identity adapter. Never provisions or modifies shared profiles.
+// Local password check. A TeachCode session may insert a Studio profile by email.
 export async function authenticate(
   email: string,
   password: string,
@@ -67,9 +70,18 @@ export async function sessionUser(token: string): Promise<User | null> {
   ).rows[0];
   return u && ["admin", "staff"].includes(u.role) ? u : null;
 }
-export async function login(email: string, password: string) {
-  const u = await authenticate(email, password);
-  if (!u) return false;
+export function cmsSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: (process.env.APP_URL ?? "").startsWith("https://"),
+    path: cmsCookiePath(),
+    maxAge: 604800,
+  };
+}
+
+/** Creates a Studio session row and returns the cookie token. */
+export async function issueCmsSession(user: User): Promise<string> {
   const jar = await cookies(),
     old = jar.get(cookie)?.value,
     token = crypto.randomBytes(32).toString("hex");
@@ -79,20 +91,34 @@ export async function login(email: string, password: string) {
       "INSERT INTO auth_sessions(token,user_id,created_at,expires_at) VALUES($1,$2,$3,$4)",
       [
         token,
-        u.id,
+        user.id,
         new Date().toISOString(),
         new Date(Date.now() + 604800000).toISOString(),
       ],
     );
   });
-  jar.set(cookie, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: (process.env.APP_URL ?? "").startsWith("https://"),
-    path: cmsCookiePath(),
-    maxAge: 604800,
-  });
-  return true;
+  return token;
+}
+
+export async function startCmsSession(user: User) {
+  const token = await issueCmsSession(user);
+  (await cookies()).set(cookie, token, cmsSessionCookieOptions());
+}
+
+export async function login(email: string, password: string): Promise<LoginResult> {
+  let user = await authenticate(email, password);
+  if (!user) {
+    const remote = await teachCodePasswordLogin(email, password);
+    if (!remote || (remote.role !== "admin" && remote.role !== "staff")) return "invalid";
+    if (remote.mustChangePassword) return "password_change";
+    user = await upsertStudioProfile({
+      email: remote.email,
+      displayName: remote.displayName,
+      role: remote.role,
+    });
+  }
+  await startCmsSession(user);
+  return "ok";
 }
 export async function currentUser() {
   const token = (await cookies()).get(cookie)?.value;
