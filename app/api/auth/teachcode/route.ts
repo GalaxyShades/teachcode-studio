@@ -9,11 +9,14 @@ import {
   safeCoursesPath,
   STUDIO_HANDOFF_SKIP_COOKIE,
   TEACHCODE_SESSION_COOKIE,
+  studioPublicHref,
   teachcodePasswordHref,
 } from "@/lib/teachcode-public";
 import { teachCodeIdentity, upsertStudioProfile } from "@/lib/teachcode-session";
 
 function studioPath(req: NextRequest, path: string) {
+  const href = studioPublicHref(path);
+  if (href) return href;
   const url = req.nextUrl.clone();
   url.pathname = path;
   url.search = "";

@@ -42,6 +42,22 @@ export function teachcodePasswordHref(): string | null {
   return url.toString();
 }
 
+/**
+ * Absolute Studio URL for redirects. `next start -H 127.0.0.1` otherwise
+ * sends the browser to localhost:3010.
+ */
+export function studioPublicHref(path: string, search = ""): string | null {
+  const app = process.env.APP_URL?.trim();
+  const base = app ? httpUrl(app) : null;
+  if (!base) return null;
+  if (!path.startsWith("/") || path.startsWith("//")) return null;
+  const basePath = base.pathname.replace(/\/$/, "");
+  base.pathname = `${basePath}${path}`;
+  base.search = search.replace(/^\?/, "");
+  base.hash = "";
+  return base.toString();
+}
+
 /** Same-site Studio path under `/courses` only. */
 export function safeCoursesPath(raw: string | null): string {
   if (!raw || !raw.startsWith("/courses") || raw.startsWith("//")) return "/courses";

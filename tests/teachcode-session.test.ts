@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   safeCoursesPath,
+  studioPublicHref,
   teachcodeLearnHref,
   teachcodePasswordHref,
 } from "../lib/teachcode-public";
@@ -33,6 +34,17 @@ describe("TeachCode return link", () => {
     expect(teachcodeLearnHref()).toBe("http://127.0.0.1:3002/learn");
     process.env.TEACHCODE_PUBLIC_URL = "javascript:alert(1)";
     expect(teachcodeLearnHref()).toBeNull();
+  });
+});
+
+describe("Studio public redirect", () => {
+  it("keeps the public host and /studio prefix", () => {
+    process.env.APP_URL = "https://codewithAI.hku.hk/studio";
+    expect(studioPublicHref("/api/auth/teachcode", "next=/courses")).toBe(
+      "https://codewithai.hku.hk/studio/api/auth/teachcode?next=/courses",
+    );
+    expect(studioPublicHref("/courses")).toBe("https://codewithai.hku.hk/studio/courses");
+    expect(studioPublicHref("//evil.example")).toBeNull();
   });
 });
 

@@ -102,7 +102,7 @@ describe("management request", () => {
       },
     });
     expect(managementDenial(allowed)).toBeNull();
-    expect(managementDenial(forwarded)).toBe(404);
+    expect(managementDenial(forwarded)).toBeNull();
     expect(managementDenial(wrongSecret)).toBe(401);
     expect(managementDenial(publicHost)).toBe(404);
     process.env.STUDIO_MANAGEMENT_SECRET = previous;

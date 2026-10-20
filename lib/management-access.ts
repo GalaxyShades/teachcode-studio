@@ -16,14 +16,19 @@ export type ManagedCourseRow = {
   lessonCount: number;
 };
 
+function requestHost(req: Request): string {
+  const raw = req.headers.get("host") || new URL(req.url).host;
+  return raw.split(":")[0].toLowerCase();
+}
+
 /**
- * Localhost with the shared secret is allowed.
- * A public or forwarded request is 404. A localhost request with a bad secret is 401.
+ * Localhost with the shared secret is allowed, even if a proxy header is present.
+ * TeachCode calls this from 127.0.0.1 and may forward X-Forwarded-For.
+ * A public Host is 404. A localhost request with a bad secret is 401.
  */
 export function managementDenial(req: Request): 401 | 404 | null {
-  const host = (req.headers.get("host") || new URL(req.url).hostname).split(":")[0];
+  const host = requestHost(req);
   if (host !== "127.0.0.1" && host !== "localhost") return 404;
-  if (req.headers.get("x-forwarded-for")) return 404;
   const expected = process.env.STUDIO_MANAGEMENT_SECRET || "";
   const given = req.headers.get("x-studio-management-secret") || "";
   if (
