@@ -29,7 +29,9 @@ export async function logoutAction() {
 export async function createCourseAction(f: FormData) {
   redirect(`/courses/${await createCourse(f)}`);
 }
-export async function newLessonAction(courseId: string) {
+export async function newLessonAction(form: FormData) {
+  const courseId = String(form.get("courseId") || "").trim();
+  if (!courseId) throw new CmsError(400, "Missing course");
   redirect(`/courses/${courseId}/lessons/${await createLesson(courseId)}/edit`);
 }
 export async function saveDraft(

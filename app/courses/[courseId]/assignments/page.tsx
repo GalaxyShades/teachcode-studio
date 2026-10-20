@@ -1,9 +1,8 @@
-import Link from "next/link";
-import { getCourse } from "@/lib/cms";
-import { StaffAssignments } from "@/components/StaffAssignments";
 import { resolveEditorCourse } from "@/lib/editor-routes";
-import { assignmentsPath, coursePath } from "@/lib/paths";
+import { coursePath } from "@/lib/paths";
 import { redirect } from "next/navigation";
+
+/** Assignment lives on the TeachCode admin dashboard. */
 export default async function Assignments({
   params,
 }: {
@@ -11,21 +10,5 @@ export default async function Assignments({
 }) {
   const { courseId: key } = await params;
   const resolved = await resolveEditorCourse(key);
-  const path = assignmentsPath(resolved);
-  if (`/courses/${key}/assignments` !== path) redirect(path);
-  const { course, staff } = await getCourse(resolved.id);
-  return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-6">
-      <Link href={coursePath(resolved)} className="text-teal-800 underline">
-        ← {course.title}
-      </Link>
-      <header className="mt-5 border-b pb-6">
-        <h1 className="text-3xl font-bold">Staff assignments</h1>
-        <p className="mt-2 text-zinc-600">
-          Choose who can edit and publish lessons in {course.title}.
-        </p>
-      </header>
-      <StaffAssignments courseId={course.id} initialStaff={staff as any} />
-    </main>
-  );
+  redirect(coursePath(resolved));
 }

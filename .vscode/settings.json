@@ -1,0 +1,9 @@
+{
+  "typescript.tsserver.maxTsServerMemory": 768,
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/.next-dev/**": true,
+    "**/services/api/.venv/**": true
+  }
+}

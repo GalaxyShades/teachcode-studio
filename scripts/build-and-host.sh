@@ -78,7 +78,7 @@ if ! swapon --show 2>/dev/null | grep -q .; then
 fi
 
 log "Typecheck…"
-npm run typecheck
+nice -n 15 npm run typecheck
 
 # Free RAM for the compiler. Studio returns 502 briefly; student API stays up.
 STOPPED_PM2=()
@@ -95,7 +95,7 @@ fi
 export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=1536"
 log "Building Next.js…"
 export NODE_ENV=production
-npm run build
+nice -n 15 npm run build
 
 if [[ "$MODE" == "postgres" ]]; then
   log "Applying Studio migrations…"

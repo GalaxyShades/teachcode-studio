@@ -14,5 +14,9 @@ const nextConfig = (phase: string): NextConfig => ({
     "/courses/*/lessons/*/edit": ["./content/*.md", "./docs/markdown.md"],
   },
   experimental: { serverActions: { bodySizeLimit: "2mb" } },
+  webpack(config: { parallelism?: number }) {
+    config.parallelism = 1;
+    return config;
+  },
 });
 export default nextConfig;

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { groupCoursesByOwner, listCoursesWithOwners } from "@/lib/management-access";
 import { redirect } from "next/navigation";
-import { SignOut } from "@/components/SignOut";
 import { coursePath } from "@/lib/paths";
 
 type CourseCard = {
@@ -64,7 +63,6 @@ export default async function Courses({
               New course
             </Link>
           )}
-          <SignOut />
         </div>
       </header>
       <p className="mt-3 max-w-2xl text-zinc-600">

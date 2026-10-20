@@ -88,9 +88,7 @@ export async function requireAuthor() {
 
 /**
  * Admin or staff may create a course.
- * The owner (creator by default, or another teacher from ownerId) is assigned
- * so the course appears in their list. The creator is also assigned when they
- * are staff and different from the owner.
+ * The signed-in teacher owns it. Admins assign other teachers from TeachCode.
  */
 export async function createCourse(form: FormData) {
   const creator = await requireAuthor();
@@ -99,15 +97,6 @@ export async function createCourse(form: FormData) {
     slug = String(form.get("slug") || "");
   if (!title || !/^[a-z0-9-]+$/.test(slug))
     throw new CmsError(400, "Title and lowercase URL slug are required");
-  const ownerId = String(form.get("ownerId") || "").trim() || creator.id;
-  const owner = (
-    await db().query<{ id: string; role: string }>(
-      "SELECT id, role FROM profiles WHERE id=$1",
-      [ownerId],
-    )
-  ).rows[0];
-  if (!owner || !["admin", "staff"].includes(owner.role))
-    throw new CmsError(400, "Select a teacher or admin as the course owner");
   await db().transaction(async (c) => {
     await c.query(
       "INSERT INTO cms_courses(id,slug,title,description,created_by) VALUES($1,$2,$3,$4,$5)",
@@ -125,14 +114,10 @@ export async function createCourse(form: FormData) {
       courseId,
       emptyAssistant(),
     );
-    // Admins see every course without an assignment row. Staff need one.
-    const assignees = new Set<string>();
-    if (owner.role === "staff") assignees.add(owner.id);
-    if (creator.role === "staff") assignees.add(creator.id);
-    for (const profileId of assignees) {
+    if (creator.role === "staff") {
       await c.query(
         "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
-        [courseId, profileId, creator.id],
+        [courseId, creator.id, creator.id],
       );
     }
   });

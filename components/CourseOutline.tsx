@@ -30,6 +30,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import * as Dialog from "@radix-ui/react-dialog";
+import Link from "next/link";
 import { lessonPath } from "@/lib/paths";
 
 export type OutlineItem = { id: string; title: string; [key: string]: any };
@@ -236,7 +237,7 @@ function LessonFace({
       {lifted || !lesson.slug ? (
         <p className="mt-2 font-semibold text-teal-900">{lesson.title}</p>
       ) : (
-        <a
+        <Link
           href={lessonPath(
             { id: course.id, slug: course.slug },
             { slug: lesson.slug },
@@ -246,17 +247,17 @@ function LessonFace({
           className="mt-2 inline-block cursor-pointer font-semibold text-teal-900 hover:underline"
         >
           {lesson.title}
-        </a>
+        </Link>
       )}
       {!lifted && lesson.status === "published" && (
-        <a
+        <Link
           draggable={false}
           data-no-drag
           className="mt-2 block text-right text-sm text-teal-800 underline"
           href={`/published/courses/${course.slug}/lessons/${lesson.published_slug ?? lesson.slug}`}
         >
           View public lesson
-        </a>
+        </Link>
       )}
     </article>
   );

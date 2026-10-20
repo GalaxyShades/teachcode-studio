@@ -4,7 +4,7 @@ import { CourseSettings } from "@/components/CourseSettings";
 import { CoursePublish } from "@/components/CoursePublish";
 import { CourseManager } from "@/components/CourseManager";
 import { resolveEditorCourse } from "@/lib/editor-routes";
-import { assignmentsPath, coursePath, generateLessonPath } from "@/lib/paths";
+import { coursePath, generateLessonPath } from "@/lib/paths";
 import { redirect } from "next/navigation";
 export default async function Course({
   params,
@@ -34,9 +34,6 @@ export default async function Course({
             course={course as any}
             admin={user.role === "admin" || user.role === "staff"}
           />
-          <Link href={assignmentsPath(resolved)} className="btn-secondary">
-            Staff assignments
-          </Link>
           <CourseSettings course={course as any} />
         </div>
       </header>

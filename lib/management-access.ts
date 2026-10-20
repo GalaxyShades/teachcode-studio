@@ -197,3 +197,57 @@ export async function managedCoursesForEmail(
   const courses = (await coursesForUser({ ...profile, role: "staff" })) as EnrichableCourse[];
   return enrichCourses(courses);
 }
+
+/** Admin-only. Matches a TeachCode teacher by email and updates the Studio assignment. */
+export async function setManagedCourseTeacher(input: {
+  claimedRole: string;
+  courseId: string;
+  staffEmail: string;
+  assigned: boolean;
+}): Promise<{ ok: true } | { ok: false; status: 400 | 403 | 404; error: string }> {
+  if (input.claimedRole !== "admin") {
+    return { ok: false, status: 403, error: "Only admins may assign teachers" };
+  }
+  const email = input.staffEmail.trim().toLowerCase();
+  if (!email.includes("@") || !input.courseId) {
+    return { ok: false, status: 400, error: "Choose a course and a teacher" };
+  }
+  const course = (
+    await db().query<{ id: string }>("SELECT id FROM cms_courses WHERE id=$1", [
+      input.courseId,
+    ])
+  ).rows[0];
+  if (!course) return { ok: false, status: 404, error: "Course not found" };
+
+  if (!input.assigned) {
+    const profile = (
+      await db().query<{ id: string }>(
+        "SELECT id FROM profiles WHERE lower(email)=lower($1)",
+        [email],
+      )
+    ).rows[0];
+    if (profile) {
+      await db().query(
+        "DELETE FROM cms_course_staff_assignments WHERE course_id=$1 AND profile_id=$2",
+        [input.courseId, profile.id],
+      );
+    }
+    return { ok: true };
+  }
+
+  const teacher = await upsertStudioProfile({
+    email,
+    displayName: email,
+    role: "staff",
+  });
+  const admin = (
+    await db().query<{ id: string }>(
+      "SELECT id FROM profiles WHERE role='admin' ORDER BY email LIMIT 1",
+    )
+  ).rows[0];
+  await db().query(
+    "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+    [input.courseId, teacher.id, admin?.id ?? teacher.id],
+  );
+  return { ok: true };
+}

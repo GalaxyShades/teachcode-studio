@@ -17,7 +17,8 @@ export default async function NewLesson({
   return (
     <main className="p-6">
       <h1>Create lesson</h1>
-      <form action={newLessonAction.bind(null, courseId)}>
+      <form action={newLessonAction}>
+        <input type="hidden" name="courseId" value={courseId} />
         <button className="btn-primary">Create draft lesson</button>
       </form>
     </main>

@@ -209,8 +209,9 @@ export async function moveLesson(
   });
 }
 export async function assignStaff(courseId: string, input: unknown) {
-  const u = await requireCourse(courseId),
-    p = z.object({ userId: z.string(), assigned: z.boolean() }).parse(input);
+  const u = await requireCourse(courseId);
+  if (u.role !== "admin") throw new CmsError(403, "Only admins may assign staff");
+  const p = z.object({ userId: z.string(), assigned: z.boolean() }).parse(input);
   await db().transaction(async (c) => {
     await lockCourse(c, courseId);
     const user = (
