@@ -980,6 +980,7 @@ export default function LessonEditor({
     [lessonAssistant, setLessonAssistant] = useState(initialLessonAssistant),
     courseAssistantRef = useRef(initialCourseAssistant),
     lessonAssistantRef = useRef(initialLessonAssistant),
+    importMarkdownRef = useRef<HTMLInputElement>(null),
     latest = useRef(initial),
     dirty = useRef(false),
     saving = useRef(false),
@@ -991,6 +992,8 @@ export default function LessonEditor({
     [mobile, setMobile] = useState("editor"),
     [status, setStatus] = useState("Saved"),
     [busy, setBusy] = useState(false),
+    [detailsOpen, setDetailsOpen] = useState(false),
+    [assistantOpen, setAssistantOpen] = useState(false),
     [markdown, setMarkdown] = useState(
       initial.sourceMarkdown || serializeLessonMarkdown(initial),
     ),
@@ -1009,10 +1012,13 @@ export default function LessonEditor({
       new Set(initial.steps.flatMap((s) => s.blocks.map((b) => b.id))),
     );
   const [activeStepId, setActiveStepId] = useState(initial.steps[0]?.id),
-    [showPreview, setShowPreview] = useState(false),
+    [showPreview, setShowPreview] = useState(true),
     [pinnedId, setPinnedId] = useState<string | null>(null);
   const editorPaneRef = useRef<HTMLElement>(null);
   const previewPaneRef = useRef<HTMLElement>(null);
+  const revealPairRef = useRef<
+    (id: string, source: "editor" | "preview") => void
+  >(() => {});
   const activeStepIndex = Math.max(
     0,
     draft.steps.findIndex((s) => s.id === activeStepId),
@@ -1152,62 +1158,139 @@ export default function LessonEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, []);
   useEffect(() => {
+    const editor = editorPaneRef.current;
     const preview = previewPaneRef.current;
     const wide = window.matchMedia("(min-width: 1024px)");
-    if (!preview || !showPreview || !wide.matches || mobile !== "editor") {
+    if (!editor || !preview || !showPreview) {
       setPinnedId(null);
       return;
     }
     let frame = 0;
-    const sync = () => {
-      if (!wide.matches) {
-        setPinnedId(null);
-        return;
-      }
-      const top = preview.getBoundingClientRect().top;
+    let pending: "editor" | "preview" | null = null;
+    let pairedId: string | null = null;
+    const ignoreUntil = { editor: 0, preview: 0 };
+    const pendingRecheck = { editor: 0, preview: 0 };
+
+    const holdProgrammatic = (side: "editor" | "preview") => {
+      ignoreUntil[side] = performance.now() + 400;
+      window.clearTimeout(pendingRecheck[side]);
+      pendingRecheck[side] = window.setTimeout(() => {
+        if (performance.now() >= ignoreUntil[side]) schedule(side);
+      }, 420);
+    };
+
+    const topmostId = (pane: HTMLElement) => {
+      const paneRect = pane.getBoundingClientRect();
       const nodes = [
-        ...preview.querySelectorAll<HTMLElement>("[data-component-id]"),
-      ];
-      if (!nodes.length) {
-        setPinnedId(null);
-        return;
-      }
-      // Activate the component nearest the top once its top enters this band.
-      const lead = 100;
+        ...pane.querySelectorAll<HTMLElement>("[data-component-id]"),
+      ].filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.bottom > paneRect.top + 8 && rect.top < paneRect.bottom - 8;
+      });
+      if (!nodes.length) return null;
+      const lead = paneRect.top + 24;
       let current = nodes[0];
       for (const node of nodes)
-        if (node.getBoundingClientRect().top - top <= lead) current = node;
-      const id = current.dataset.componentId ?? null;
+        if (node.getBoundingClientRect().top <= lead) current = node;
+      return current.dataset.componentId ?? null;
+    };
+
+    const stillVisible = (pane: HTMLElement, id: string) => {
+      const node = pane.querySelector<HTMLElement>(
+        `[data-component-id="${CSS.escape(id)}"]`,
+      );
+      if (!node) return false;
+      const paneRect = pane.getBoundingClientRect();
+      const rect = node.getBoundingClientRect();
+      return rect.bottom > paneRect.top + 1 && rect.top < paneRect.bottom - 1;
+    };
+
+    const follow = (source: "editor" | "preview") => {
+      if (!wide.matches) return;
+      if (performance.now() < ignoreUntil[source]) return;
+      const sourcePane = source === "editor" ? editor : preview;
+      const targetPane = source === "editor" ? preview : editor;
+      if (pairedId && stillVisible(sourcePane, pairedId)) return;
+      const id = topmostId(sourcePane);
+      if (!id || id === pairedId) return;
+      const node = targetPane.querySelector<HTMLElement>(
+        `[data-component-id="${CSS.escape(id)}"]`,
+      );
+      pairedId = id;
       setPinnedId(id);
+      if (!node) return;
+      const delta =
+        node.getBoundingClientRect().top -
+        targetPane.getBoundingClientRect().top -
+        12;
+      if (Math.abs(delta) <= 2) return;
+      const target = source === "editor" ? "preview" : "editor";
+      holdProgrammatic(target);
+      targetPane.scrollTo({ top: targetPane.scrollTop + delta });
     };
-    const onScroll = () => {
+
+    const schedule = (source: "editor" | "preview") => {
+      pending = source;
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(sync);
+      frame = requestAnimationFrame(() => {
+        const side = pending;
+        pending = null;
+        if (side) follow(side);
+      });
     };
-    preview.addEventListener("scroll", onScroll, { passive: true });
-    wide.addEventListener("change", onScroll);
-    sync();
+
+    revealPairRef.current = (id, source) => {
+      cancelAnimationFrame(frame);
+      pending = null;
+      pairedId = id;
+      setPinnedId(id);
+      if (!wide.matches) return;
+      const targetSide = source === "editor" ? "preview" : "editor";
+      const targetPane = targetSide === "editor" ? editor : preview;
+      const node = targetPane.querySelector<HTMLElement>(
+        `[data-component-id="${CSS.escape(id)}"]`,
+      );
+      if (!node) return;
+      const delta =
+        node.getBoundingClientRect().top -
+        targetPane.getBoundingClientRect().top -
+        12;
+      if (Math.abs(delta) <= 2) return;
+      holdProgrammatic(targetSide);
+      targetPane.scrollTo({ top: targetPane.scrollTop + delta });
+    };
+
+    const onEditor = () => {
+      if (performance.now() < ignoreUntil.editor) return;
+      schedule("editor");
+    };
+    const onPreview = () => {
+      if (performance.now() < ignoreUntil.preview) return;
+      schedule("preview");
+    };
+    const onWide = () => {
+      if (!wide.matches) setPinnedId(null);
+    };
+    editor.addEventListener("scroll", onEditor, { passive: true });
+    preview.addEventListener("scroll", onPreview, { passive: true });
+    wide.addEventListener("change", onWide);
+    const initialId = wide.matches ? topmostId(editor) : null;
+    pairedId = initialId;
+    setPinnedId(initialId);
     return () => {
-      preview.removeEventListener("scroll", onScroll);
-      wide.removeEventListener("change", onScroll);
+      revealPairRef.current = () => {};
+      editor.removeEventListener("scroll", onEditor);
+      preview.removeEventListener("scroll", onPreview);
+      wide.removeEventListener("change", onWide);
       cancelAnimationFrame(frame);
+      window.clearTimeout(pendingRecheck.editor);
+      window.clearTimeout(pendingRecheck.preview);
     };
-  }, [showPreview, activeStepId, draft, mobile, tab]);
-  useEffect(() => {
-    const editor = editorPaneRef.current;
-    if (!editor || !pinnedId || !showPreview) return;
-    if (!window.matchMedia("(min-width: 1024px)").matches) return;
-    const card = editor.querySelector<HTMLElement>(
-      `[data-component-id="${CSS.escape(pinnedId)}"]`,
-    );
-    if (!card) return;
-    const gap = 32;
-    const delta =
-      card.getBoundingClientRect().top -
-      editor.getBoundingClientRect().top -
-      gap;
-    if (Math.abs(delta) > 4) editor.scrollTo({ top: editor.scrollTop + delta });
-  }, [pinnedId, showPreview]);
+  }, [showPreview, activeStepId, draft, tab]);
+  function selectPair(id: string, source: "editor" | "preview") {
+    setPinnedId(id);
+    revealPairRef.current(id, source);
+  }
   function parse(source: string) {
     setMarkdown(source);
     const parsed = parseLessonMarkdown(source, latest.current);
@@ -1253,6 +1336,7 @@ export default function LessonEditor({
     setCollapsed(new Set());
     const stepMatch = /^steps\.(\d+)/.exec(error);
     if (stepMatch) setActiveStepId(draft.steps[Number(stepMatch[1])]?.id);
+    else setDetailsOpen(true);
     setTab("rich");
     requestAnimationFrame(() => {
       let path = error.split(":")[0];
@@ -1275,14 +1359,17 @@ export default function LessonEditor({
   }
   return (
     <ValidationContext.Provider value={errors}>
-      <main className="p-4" aria-busy={!ready}>
+      <main
+        className={`p-4 ${showPreview ? "lg:flex lg:h-dvh lg:max-h-dvh lg:flex-col lg:overflow-hidden" : ""}`}
+        aria-busy={!ready}
+      >
         <fieldset
           disabled={!ready || restoring}
-          className="min-w-0"
+          className={`min-w-0 ${showPreview ? "lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden" : ""}`}
           aria-label="Lesson editor"
         >
           <header
-            className={`mx-auto mb-5 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
+            className={`mx-auto mb-5 w-full shrink-0 text-left ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
           >
             <a
               href={coursePath({ id: courseId, slug: courseSlug })}
@@ -1351,84 +1438,117 @@ export default function LessonEditor({
             />
           </header>
           <nav
-            className={`mx-auto mb-5 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-2 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
+            className={`relative z-40 mx-auto mb-5 flex w-full shrink-0 flex-col gap-3 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
             aria-label="Editor mode"
           >
-            <button
-              aria-pressed={tab === "rich"}
-              className={tab === "rich" ? "btn-primary" : "btn-secondary"}
-              onClick={() => setTab("rich")}
-            >
-              Rich Editor
-            </button>
-            <button
-              aria-pressed={tab === "markdown"}
-              className={tab === "markdown" ? "btn-primary" : "btn-secondary"}
-              onClick={() => {
-                setTab("markdown");
-                if (!parseErrors.length)
-                  setMarkdown(serializeLessonMarkdown(latest.current));
-              }}
-            >
-              Markdown
-            </button>
-            <button
-              aria-pressed={tab === "assistant"}
-              className={tab === "assistant" ? "btn-primary" : "btn-secondary"}
-              onClick={() => setTab("assistant")}
-            >
-              Assistant
-            </button>
-            <label className="btn-secondary cursor-pointer">
-              Import Markdown
-              <input
-                className="sr-only"
-                type="file"
-                accept=".md,.markdown,text/markdown,text/plain"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    parse(await file.text());
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setDetailsOpen(true)}
+              >
+                Lesson details
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setAssistantOpen(true)}
+              >
+                Learning Assistant
+              </button>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div
+                className="flex border-b border-zinc-200"
+                role="tablist"
+                aria-label="Editing view"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "rich"}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === "rich" ? "border-teal-700 text-teal-800" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
+                  onClick={() => setTab("rich")}
+                >
+                  Rich Editor
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "markdown"}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === "markdown" ? "border-teal-700 text-teal-800" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
+                  onClick={() => {
                     setTab("markdown");
-                  }
-                  e.target.value = "";
-                }}
-              />
-            </label>
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                const url = URL.createObjectURL(
-                  new Blob(
-                    [
-                      parseErrors.length
-                        ? markdown
-                        : serializeLessonMarkdown(latest.current),
-                    ],
-                    { type: "text/markdown" },
-                  ),
-                );
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${draft.slug}.md`;
-                a.click();
-                URL.revokeObjectURL(url);
+                    if (!parseErrors.length)
+                      setMarkdown(serializeLessonMarkdown(latest.current));
+                  }}
+                >
+                  Markdown
+                </button>
+              </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                className={`hidden lg:inline-flex ${showPreview ? "btn-primary" : "btn-secondary"}`}
+                aria-pressed={showPreview}
+                onClick={() => setShowPreview(!showPreview)}
+              >
+                {showPreview ? "Hide preview" : "Show preview"}
+              </button>
+              <ActionMenu label="More" text="More" className="z-40">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => importMarkdownRef.current?.click()}
+                >
+                  Import Markdown
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    const url = URL.createObjectURL(
+                      new Blob(
+                        [
+                          parseErrors.length
+                            ? markdown
+                            : serializeLessonMarkdown(latest.current),
+                        ],
+                        { type: "text/markdown" },
+                      ),
+                    );
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${draft.slug}.md`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export Markdown
+                </button>
+              </ActionMenu>
+            </div>
+            </div>
+            <input
+              ref={importMarkdownRef}
+              className="sr-only"
+              type="file"
+              aria-label="Import Markdown"
+              accept=".md,.markdown,text/markdown,text/plain"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  parse(await file.text());
+                  setTab("markdown");
+                }
+                e.target.value = "";
               }}
-            >
-              Export
-            </button>
-            <button
-              className="btn-secondary ml-auto hidden lg:inline-flex"
-              aria-pressed={showPreview}
-              onClick={() => setShowPreview(!showPreview)}
-            >
-              {showPreview ? "Hide preview" : "Show preview"}
-            </button>
+            />
           </nav>
           {!!errors.length && (
             <section
               role="alert"
-              className="mx-auto my-3 max-w-7xl rounded border border-red-300 bg-red-50 p-3"
+              className="mx-auto my-3 max-w-7xl shrink-0 rounded border border-red-300 bg-red-50 p-3"
             >
               <b>Fix these issues before publication</b>
               <ul>
@@ -1445,64 +1565,8 @@ export default function LessonEditor({
               </ul>
             </section>
           )}
-          {tab === "assistant" ? (
-            <section
-              className={`mx-auto mb-6 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
-              aria-label="Learning Assistant"
-            >
-              <div
-                role="tablist"
-                aria-label="Learning Assistant"
-                className="mb-4 flex flex-wrap gap-2"
-              >
-                <button
-                  id="assistant-lesson"
-                  role="tab"
-                  aria-selected={assistantScope === "lesson"}
-                  aria-controls="assistant-lesson-panel"
-                  className={
-                    assistantScope === "lesson"
-                      ? "btn-primary"
-                      : "btn-secondary"
-                  }
-                  onClick={() => setAssistantScope("lesson")}
-                >
-                  This lesson
-                </button>
-                <button
-                  id="assistant-course"
-                  role="tab"
-                  aria-selected={assistantScope === "course"}
-                  aria-controls="assistant-course-panel"
-                  className={
-                    assistantScope === "course"
-                      ? "btn-primary"
-                      : "btn-secondary"
-                  }
-                  onClick={() => setAssistantScope("course")}
-                >
-                  Course
-                </button>
-              </div>
-              {assistantScope === "lesson" ? (
-                <AssistantForm
-                  labelledBy="assistant-lesson"
-                  description="These settings apply only to this lesson."
-                  value={lessonAssistant}
-                  onChange={updateLessonAssistant}
-                />
-              ) : (
-                <AssistantForm
-                  labelledBy="assistant-course"
-                  description="These settings apply to every lesson in this course."
-                  value={courseAssistant}
-                  onChange={updateCourseAssistant}
-                />
-              )}
-            </section>
-          ) : (
-            <>
-              <div className="my-2 flex gap-2 lg:hidden">
+          <>
+              <div className="my-2 flex shrink-0 gap-2 lg:hidden">
                 <button
                   className="btn-secondary"
                   onClick={() => setMobile("editor")}
@@ -1517,11 +1581,11 @@ export default function LessonEditor({
                 </button>
               </div>
               <div
-                className={`mx-auto grid gap-6 ${showPreview ? "max-w-7xl lg:sticky lg:top-0 lg:z-10 lg:h-dvh lg:grid-cols-2 lg:items-stretch lg:overflow-hidden" : "max-w-4xl"}`}
+                className={`mx-auto grid gap-6 ${showPreview ? "max-w-7xl lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden" : "max-w-4xl"}`}
               >
                 <section
                   ref={editorPaneRef}
-                  className={`min-w-0 lg:min-h-0 ${mobile === "preview" ? "hidden lg:block" : ""} ${showPreview ? "lg:h-full lg:overflow-y-auto lg:overscroll-contain" : ""}`}
+                  className={`min-w-0 ${mobile === "preview" ? "hidden lg:block" : ""} ${showPreview ? "lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" : ""}`}
                 >
                   {tab === "markdown" ? (
                     <label className="label mt-4 block">
@@ -1535,16 +1599,6 @@ export default function LessonEditor({
                     </label>
                   ) : (
                     <>
-                      <details className="mt-4">
-                        <summary className="cursor-pointer font-semibold">
-                          Lesson details
-                        </summary>
-                        <Fields
-                          value={draft}
-                          path="metadata"
-                          onChange={change}
-                        />
-                      </details>
                       <nav
                         aria-label="Lesson steps"
                         className="my-5 flex flex-wrap items-center gap-2"
@@ -1675,10 +1729,10 @@ export default function LessonEditor({
                                     id={`steps.${si}.blocks.${bi}`}
                                     data-component-id={b.id}
                                     tabIndex={-1}
-                                    className={
-                                      showPreview && pinnedId === b.id
-                                        ? "lg:sticky lg:top-8 lg:z-20"
-                                        : undefined
+                                    className="[outline:none]"
+                                    onClick={() => selectPair(b.id, "editor")}
+                                    onFocusCapture={() =>
+                                      selectPair(b.id, "editor")
                                     }
                                   >
                                     <EditorCard
@@ -1892,15 +1946,12 @@ export default function LessonEditor({
                             </section>
                           );
                         })()}
-                      {showPreview && (
-                        <div className="hidden h-[70vh] lg:block" aria-hidden />
-                      )}
                     </>
                   )}
                 </section>
                 <aside
                   ref={previewPaneRef}
-                  className={`min-w-0 lg:min-h-0 lg:pr-2 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block lg:h-full lg:overflow-y-auto lg:overscroll-contain" : "lg:hidden"}`}
+                  className={`min-w-0 lg:pr-2 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" : "lg:hidden"}`}
                 >
                   <p className="text-sm font-semibold text-teal-800">
                     LEARNER PREVIEW
@@ -1915,9 +1966,13 @@ export default function LessonEditor({
                           .filter((b) => b.visible)
                           .map((b) => (
                             <div
-                              className={`w-full rounded-xl border p-4 shadow-sm ${showPreview && pinnedId === b.id ? "border-[#dce8ff] bg-[#f4f8ff]" : "border-zinc-200 bg-white"}`}
+                              className={`w-full rounded-xl border border-zinc-200 p-4 shadow-sm [outline:none] ${showPreview && pinnedId === b.id ? "bg-[#f4f8ff]" : "bg-white"}`}
                               data-component-id={b.id}
                               key={b.id}
+                              onClick={() => selectPair(b.id, "preview")}
+                              onFocusCapture={() =>
+                                selectPair(b.id, "preview")
+                              }
                             >
                               <BlockRenderer block={b} embedded />
                             </div>
@@ -1925,13 +1980,96 @@ export default function LessonEditor({
                       </div>
                     </section>
                   ))}
-                  {showPreview && (
-                    <div className="hidden h-[70vh] lg:block" aria-hidden />
-                  )}
                 </aside>
               </div>
             </>
-          )}
+          <Dialog.Root open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
+              <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(95vw,640px)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl bg-white p-6">
+                <Dialog.Title className="text-xl font-bold">
+                  Lesson details
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-zinc-600">
+                  Title, address, and who the lesson is for.
+                </Dialog.Description>
+                <div className="mt-4">
+                  <Fields value={draft} path="metadata" onChange={change} />
+                </div>
+                <Dialog.Close className="btn-secondary mt-4">
+                  Close
+                </Dialog.Close>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+          <Dialog.Root open={assistantOpen} onOpenChange={setAssistantOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
+              <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(95vw,640px)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl bg-white p-6">
+                <Dialog.Title className="text-xl font-bold">
+                  Learning Assistant
+                </Dialog.Title>
+                <Dialog.Description className="sr-only">
+                  Suggested questions and constraints for this lesson or the
+                  whole course.
+                </Dialog.Description>
+                <div
+                  role="tablist"
+                  aria-label="Learning Assistant"
+                  className="my-4 flex flex-wrap gap-2"
+                >
+                  <button
+                    id="assistant-lesson"
+                    type="button"
+                    role="tab"
+                    aria-selected={assistantScope === "lesson"}
+                    aria-controls="assistant-lesson-panel"
+                    className={
+                      assistantScope === "lesson"
+                        ? "btn-primary"
+                        : "btn-secondary"
+                    }
+                    onClick={() => setAssistantScope("lesson")}
+                  >
+                    This lesson
+                  </button>
+                  <button
+                    id="assistant-course"
+                    type="button"
+                    role="tab"
+                    aria-selected={assistantScope === "course"}
+                    aria-controls="assistant-course-panel"
+                    className={
+                      assistantScope === "course"
+                        ? "btn-primary"
+                        : "btn-secondary"
+                    }
+                    onClick={() => setAssistantScope("course")}
+                  >
+                    Course
+                  </button>
+                </div>
+                {assistantScope === "lesson" ? (
+                  <AssistantForm
+                    labelledBy="assistant-lesson"
+                    description="These settings apply only to this lesson."
+                    value={lessonAssistant}
+                    onChange={updateLessonAssistant}
+                  />
+                ) : (
+                  <AssistantForm
+                    labelledBy="assistant-course"
+                    description="These settings apply to every lesson in this course."
+                    value={courseAssistant}
+                    onChange={updateCourseAssistant}
+                  />
+                )}
+                <Dialog.Close className="btn-secondary mt-4">
+                  Close
+                </Dialog.Close>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
           <Dialog.Root
             open={!!picker}
             onOpenChange={(open) => {

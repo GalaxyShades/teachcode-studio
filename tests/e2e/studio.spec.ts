@@ -225,7 +225,7 @@ test("editor imports files, adds and reorders cards, autosaves and switches on m
     .fill(
       text.replace('slug="component-reference"', 'slug="imported-reference"'),
     );
-  await page.getByRole("button", { name: "Rich Editor", exact: true }).click();
+  await page.getByRole("tab", { name: "Rich Editor", exact: true }).click();
   await page
     .getByRole("button", { name: "＋ Add card", exact: true })
     .first()

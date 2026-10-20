@@ -48,9 +48,14 @@ export function cardSummary(block: Block) {
 }
 export function ActionMenu({
   label,
+  text,
+  className,
   children,
 }: {
   label: string;
+  /** Visible trigger. Card menus stay icon-only when this is omitted. */
+  text?: string;
+  className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -65,7 +70,7 @@ export function ActionMenu({
   return (
     <details
       ref={ref}
-      className="relative shrink-0"
+      className={`group relative shrink-0 ${className ?? ""}`}
       data-no-drag
       onKeyDown={(e) => {
         if (e.key === "Escape") {
@@ -77,12 +82,16 @@ export function ActionMenu({
     >
       <summary
         aria-label={label}
-        className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 [&::-webkit-details-marker]:hidden"
+        className={
+          text
+            ? "btn-secondary cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+            : "flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 [&::-webkit-details-marker]:hidden"
+        }
       >
-        ⋯
+        {text ?? "⋯"}
       </summary>
       <div
-        className="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border bg-white p-1.5 shadow-lg [&>button]:w-full [&>button]:justify-start [&>button]:border-0 [&>button]:text-left"
+        className="absolute right-0 top-full z-30 mt-1 hidden w-56 rounded-xl border bg-white p-1.5 shadow-lg group-open:block [&>button]:w-full [&>button]:justify-start [&>button]:border-0 [&>button]:text-left"
         onClick={(e) => {
           if ((e.target as Element).closest("button"))
             ref.current?.removeAttribute("open");
@@ -134,7 +143,7 @@ export function EditorCard({
 }) {
   return (
     <article
-      className={`rounded-xl border transition-colors ${highlighted ? `bg-[#f4f8ff] ${open ? "border-teal-600 shadow-sm" : "border-[#dce8ff]"}` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
+      className={`rounded-xl border transition-colors ${highlighted ? `${open ? "border-teal-600 shadow-sm" : "border-zinc-200"} bg-[#f4f8ff]` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
       data-card-id={block.id}
     >
       <header

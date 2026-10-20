@@ -118,9 +118,13 @@ export function BlockRenderer({
             <InlineText text={block.title} />
           </h4>
           {block.runnable ? (
-            <CodeRunner language={block.language} starter={block.code} />
+            <div className="mt-4">
+              <CodeRunner language={block.language} starter={block.code} />
+            </div>
           ) : (
-            <CodeDisplay code={block.code} language={block.language} />
+            <div className="mt-4">
+              <CodeDisplay code={block.code} language={block.language} />
+            </div>
           )}
           <Markdown>{block.explanation}</Markdown>
           {block.expectedOutput ? (
@@ -135,13 +139,15 @@ export function BlockRenderer({
       return (
         <section>
           <InlineText text={block.instructions} className="block" />
-          <CodeRunner
-            language={block.language}
-            starter={block.starterCode}
-            execution={block.execution}
-            expectedOutput={block.expectedOutput}
-            check={block.checkScript}
-          />
+          <div className="mt-4">
+            <CodeRunner
+              language={block.language}
+              starter={block.starterCode}
+              execution={block.execution}
+              expectedOutput={block.expectedOutput}
+              check={block.checkScript}
+            />
+          </div>
         </section>
       );
     case "figure":

@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth";
+import { CoursePlanner } from "@/components/CoursePlanner";
 import { redirect } from "next/navigation";
 export default async function CourseLayout({
   children,
@@ -6,5 +7,10 @@ export default async function CourseLayout({
   children: React.ReactNode;
 }) {
   if (!(await currentUser())) redirect("/login");
-  return children;
+  return (
+    <>
+      {children}
+      <CoursePlanner />
+    </>
+  );
 }

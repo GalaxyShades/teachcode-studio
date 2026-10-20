@@ -34,20 +34,19 @@ export default async function Course({
             course={course as any}
             admin={user.role === "admin"}
           />
-          {user.role === "admin" && (
-            <Link href={assignmentsPath(resolved)} className="btn-secondary">
-              Staff assignments
-            </Link>
-          )}
-          {user.role === "admin" && <CourseSettings course={course as any} />}
         </div>
       </header>
-      <Link
-        href={generateLessonPath(resolved)}
-        className="btn-primary mt-6"
-      >
-        Create lesson with AI
-      </Link>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Link href={generateLessonPath(resolved)} className="btn-primary">
+          Create lesson with AI
+        </Link>
+        {user.role === "admin" && (
+          <Link href={assignmentsPath(resolved)} className="btn-secondary">
+            Staff assignments
+          </Link>
+        )}
+        {user.role === "admin" && <CourseSettings course={course as any} />}
+      </div>
       <CourseManager
         course={course as any}
         initialChapters={chapters as any}

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { authoringResources } from "./authoring-resources";
 import { blockTypes } from "./content";
 import { db } from "./db";
@@ -115,11 +116,27 @@ export const lessonWritingModelIds = [
   "openai/gpt-5.5",
 ] as const;
 
+/** GLM ids return empty planner replies, so they are never offered or called. */
+export function isGlmModelId(id: string) {
+  return /glm/i.test(id);
+}
+
+/**
+ * Teachers and the planner use this when the saved id is a GLM model.
+ * The saved key is not changed.
+ */
+export function lessonModelForCall(model: string | null) {
+  if (model && isGlmModelId(model)) return lessonWritingModelIds[0];
+  return model;
+}
+
 export function lessonWritingModels(models: OpenRouterModel[]) {
   const byId = new Map(models.map((model) => [model.id, model]));
   return lessonWritingModelIds.flatMap((id) => {
+    if (isGlmModelId(id)) return [];
     const model = byId.get(id);
-    return model ? [model] : [];
+    if (!model || isGlmModelId(model.id)) return [];
+    return [model];
   });
 }
 
@@ -174,6 +191,11 @@ export async function clearOpenRouterKey(userId: string) {
   );
 }
 
+/** The teacher's saved planner credentials. Does not call the one-shot lesson API. */
+export async function savedOpenRouterCredentials(userId: string) {
+  return readRow(userId);
+}
+
 export async function listOpenRouterModels(apiKey: string) {
   let response: Response;
   try {
@@ -205,11 +227,14 @@ export async function listOpenRouterModels(apiKey: string) {
  * field can show it masked. Error text is redacted and never includes the key.
  */
 export async function openRouterView(userId: string): Promise<OpenRouterView> {
-  const { apiKey, model } = await readRow(userId);
-  if (!apiKey) return { hasKey: false, model, models: [] };
+  const saved = await readRow(userId);
+  const model = lessonModelForCall(saved.model);
+  if (!saved.apiKey) return { hasKey: false, model, models: [] };
   try {
-    const models = lessonWritingModels(await listOpenRouterModels(apiKey));
-    return { hasKey: true, apiKey, model, models };
+    const models = lessonWritingModels(
+      await listOpenRouterModels(saved.apiKey),
+    );
+    return { hasKey: true, apiKey: saved.apiKey, model, models };
   } catch (e) {
     const message =
       e instanceof CmsError
@@ -217,10 +242,10 @@ export async function openRouterView(userId: string): Promise<OpenRouterView> {
         : "Could not load models from OpenRouter.";
     return {
       hasKey: true,
-      apiKey,
+      apiKey: saved.apiKey,
       model,
       models: [],
-      error: redactSecret(message, apiKey),
+      error: redactSecret(message, saved.apiKey),
     };
   }
 }
@@ -263,4 +288,125 @@ export async function completeLesson(
   if (typeof content !== "string" || !content.trim())
     throw new CmsError(502, "OpenRouter returned an empty lesson.");
   return lessonMarkdownFromModel(content);
+}
+
+export type PlannerToolCall = {
+  id: string;
+  name: string;
+  arguments: string;
+};
+
+export type PlannerModelMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_call_id?: string;
+  tool_calls?: {
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }[];
+};
+
+function plannerText(content: unknown) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (
+        part &&
+        typeof part === "object" &&
+        typeof (part as { text?: unknown }).text === "string"
+      )
+        return (part as { text: string }).text;
+      return "";
+    })
+    .join("");
+}
+
+function plannerToolCalls(message: { tool_calls?: unknown }) {
+  const calls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+  const parsed: PlannerToolCall[] = [];
+  for (const call of calls) {
+    if (!call || typeof call !== "object") continue;
+    const record = call as {
+      id?: unknown;
+      name?: unknown;
+      arguments?: unknown;
+      function?: { name?: unknown; arguments?: unknown };
+    };
+    const name = record.function?.name ?? record.name;
+    if (typeof name !== "string" || !name) continue;
+    const raw = record.function?.arguments ?? record.arguments ?? "{}";
+    parsed.push({
+      id:
+        typeof record.id === "string" && record.id
+          ? record.id
+          : crypto.randomBytes(8).toString("hex"),
+      name,
+      arguments: typeof raw === "string" ? raw : JSON.stringify(raw),
+    });
+  }
+  return parsed;
+}
+
+/**
+ * One planner turn with tool definitions. Separate from completeLesson.
+ */
+export async function completePlannerTurn(
+  apiKey: string,
+  model: string,
+  messages: PlannerModelMessage[],
+  tools: readonly unknown[],
+  timeoutMs = 90000,
+) {
+  let response: Response;
+  try {
+    response = await fetch(COMPLETIONS_URL, {
+      method: "POST",
+      headers: { ...headers(apiKey), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: messages.map((message) => {
+          if (message.role === "tool")
+            return {
+              role: "tool",
+              tool_call_id: message.tool_call_id,
+              content: message.content ?? "",
+            };
+          const row: Record<string, unknown> = {
+            role: message.role,
+            content: message.content,
+          };
+          if (message.tool_calls?.length) row.tool_calls = message.tool_calls;
+          return row;
+        }),
+        tools,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    throw new CmsError(
+      502,
+      redactSecret(
+        e instanceof Error && e.name === "TimeoutError"
+          ? "OpenRouter took too long to answer."
+          : "Could not reach OpenRouter.",
+        apiKey,
+      ),
+    );
+  }
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      (payload && typeof payload === "object" && payload.error?.message) ||
+      "OpenRouter rejected the request.";
+    throw new CmsError(502, redactSecret(String(message), apiKey));
+  }
+  const message = payload?.choices?.[0]?.message ?? {};
+  const content = plannerText(message.content);
+  const toolCalls = plannerToolCalls(message);
+  if (!content.trim() && !toolCalls.length)
+    throw new CmsError(502, "OpenRouter returned an empty planner reply.");
+  return { content, toolCalls };
 }

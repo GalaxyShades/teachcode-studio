@@ -1,6 +1,10 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { execute } from "@/lib/runtime";
+function codeRows(code: string) {
+  if (!code.trim()) return 1;
+  return code.replace(/\n$/, "").split("\n").length;
+}
 export function CodeRunner({
   language,
   starter,
@@ -57,17 +61,17 @@ export function CodeRunner({
       <textarea
         aria-label={`${language} code`}
         className="w-full bg-transparent font-mono text-sm"
-        rows={15}
+        rows={codeRows(starter)}
         value={code}
         onChange={(e) => setCode(e.target.value)}
       />
       {execution === "server" ? (
-        <p>
+        <p className="mt-4">
           Server execution is unsupported. Select browser execution; a dedicated
           sandbox service is required for server execution.
         </p>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           <button className="btn-primary" disabled={busy} onClick={run}>
             {busy ? status || "Starting…" : "Run code"}
           </button>
