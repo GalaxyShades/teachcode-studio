@@ -29,4 +29,26 @@ it("checks the browser-facing host when Next normalizes a loopback URL", () => {
       }),
     ),
   ).toThrow("Cross-origin");
+  expect(() =>
+    sameOrigin(
+      new Request("http://127.0.0.1:3010/studio/api/courses/course", {
+        headers: {
+          host: "codewithai.hku.hk",
+          origin: "https://codewithai.hku.hk",
+          "x-forwarded-proto": "https",
+        },
+      }),
+    ),
+  ).not.toThrow();
+  expect(() =>
+    sameOrigin(
+      new Request("http://127.0.0.1:3010/studio/api/courses/course", {
+        headers: {
+          host: "codewithai.hku.hk",
+          origin: "https://evil.example",
+          "x-forwarded-proto": "https",
+        },
+      }),
+    ),
+  ).toThrow("Cross-origin");
 });

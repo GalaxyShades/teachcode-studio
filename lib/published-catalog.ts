@@ -6,7 +6,7 @@ export async function publishedCourses() {
   return CourseListSchema.parse(
     (
       await db().query(
-        "SELECT c.id,c.slug,c.title,c.description FROM cms_courses c WHERE c.status='published' AND EXISTS (SELECT 1 FROM cms_lessons l WHERE l.course_id=c.id AND l.status='published' AND l.published_revision_id IS NOT NULL) ORDER BY c.title,c.id",
+        "SELECT c.id,c.slug,c.title,c.description FROM cms_courses c WHERE c.status='published' ORDER BY c.title,c.id",
       )
     ).rows,
   );
@@ -34,7 +34,6 @@ export async function publishedCourse(courseId: string) {
       revisionId: lesson.published_revision_id,
       contentUrl: `/api/v1/content/courses/${courseId}/lessons/${lesson.id}`,
     }));
-    if (!lessons.length) throw new CmsError(404, "Published course not found");
     const groups = (
       await client.query(
         "SELECT id,title FROM cms_chapters WHERE course_id=$1 ORDER BY position,id",
@@ -48,7 +47,7 @@ export async function publishedCourse(courseId: string) {
           ...group,
           lessons: lessons.filter((lesson) => lesson.chapterId === group.id),
         }))
-        .filter((group) => group.lessons.length),
+        .filter((group) => lessons.length === 0 || group.lessons.length),
       unassignedLessons: lessons.filter((lesson) => !lesson.chapterId),
     });
   });

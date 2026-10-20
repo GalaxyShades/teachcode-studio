@@ -32,7 +32,16 @@ export function sameOrigin(req: Request) {
   // Next normalizes loopback URLs to localhost; the browser retains the Host
   // it actually connected to (for example 127.0.0.1:3100).
   const host = req.headers.get("host");
-  if (host) expected.host = host;
+  if (host) {
+    expected.host = host;
+    // Node keeps the internal port (3010) when the public Host header has none.
+    if (!host.includes(":")) expected.port = "";
+  }
+  // nginx terminates TLS and forwards plain HTTP. The browser Origin stays https.
+  const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (forwarded === "https" || forwarded === "http") {
+    expected.protocol = `${forwarded}:`;
+  }
   if (origin && origin !== expected.origin)
     throw new CmsError(403, "Cross-origin mutations are not allowed");
 }
