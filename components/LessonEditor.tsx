@@ -7,6 +7,7 @@ import {
   createContext,
   useContext,
 } from "react";
+import { flushSync } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   defaults,
@@ -1170,7 +1171,6 @@ export default function LessonEditor({
     (id: string, source: "editor" | "preview") => void
   >(() => {});
   const openPinnedRef = useRef<(id: string | null) => void>(() => {});
-  const autoOpenKey = useRef<string | null>(null);
   const autoExpandedId = useRef<string | null>(null);
   const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(
     new Set(),
@@ -1400,66 +1400,89 @@ export default function LessonEditor({
     let frame = 0;
     let pending: "editor" | "preview" | null = null;
     let pairedId: string | null = null;
+    let userSide: "editor" | "preview" | null = null;
     const ignoreUntil = { editor: 0, preview: 0 };
     const pendingRecheck = { editor: 0, preview: 0 };
 
+    const stopHold = {
+      editor: () => {},
+      preview: () => {},
+    };
     const holdProgrammatic = (side: "editor" | "preview") => {
-      ignoreUntil[side] = performance.now() + 400;
-      window.clearTimeout(pendingRecheck[side]);
-      pendingRecheck[side] = window.setTimeout(() => {
-        if (performance.now() >= ignoreUntil[side]) schedule(side);
-      }, 420);
+      stopHold[side]();
+      const pane = side === "editor" ? editor : preview;
+      let settled = false;
+      const release = () => {
+        if (settled) return;
+        settled = true;
+        pane.removeEventListener("scroll", extend);
+        pane.removeEventListener("scrollend", release);
+        stopHold[side] = () => {};
+        window.clearTimeout(pendingRecheck[side]);
+        ignoreUntil[side] = performance.now() + 80;
+      };
+      const extend = () => {
+        ignoreUntil[side] = performance.now() + 400;
+        window.clearTimeout(pendingRecheck[side]);
+        pendingRecheck[side] = window.setTimeout(release, 450);
+      };
+      stopHold[side] = () => {
+        settled = true;
+        pane.removeEventListener("scroll", extend);
+        pane.removeEventListener("scrollend", release);
+        window.clearTimeout(pendingRecheck[side]);
+      };
+      pane.addEventListener("scroll", extend, { passive: true });
+      pane.addEventListener("scrollend", release);
+      extend();
+    };
+    const slidePane = (
+      pane: HTMLElement,
+      side: "editor" | "preview",
+      top: number,
+    ) => {
+      holdProgrammatic(side);
+      pane.scrollTo({ top, behavior: "smooth" });
     };
 
     const topmostId = (pane: HTMLElement) => {
       const paneRect = pane.getBoundingClientRect();
-      const nodes = [
-        ...pane.querySelectorAll<HTMLElement>("[data-component-id]"),
-      ].filter((node) => {
+      let best: HTMLElement | null = null;
+      let bestDist = Infinity;
+      for (const node of pane.querySelectorAll<HTMLElement>(
+        "[data-component-id]",
+      )) {
         const rect = node.getBoundingClientRect();
-        return rect.bottom > paneRect.top + 8 && rect.top < paneRect.bottom - 8;
-      });
-      if (!nodes.length) return null;
-      const lead = paneRect.top + 24;
-      let current = nodes[0];
-      for (const node of nodes)
-        if (node.getBoundingClientRect().top <= lead) current = node;
-      return current.dataset.componentId ?? null;
-    };
-
-    const stillVisible = (pane: HTMLElement, id: string) => {
-      const node = pane.querySelector<HTMLElement>(
-        `[data-component-id="${CSS.escape(id)}"]`,
-      );
-      if (!node) return false;
-      const paneRect = pane.getBoundingClientRect();
-      const rect = node.getBoundingClientRect();
-      return rect.bottom > paneRect.top + 1 && rect.top < paneRect.bottom - 1;
+        if (rect.bottom <= paneRect.top + 1 || rect.top >= paneRect.bottom - 1)
+          continue;
+        const dist = Math.abs(rect.top - paneRect.top);
+        if (dist < bestDist) {
+          best = node;
+          bestDist = dist;
+        }
+      }
+      return best?.dataset.componentId ?? null;
     };
 
     const follow = (source: "editor" | "preview") => {
       if (!wide.matches) return;
+      if (userSide && source !== userSide) return;
       if (performance.now() < ignoreUntil[source]) return;
       const sourcePane = source === "editor" ? editor : preview;
       const targetPane = source === "editor" ? preview : editor;
-      if (pairedId && stillVisible(sourcePane, pairedId)) return;
       const id = topmostId(sourcePane);
       if (!id || id === pairedId) return;
+      pairedId = id;
+      setPinnedId(id);
       const node = targetPane.querySelector<HTMLElement>(
         `[data-component-id="${CSS.escape(id)}"]`,
       );
-      pairedId = id;
-      setPinnedId(id);
-      openPinnedRef.current(id);
       if (!node) return;
       const delta =
-        node.getBoundingClientRect().top -
-        targetPane.getBoundingClientRect().top -
-        12;
+        node.getBoundingClientRect().top - targetPane.getBoundingClientRect().top;
       if (Math.abs(delta) <= 2) return;
       const target = source === "editor" ? "preview" : "editor";
-      holdProgrammatic(target);
-      targetPane.scrollTo({ top: targetPane.scrollTop + delta });
+      slidePane(targetPane, target, targetPane.scrollTop + delta);
     };
 
     const schedule = (source: "editor" | "preview") => {
@@ -1485,20 +1508,19 @@ export default function LessonEditor({
       );
       if (!node) return;
       const delta =
-        node.getBoundingClientRect().top -
-        targetPane.getBoundingClientRect().top -
-        12;
+        node.getBoundingClientRect().top - targetPane.getBoundingClientRect().top;
       if (Math.abs(delta) <= 2) return;
-      holdProgrammatic(targetSide);
-      targetPane.scrollTo({ top: targetPane.scrollTop + delta });
+      slidePane(targetPane, targetSide, targetPane.scrollTop + delta);
     };
 
     const onEditor = () => {
       if (performance.now() < ignoreUntil.editor) return;
+      userSide = "editor";
       schedule("editor");
     };
     const onPreview = () => {
       if (performance.now() < ignoreUntil.preview) return;
+      userSide = "preview";
       schedule("preview");
     };
     const onWide = () => {
@@ -1510,13 +1532,10 @@ export default function LessonEditor({
     const initialId = wide.matches ? topmostId(editor) : null;
     pairedId = initialId;
     setPinnedId(initialId);
-    const openKey = `${activeStepId}:${tab}`;
-    if (initialId && autoOpenKey.current !== openKey) {
-      autoOpenKey.current = openKey;
-      openPinnedRef.current(initialId);
-    }
     return () => {
       revealPairRef.current = () => {};
+      stopHold.editor();
+      stopHold.preview();
       editor.removeEventListener("scroll", onEditor);
       preview.removeEventListener("scroll", onPreview);
       wide.removeEventListener("change", onWide);
@@ -1548,8 +1567,10 @@ export default function LessonEditor({
     });
   }
   function selectPair(id: string, source: "editor" | "preview", expand = true) {
-    setPinnedId(id);
-    if (expand) openPinnedRef.current(id);
+    flushSync(() => {
+      setPinnedId(id);
+      if (expand) openPinnedRef.current(id);
+    });
     revealPairRef.current(id, source);
   }
   function parse(source: string) {
@@ -1699,10 +1720,38 @@ export default function LessonEditor({
             />
           </header>
           <nav
-            className={`relative z-40 mx-auto mb-5 flex w-full shrink-0 flex-col gap-3 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
+            className={`relative z-40 mx-auto mb-5 flex w-full shrink-0 flex-wrap items-end gap-x-4 gap-y-2 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
             aria-label="Editor mode"
           >
-            <div className="flex flex-wrap gap-2">
+            <div
+              className="flex border-b border-zinc-200"
+              role="tablist"
+              aria-label="Editing view"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "rich"}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === "rich" ? "border-teal-700 text-teal-800" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
+                onClick={() => setTab("rich")}
+              >
+                Rich Editor
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "markdown"}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === "markdown" ? "border-teal-700 text-teal-800" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
+                onClick={() => {
+                  setTab("markdown");
+                  if (!parseErrors.length)
+                    setMarkdown(serializeLessonMarkdown(latest.current));
+                }}
+              >
+                Markdown
+              </button>
+            </div>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 className="btn-secondary"
@@ -1717,46 +1766,15 @@ export default function LessonEditor({
               >
                 Learning Assistant
               </button>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div
-                className="flex border-b border-zinc-200"
-                role="tablist"
-                aria-label="Editing view"
+              <button
+                type="button"
+                className={`hidden lg:inline-flex ${showPreview ? "btn-primary" : "btn-secondary"}`}
+                aria-pressed={showPreview}
+                onClick={() => setShowPreview(!showPreview)}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === "rich"}
-                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === "rich" ? "border-teal-700 text-teal-800" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
-                  onClick={() => setTab("rich")}
-                >
-                  Rich Editor
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === "markdown"}
-                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === "markdown" ? "border-teal-700 text-teal-800" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
-                  onClick={() => {
-                    setTab("markdown");
-                    if (!parseErrors.length)
-                      setMarkdown(serializeLessonMarkdown(latest.current));
-                  }}
-                >
-                  Markdown
-                </button>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  className={`hidden lg:inline-flex ${showPreview ? "btn-primary" : "btn-secondary"}`}
-                  aria-pressed={showPreview}
-                  onClick={() => setShowPreview(!showPreview)}
-                >
-                  {showPreview ? "Hide preview" : "Show preview"}
-                </button>
-                <ActionMenu label="More" text="More" className="z-40">
+                {showPreview ? "Hide preview" : "Show preview"}
+              </button>
+              <ActionMenu label="More" text="More" className="z-40">
                   <button
                     type="button"
                     className="btn-secondary"
@@ -1787,8 +1805,7 @@ export default function LessonEditor({
                   >
                     Export Markdown
                   </button>
-                </ActionMenu>
-              </div>
+              </ActionMenu>
             </div>
             <input
               ref={importMarkdownRef}
