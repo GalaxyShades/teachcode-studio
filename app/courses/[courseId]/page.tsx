@@ -37,12 +37,11 @@ export default async function Course({
           <CourseSettings course={course as any} />
         </div>
       </header>
-      <Link
-        href={generateLessonPath(resolved)}
-        className="btn-primary mt-6"
-      >
-        Create lesson with AI
-      </Link>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Link href={generateLessonPath(resolved)} className="btn-primary">
+          Create lesson with AI
+        </Link>
+      </div>
       <CourseManager
         course={course as any}
         initialChapters={chapters as any}

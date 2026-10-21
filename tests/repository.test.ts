@@ -81,7 +81,7 @@ describe("SQLite repository", () => {
     await assertDatabase();
     expect(
       (await db().query("SELECT * FROM cms_schema_migrations")).rowCount,
-    ).toBe(8);
+    ).toBe(9);
     expect(
       (await db().query("PRAGMA table_info(cms_openrouter_settings)")).rows.map(
         (row) => row.name,

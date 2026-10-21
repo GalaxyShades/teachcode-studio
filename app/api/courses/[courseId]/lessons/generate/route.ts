@@ -3,7 +3,11 @@ import { z } from "zod";
 import { requireCourse } from "@/lib/cms";
 import { apiError, sameOrigin } from "@/lib/api";
 import { insertGeneratedLesson } from "@/lib/generated-lesson";
-import { authoringOpenRouter, completeLesson } from "@/lib/openrouter";
+import {
+  authoringOpenRouter,
+  completeLesson,
+  lessonModelForCall,
+} from "@/lib/openrouter";
 import { CmsError } from "@/lib/repository";
 import { combineLessonSource, extractSourceText } from "@/lib/source-text";
 
@@ -53,18 +57,15 @@ export async function POST(req: Request, { params }: C) {
     const user = await requireCourse(courseId);
     const source = await readGenerateSource(req);
     const settings = await authoringOpenRouter(user.id);
+    const model = lessonModelForCall(settings.model);
     if (!settings.apiKey)
       throw new CmsError(
         400,
         "Save an OpenRouter API key before creating a lesson.",
       );
-    if (!settings.model)
+    if (!model)
       throw new CmsError(400, "Choose a model before creating a lesson.");
-    const markdown = await completeLesson(
-      settings.apiKey,
-      settings.model,
-      source,
-    );
+    const markdown = await completeLesson(settings.apiKey, model, source);
     const lesson = await insertGeneratedLesson(courseId, user.id, markdown);
     return NextResponse.json(
       { id: lesson.id, title: lesson.title, slug: lesson.slug },

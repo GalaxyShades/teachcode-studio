@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { Block, BlockType } from "@/lib/content";
-import { Markdown } from "./BlockRenderer";
+import { BlockRenderer, Markdown } from "./BlockRenderer";
 export const cardNames: Record<BlockType, string> = {
   text: "Markdown text",
   task: "Task",
@@ -48,9 +48,14 @@ export function cardSummary(block: Block) {
 }
 export function ActionMenu({
   label,
+  text,
+  className,
   children,
 }: {
   label: string;
+  /** Visible trigger. Card menus stay icon-only when this is omitted. */
+  text?: string;
+  className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -65,7 +70,7 @@ export function ActionMenu({
   return (
     <details
       ref={ref}
-      className="relative shrink-0"
+      className={`group relative shrink-0 ${className ?? ""}`}
       data-no-drag
       onKeyDown={(e) => {
         if (e.key === "Escape") {
@@ -77,12 +82,16 @@ export function ActionMenu({
     >
       <summary
         aria-label={label}
-        className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 [&::-webkit-details-marker]:hidden"
+        className={
+          text
+            ? "btn-secondary cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+            : "flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 [&::-webkit-details-marker]:hidden"
+        }
       >
-        ⋯
+        {text ?? "⋯"}
       </summary>
       <div
-        className="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border bg-white p-1.5 shadow-lg [&>button]:w-full [&>button]:justify-start [&>button]:border-0 [&>button]:text-left"
+        className="absolute right-0 top-full z-30 mt-1 hidden w-56 rounded-xl border bg-white p-1.5 shadow-lg group-open:block [&>button]:w-full [&>button]:justify-start [&>button]:border-0 [&>button]:text-left"
         onClick={(e) => {
           if ((e.target as Element).closest("button"))
             ref.current?.removeAttribute("open");
@@ -93,25 +102,36 @@ export function ActionMenu({
     </details>
   );
 }
-function TextPreview({ markdown }: { markdown: string }) {
-  const [expanded, setExpanded] = useState(false);
+function HeaderIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+function TextPreview({
+  markdown,
+  expanded,
+}: {
+  markdown: string;
+  expanded: boolean;
+}) {
   if (!markdown.trim())
     return (
       <p className="text-sm leading-relaxed text-zinc-600">No content yet</p>
     );
   return (
-    <div>
-      <div className={expanded ? undefined : "max-h-36 overflow-hidden"}>
-        <Markdown>{markdown}</Markdown>
-      </div>
-      <button
-        type="button"
-        className="btn-secondary mt-2"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((open) => !open)}
-      >
-        {expanded ? "Collapse" : "Expand"}
-      </button>
+    <div className={expanded ? undefined : "max-h-36 overflow-hidden"}>
+      <Markdown>{markdown}</Markdown>
     </div>
   );
 }
@@ -120,6 +140,8 @@ export function EditorCard({
   index,
   open,
   onToggle,
+  previewExpanded = false,
+  onPreviewToggle,
   highlighted = false,
   actions,
   children,
@@ -128,13 +150,23 @@ export function EditorCard({
   index: number;
   open: boolean;
   onToggle: () => void;
+  previewExpanded?: boolean;
+  onPreviewToggle?: () => void;
   highlighted?: boolean;
   actions: ReactNode;
   children: ReactNode;
 }) {
+  const previewToggle =
+    !open && (block.type !== "text" || !!block.markdown.trim());
+  const headerControl =
+    "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium";
+  const headerRest = highlighted
+    ? "text-zinc-600 hover:bg-[#d0dced] hover:text-zinc-800"
+    : "text-zinc-600 hover:bg-[#e8eef5] hover:text-zinc-800";
+  const headerSelected = "bg-[#d0dced] text-zinc-800 hover:bg-[#bccce3]";
   return (
     <article
-      className={`rounded-xl border transition-colors ${highlighted ? `bg-[#f4f8ff] ${open ? "border-teal-600 shadow-sm" : "border-[#dce8ff]"}` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
+      className={`rounded-xl border transition-colors ${highlighted ? `${open ? "border-teal-600 shadow-sm" : "border-zinc-200"} bg-[#e4ecf7]` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
       data-card-id={block.id}
     >
       <header
@@ -154,34 +186,70 @@ export function EditorCard({
             {!block.visible ? " · Hidden" : ""}
           </p>
         </div>
-        <button
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${open ? "bg-teal-50 text-teal-800" : "text-zinc-600 hover:bg-zinc-100"}`}
-          aria-expanded={open}
-          onClick={onToggle}
-        >
-          {open ? "Done" : "Edit"}
-        </button>
-        <ActionMenu label={`Actions for card ${index + 1}`}>
-          {actions}
-        </ActionMenu>
+        <div className="flex shrink-0 items-center gap-1">
+          {previewToggle ? (
+            <button
+              type="button"
+              className={`${headerControl} ${previewExpanded ? headerSelected : headerRest}`}
+              aria-expanded={previewExpanded}
+              data-preview-toggle
+              onClick={() => onPreviewToggle?.()}
+            >
+              {previewExpanded ? (
+                <HeaderIcon>
+                  <path d="m6 15 6-6 6 6" />
+                </HeaderIcon>
+              ) : (
+                <HeaderIcon>
+                  <path d="m6 9 6 6 6-6" />
+                </HeaderIcon>
+              )}
+              {previewExpanded ? "Collapse" : "Expand"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`${headerControl} ${open ? headerSelected : headerRest}`}
+            aria-expanded={open}
+            data-card-toggle
+            onClick={onToggle}
+          >
+            {open ? (
+              "Done"
+            ) : (
+              <>
+                <HeaderIcon>
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </HeaderIcon>
+                Edit
+              </>
+            )}
+          </button>
+          <ActionMenu label={`Actions for card ${index + 1}`}>
+            {actions}
+          </ActionMenu>
+        </div>
       </header>
       {open ? (
         <div className="cursor-auto border-t border-zinc-100 px-4 pb-4">
           {children}
         </div>
-      ) : block.type === "text" ? (
-        <div className="px-4 pb-4">
-          <TextPreview markdown={block.markdown} />
-        </div>
       ) : (
         <div className="px-4 pb-4">
-          <p className="line-clamp-2 text-sm leading-relaxed text-zinc-600">
-            {cardSummary(block)
-              .replace(/^#{1,6}\s+/gm, "")
-              .replace(/[*`]/g, "")
-              .replace(/\s+/g, " ")
-              .trim() || "No content yet"}
-          </p>
+          {block.type === "text" ? (
+            <TextPreview markdown={block.markdown} expanded={previewExpanded} />
+          ) : previewExpanded ? (
+            <BlockRenderer block={{ ...block, visible: true }} embedded />
+          ) : (
+            <p className="line-clamp-2 text-sm leading-relaxed text-zinc-600">
+              {cardSummary(block)
+                .replace(/^#{1,6}\s+/gm, "")
+                .replace(/[*`]/g, "")
+                .replace(/\s+/g, " ")
+                .trim() || "No content yet"}
+            </p>
+          )}
         </div>
       )}
     </article>

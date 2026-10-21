@@ -21,7 +21,7 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
         .replace('slug="component-reference"', 'slug="simple-editor"')
         .replace('title="Component reference"', 'title="Simple editor test"'),
     );
-  await page.getByRole("button", { name: "Rich Editor", exact: true }).click();
+  await page.getByRole("tab", { name: "Rich Editor", exact: true }).click();
   const cards = page.locator("[data-card-id]");
   await expect(cards).toHaveCount(6);
   await expect(
@@ -30,7 +30,7 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
   await expect(cards.getByRole("toolbar")).toHaveCount(0);
   await expect(
     page.getByText("LEARNER PREVIEW", { exact: true }),
-  ).not.toBeVisible();
+  ).toBeVisible();
   const task = cards.filter({
     has: page.getByRole("heading", { name: "Task", exact: true }),
   });
@@ -99,8 +99,12 @@ test("compact cards drag directly, preserve input editing, and keep Markdown too
     )
     .toEqual(original);
   await page.getByRole("button", { name: /2\. Practice and reflect/ }).click();
-  await expect(cards).toHaveCount(4);
+  await expect(cards).toHaveCount(3);
   await expect(cards.getByRole("toolbar")).toHaveCount(0);
+  await page.getByRole("button", { name: "Hide preview", exact: true }).click();
+  await expect(
+    page.getByText("LEARNER PREVIEW", { exact: true }),
+  ).not.toBeVisible();
   await page.getByRole("button", { name: "Show preview", exact: true }).click();
   await expect(
     page.getByText("LEARNER PREVIEW", { exact: true }),

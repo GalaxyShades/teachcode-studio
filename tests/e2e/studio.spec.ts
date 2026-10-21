@@ -29,7 +29,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
       .getByRole("heading", { name: "Component reference", exact: true })
       .first(),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Markdown", exact: true }).click();
+  await page.getByRole("tab", { name: "Markdown", exact: true }).click();
   const source = await page.getByLabel("Lesson Markdown").inputValue();
   expect(source).toContain(":::code-exercise");
   await page.getByLabel("Lesson Markdown").fill(source + "\n:::bad");
@@ -45,7 +45,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   const response = await page.request.get(base + "/draft");
   expect(response.status()).toBe(200);
   let { draft } = await response.json();
-  expect(draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(10);
+  expect(draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(9);
   const publish = await page.request.post(base + "/publish", { data: draft });
   expect(publish.status()).toBe(200);
   const publishedVersion = (await publish.json()).version;
@@ -226,7 +226,7 @@ test("editor imports files, adds and reorders cards, autosaves and switches on m
     .fill(
       text.replace('slug="component-reference"', 'slug="imported-reference"'),
     );
-  await page.getByRole("button", { name: "Rich Editor", exact: true }).click();
+  await page.getByRole("tab", { name: "Rich Editor", exact: true }).click();
   await page
     .getByRole("button", { name: "＋ Add card", exact: true })
     .first()
@@ -245,7 +245,7 @@ test("editor imports files, adds and reorders cards, autosaves and switches on m
   const saved = await (
     await page.request.get(`/api/courses/${course}/lessons/${id}/draft`)
   ).json();
-  expect(saved.draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(11);
+  expect(saved.draft.steps.flatMap((s: any) => s.blocks)).toHaveLength(10);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(

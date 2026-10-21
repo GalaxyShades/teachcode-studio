@@ -19,6 +19,19 @@ export function Markdown({ children }: { children: string }) {
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, { trust: false, strict: "ignore" }]]}
         urlTransform={markdownLinkHref}
+        components={{
+          input: ({ type, checked, disabled }) =>
+            type === "checkbox" ? (
+              <input
+                type="checkbox"
+                checked={Boolean(checked)}
+                disabled={disabled}
+                aria-label={checked ? "Completed item" : "Incomplete item"}
+              />
+            ) : (
+              <input type={type} checked={checked} disabled={disabled} />
+            ),
+        }}
       >
         {prepareLearnerMarkdown(children)}
       </ReactMarkdown>
@@ -120,9 +133,13 @@ export function BlockRenderer({
             </h4>
           ) : null}
           {block.runnable ? (
-            <CodeRunner language={block.language} starter={block.code} />
+            <div className="mt-4">
+              <CodeRunner language={block.language} starter={block.code} />
+            </div>
           ) : (
-            <CodeDisplay code={block.code} language={block.language} />
+            <div className="mt-4">
+              <CodeDisplay code={block.code} language={block.language} />
+            </div>
           )}
           <Markdown>{block.explanation}</Markdown>
           {block.expectedOutput ? (
@@ -137,13 +154,15 @@ export function BlockRenderer({
       return (
         <section>
           <InlineText text={block.instructions} className="block" />
-          <CodeRunner
-            language={block.language}
-            starter={block.starterCode}
-            execution={block.execution}
-            expectedOutput={block.expectedOutput}
-            check={block.checkScript}
-          />
+          <div className="mt-4">
+            <CodeRunner
+              language={block.language}
+              starter={block.starterCode}
+              execution={block.execution}
+              expectedOutput={block.expectedOutput}
+              check={block.checkScript}
+            />
+          </div>
         </section>
       );
     case "figure":

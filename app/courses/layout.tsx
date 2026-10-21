@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth";
+import { CoursePlanner } from "@/components/CoursePlanner";
 import { TeachCodeLink } from "@/components/TeachCodeLink";
 import { studioPublicHref } from "@/lib/teachcode-public";
 import { redirect } from "next/navigation";
@@ -16,6 +17,7 @@ export default async function CourseLayout({
         <TeachCodeLink />
       </div>
       {children}
+      <CoursePlanner />
     </>
   );
 }
