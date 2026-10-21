@@ -30,7 +30,12 @@ import {
   plannerExampleLesson,
   plannerSystemPrompt,
 } from "../lib/planner/prompt";
-import { runPlannerTool, type PlannerToolContext } from "../lib/planner/tools";
+import {
+  plannerToolSchemas,
+  runPlannerTool,
+  type PlannerToolContext,
+} from "../lib/planner/tools";
+import { editChapter, moveLesson } from "../lib/management";
 import type { User } from "../lib/auth";
 import {
   isGlmModelId,
@@ -38,6 +43,11 @@ import {
   lessonWritingModels,
 } from "../lib/openrouter";
 import { POST as chat } from "../app/api/planner/chat/route";
+import {
+  messageWithAttachments,
+  readMessageAttachments,
+} from "../lib/planner/message-text";
+import { plannerWriteChange } from "../lib/planner/events";
 import {
   DELETE as removeAttachment,
   POST as upload,
@@ -284,6 +294,24 @@ describe("planner prompt", () => {
     expect(plannerSystemPrompt()).toContain(
       "Python lesson code may import only numpy, matplotlib, sklearn, pandas, scipy, statsmodels, seaborn, and the Python standard library that ships with Pyodide (including math and statistics); those packages are already downloaded and available in the browser runtime, and you must not import or install anything else.",
     );
+    expect(plannerSystemPrompt()).toContain(
+      "Staff can draft lessons, add a chapter, and move a lesson into a chapter on courses assigned to them.",
+    );
+    expect(plannerSystemPrompt()).not.toContain(
+      "Only an admin can add a chapter",
+    );
+    expect(plannerSystemPrompt()).toContain(
+      "Creating a chapter can mean an empty chapter with no lessons, or a chapter plus lessons inside it. When the teacher asks to create a chapter or add a chapter and has not already said which of those they want, ask a short clarifying question. Do not call create_chapter, create_lesson, or move_lesson yet. After they answer, do only what they chose. If the same message already says the chapter should be empty, or already names the lessons to include, proceed without asking again.",
+    );
+    const createChapter = plannerToolSchemas.find(
+      (tool) => tool.function.name === "create_chapter",
+    );
+    expect(createChapter?.function.description).toContain(
+      "If the teacher asked to create or add a chapter and has not already said which, ask a short clarifying question and do not call this tool, create_lesson, or move_lesson yet.",
+    );
+    expect(createChapter?.function.description).toContain(
+      "If the same message already says empty or names the lessons, call this tool without asking again.",
+    );
     const blocks = parsed.draft?.steps.flatMap((step) => step.blocks) ?? [];
     const example = blocks.find((block) => block.type === "worked-example");
     const exercise = blocks.find((block) => block.type === "code-exercise");
@@ -433,7 +461,7 @@ describe("planner validation gate", () => {
 });
 
 describe("planner access", () => {
-  it("lets staff read and edit an assigned course, and blocks the other course and chapters", async () => {
+  it("lets staff read and edit an assigned course, add a chapter, and move a lesson", async () => {
     const ctx = context(staffUser);
     const listed = await runPlannerTool("list_courses", {}, ctx);
     expect(listed.ok).toBe(true);
@@ -509,15 +537,69 @@ describe("planner access", () => {
       { courseId: courseA, title: "Staff chapter" },
       ctx,
     );
-    expect(chapter.ok).toBe(false);
-    expect(chapter.error).toMatch(/admin/i);
+    expect(chapter.ok).toBe(true);
+    expect(
+      (
+        await db().query(
+          "SELECT title FROM cms_chapters WHERE id=$1 AND course_id=$2",
+          [chapter.chapterId, courseA],
+        )
+      ).rows[0],
+    ).toMatchObject({ title: "Staff chapter" });
     const moved = await runPlannerTool(
       "move_lesson",
-      { courseId: courseA, lessonId: lessonA, chapterId: "missing" },
+      {
+        courseId: courseA,
+        lessonId: lessonA,
+        chapterId: chapter.chapterId,
+      },
+      ctx,
+    );
+    expect(moved.ok).toBe(true);
+    expect((await lessonRow(courseA, "assigned-draft")).chapter_id).toBe(
+      chapter.chapterId,
+    );
+  });
+
+  it("forbids staff from adding a chapter or moving a lesson on an unassigned course", async () => {
+    asUser(sessions.staff);
+    const ctx = context(staffUser);
+    const chapter = await runPlannerTool(
+      "create_chapter",
+      { courseId: courseB, title: "Foreign chapter" },
+      ctx,
+    );
+    expect(chapter.ok).toBe(false);
+    expect(chapter.error).toMatch(/access/i);
+    expect(
+      (
+        await db().query("SELECT id FROM cms_chapters WHERE course_id=$1", [
+          courseB,
+        ])
+      ).rowCount,
+    ).toBe(0);
+    const moved = await runPlannerTool(
+      "move_lesson",
+      { courseId: courseB, lessonId: lessonB, chapterId: "missing" },
       ctx,
     );
     expect(moved.ok).toBe(false);
-    expect(moved.error).toMatch(/admin/i);
+    expect(moved.error).toMatch(/access/i);
+    expect((await lessonRow(courseB, "private-draft")).chapter_id).toBeNull();
+    await expect(
+      editChapter(courseB, { title: "Foreign chapter", create: true }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(moveLesson(courseB, lessonB, null)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(
+      (
+        await db().query("SELECT id FROM cms_chapters WHERE course_id=$1", [
+          courseB,
+        ])
+      ).rowCount,
+    ).toBe(0);
+    expect((await lessonRow(courseB, "private-draft")).chapter_id).toBeNull();
   });
 
   it("keeps a newer editor save when the chatbot's read is stale", async () => {
@@ -805,6 +887,58 @@ describe("planner attachments", () => {
 });
 
 describe("planner chat route", () => {
+  it("keeps attachment names out of ordinary messages and reports saved outline writes", () => {
+    expect(readMessageAttachments("Add a lesson about loops.")).toEqual({
+      content: "Add a lesson about loops.",
+      attachments: [],
+    });
+    expect(messageWithAttachments("Add a lesson", [])).toBe("Add a lesson");
+    expect(
+      readMessageAttachments(
+        messageWithAttachments("Use this", ['week "1".txt', "notes.md"]),
+      ),
+    ).toEqual({
+      content: "Use this",
+      attachments: ['week "1".txt', "notes.md"],
+    });
+    expect(
+      plannerWriteChange("create_chapter", {
+        ok: true,
+        courseId: courseA,
+        chapterId: "chapter-1",
+      }),
+    ).toEqual({
+      action: "create_chapter",
+      courseId: courseA,
+      lessonId: undefined,
+    });
+    expect(
+      plannerWriteChange("move_lesson", {
+        ok: true,
+        courseId: courseA,
+        lessonId: lessonA,
+      }),
+    ).toEqual({
+      action: "move_lesson",
+      courseId: courseA,
+      lessonId: lessonA,
+    });
+    expect(
+      plannerWriteChange("update_lesson", {
+        ok: false,
+        courseId: courseA,
+        lessonId: lessonA,
+      }),
+    ).toBeNull();
+    expect(
+      plannerWriteChange("read_lesson", {
+        ok: true,
+        courseId: courseA,
+        lessonId: lessonA,
+      }),
+    ).toBeNull();
+  });
+
   it("calls Qwen when the saved model is a GLM id and leaves the key in place", async () => {
     asUser(sessions.staff);
     await db().query(
@@ -933,6 +1067,12 @@ describe("planner chat route", () => {
     expect(reply.text).toContain(
       "/courses/assigned-course/lessons/chat-lesson/edit",
     );
+    const changed = events.find((event) => event.type === "changed");
+    expect(changed?.change).toMatchObject({
+      action: "create_lesson",
+      courseId: courseA,
+    });
+    expect(changed?.change?.lessonId).toEqual(expect.any(String));
     expect(await lessonRow(courseA, "chat-lesson")).toMatchObject({
       title: "Chat lesson",
       status: "draft",
@@ -981,7 +1121,61 @@ describe("planner chat route", () => {
       }),
     );
     expect(response.status).toBe(200);
+    const skippedEvents = (await response.text())
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    expect(skippedEvents.some((event) => event.type === "changed")).toBe(false);
     expect(await lessonRow(courseA, "skipped-lesson")).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("stores attachment filenames on the user message and omits them from the model transcript", async () => {
+    asUser(sessions.staff);
+    const form = new FormData();
+    form.set(
+      "file",
+      new File(["Week notes"], "week-notes.txt", { type: "text/plain" }),
+    );
+    const uploaded = await upload(
+      new Request("http://localhost:3000/api/planner/attachments", {
+        method: "POST",
+        body: form,
+        headers: { origin: "http://localhost:3000" },
+      }),
+    );
+    expect(uploaded.status).toBe(201);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const sent = JSON.parse(String(init?.body));
+        const spoken = sent.messages.filter(
+          (message: { role: string }) => message.role === "user",
+        );
+        expect(spoken.at(-1).content).toBe("Please use the attached notes.");
+        expect(JSON.stringify(spoken)).not.toContain("[[attachments:");
+        return modelReply({ content: "I see the notes." });
+      }),
+    );
+    const response = await chat(
+      jsonRequest("http://localhost:3000/api/planner/chat", {
+        message: "Please use the attached notes.",
+        path: "/courses/assigned-course",
+      }),
+    );
+    expect(response.status).toBe(200);
+    await response.text();
+    const stored = (
+      await db().query<{ content: string }>(
+        "SELECT content FROM cms_planner_messages WHERE role='user' AND thread_id IN (SELECT id FROM cms_planner_threads WHERE profile_id=$1) ORDER BY position DESC LIMIT 1",
+        [staff],
+      )
+    ).rows[0];
+    expect(readMessageAttachments(stored.content)).toEqual({
+      content: "Please use the attached notes.",
+      attachments: ["week-notes.txt"],
+    });
     vi.unstubAllGlobals();
   });
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import crypto from "node:crypto";
 import { db, isSqlite } from "./db";
-import { requireAdmin } from "./cms";
+import { requireAdmin, requireCourse } from "./cms";
 import { CmsError } from "./repository";
 export const CourseUpdate = z.object({
   title: z.string().min(1),
@@ -96,7 +96,7 @@ export async function saveOutline(courseId: string, input: unknown) {
   });
 }
 export async function editChapter(courseId: string, input: unknown) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   const p = ChapterInput.parse(input);
   return await db().transaction(async (c) => {
     await lockCourse(c, courseId);
@@ -184,7 +184,7 @@ export async function moveLesson(
   lessonId: string,
   chapterId: string | null,
 ) {
-  await requireAdmin(courseId);
+  await requireCourse(courseId);
   await db().transaction(async (c) => {
     await lockCourse(c, courseId);
     if (

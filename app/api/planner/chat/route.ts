@@ -6,6 +6,7 @@ import {
   redactSecret,
   savedOpenRouterCredentials,
 } from "@/lib/openrouter";
+import { messageWithAttachments } from "@/lib/planner/message-text";
 import { runPlannerLoop } from "@/lib/planner/loop";
 import {
   appendPlannerMessage,
@@ -39,9 +40,16 @@ export async function POST(req: Request) {
         "Choose a model before using the course planner.",
       );
     const threadId = await ensurePlannerThread(user.id);
-    await appendPlannerMessage(threadId, "user", body.message);
-    const history = await listPlannerMessages(threadId);
     const attachments = await listPlannerAttachments(threadId);
+    await appendPlannerMessage(
+      threadId,
+      "user",
+      messageWithAttachments(
+        body.message,
+        attachments.map((file) => file.filename),
+      ),
+    );
+    const history = await listPlannerMessages(threadId);
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {

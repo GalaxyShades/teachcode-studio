@@ -129,7 +129,8 @@ export const plannerToolSchemas = [
     type: "function",
     function: {
       name: "create_chapter",
-      description: "Add a chapter to a course. Admins only.",
+      description:
+        "Add a chapter to a course this teacher can access. Staff can do this on courses assigned to them. Creating a chapter can mean an empty chapter with no lessons, or a chapter plus lessons. If the teacher asked to create or add a chapter and has not already said which, ask a short clarifying question and do not call this tool, create_lesson, or move_lesson yet. After they answer, do only what they chose. If the same message already says empty or names the lessons, call this tool without asking again.",
       parameters: {
         type: "object",
         properties: {
@@ -144,7 +145,8 @@ export const plannerToolSchemas = [
     type: "function",
     function: {
       name: "move_lesson",
-      description: "Place a lesson in a chapter. Admins only.",
+      description:
+        "Place a lesson in a chapter on a course this teacher can access. Staff can do this on courses assigned to them.",
       parameters: {
         type: "object",
         properties: {
@@ -275,6 +277,7 @@ export async function runPlannerTool(
           z
             .object({ courseId: courseKey, title: z.string().trim().min(1) })
             .parse(args),
+          ctx,
         );
       case "move_lesson":
         return await placeLesson(
@@ -285,6 +288,7 @@ export async function runPlannerTool(
               chapterId: courseKey,
             })
             .parse(args),
+          ctx,
         );
       default:
         return fail(`Unknown tool ${name}.`);
@@ -465,9 +469,12 @@ async function updateLesson(
   }
 }
 
-async function createChapter(args: { courseId: string; title: string }) {
-  const course = await findCourse(args.courseId);
-  if (!course) return fail("Course not found");
+async function createChapter(
+  args: { courseId: string; title: string },
+  ctx: PlannerToolContext,
+) {
+  const course = await accessibleCourse(args.courseId, ctx.user);
+  if (!course) return fail("You do not have access to that course.");
   const chapterId = await editChapter(course.id, {
     title: args.title,
     create: true,
@@ -475,13 +482,16 @@ async function createChapter(args: { courseId: string; title: string }) {
   return { ok: true, courseId: course.id, chapterId, title: args.title };
 }
 
-async function placeLesson(args: {
-  courseId: string;
-  lessonId: string;
-  chapterId: string;
-}) {
-  const course = await findCourse(args.courseId);
-  if (!course) return fail("Course not found");
+async function placeLesson(
+  args: {
+    courseId: string;
+    lessonId: string;
+    chapterId: string;
+  },
+  ctx: PlannerToolContext,
+) {
+  const course = await accessibleCourse(args.courseId, ctx.user);
+  if (!course) return fail("You do not have access to that course.");
   const lesson = await findLesson(course.id, args.lessonId);
   if (!lesson) return fail("Lesson not found");
   await moveLesson(course.id, lesson.id, args.chapterId);

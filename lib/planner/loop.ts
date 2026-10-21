@@ -3,6 +3,8 @@ import { canAccess } from "../cms";
 import { db } from "../db";
 import { completePlannerTurn, type PlannerModelMessage } from "../openrouter";
 import { plannerSystemPrompt } from "./prompt";
+import { readMessageAttachments } from "./message-text";
+import { plannerWriteChange, type PlannerContentChange } from "./events";
 import {
   plannerToolSchemas,
   runPlannerTool,
@@ -16,6 +18,7 @@ export type PlannerLink = { href: string; title: string };
 
 export type PlannerEvent =
   | { type: "status"; text: string }
+  | { type: "changed"; change: PlannerContentChange }
   | { type: "reply"; text: string; links: PlannerLink[] };
 
 const statusLine: Record<string, string> = {
@@ -111,7 +114,10 @@ export async function* runPlannerLoop(options: {
     { role: "system", content: `${plannerSystemPrompt()}\n\n${note}` },
     ...options.history.slice(-40).map((message) => ({
       role: message.role,
-      content: message.content,
+      content:
+        message.role === "user"
+          ? readMessageAttachments(message.content).content
+          : message.content,
     })),
   ];
   const links: PlannerLink[] = [];
@@ -163,6 +169,8 @@ export async function* runPlannerLoop(options: {
         (call.name === "create_lesson" || call.name === "update_lesson")
       )
         links.push({ href, title });
+      const change = plannerWriteChange(call.name, result);
+      if (change) yield { type: "changed", change };
       messages.push({
         role: "tool",
         tool_call_id: call.id,

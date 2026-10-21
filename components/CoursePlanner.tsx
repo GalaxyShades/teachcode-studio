@@ -1,12 +1,22 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownLinkHref } from "@/lib/link-href";
+import {
+  plannerContentChanged,
+  type PlannerContentChange,
+} from "@/lib/planner/events";
+import { readMessageAttachments } from "@/lib/planner/message-text";
 
-type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  attachments?: string[];
+};
 type Attachment = { id: string; filename: string };
 type PlannerModel = { id: string; name: string };
 
@@ -62,6 +72,31 @@ function linkLessonPaths(text: string) {
     .join("");
 }
 
+const plannerGreeting =
+  "Hello! You can ask me to add a lesson, add a chapter, or change the course you have open.";
+
+function presentMessages(rows: ChatMessage[]) {
+  return rows.map((message) => {
+    if (message.role !== "user") return message;
+    const parsed = readMessageAttachments(message.content);
+    return {
+      ...message,
+      content: parsed.content,
+      attachments: parsed.attachments,
+    };
+  });
+}
+
+function visibleUserMessage(message: ChatMessage) {
+  const parsed = readMessageAttachments(message.content);
+  return {
+    content: parsed.content,
+    attachments: message.attachments?.length
+      ? message.attachments
+      : parsed.attachments,
+  };
+}
+
 function AssistantMarkdown({ text }: { text: string }) {
   return (
     <div className="markdown text-sm leading-relaxed [&_:not(pre)>code]:bg-white [&_h1]:my-1 [&_h1]:text-base [&_h2]:my-1 [&_h2]:text-base [&_h3]:my-1 [&_h3]:text-sm [&_ol]:my-1 [&_p]:my-1 [&_pre]:my-2 [&_pre]:p-2 [&_ul]:my-1">
@@ -83,6 +118,7 @@ async function readError(response: Response) {
 
 export function CoursePlanner() {
   const pathname = usePathname();
+  const router = useRouter();
   const titleId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -108,7 +144,7 @@ export function CoursePlanner() {
         if (!response.ok || cancelled) return;
         const body = await response.json();
         if (cancelled) return;
-        setMessages(body.messages ?? []);
+        setMessages(presentMessages(body.messages ?? []));
         setAttachments(body.attachments ?? []);
       })
       .catch(() => {});
@@ -175,7 +211,7 @@ export function CoursePlanner() {
     const response = await fetch("/api/planner/thread");
     if (!response.ok) return;
     const body = await response.json();
-    setMessages(body.messages ?? []);
+    setMessages(presentMessages(body.messages ?? []));
     setAttachments(body.attachments ?? []);
   }
 
@@ -249,6 +285,7 @@ export function CoursePlanner() {
     const text = draft.trim();
     if (!text || busy) return;
     const tempId = `local-${Date.now()}`;
+    const sentAttachments = attachments.map((file) => file.filename);
     setDraft("");
     setError("");
     setWarning("");
@@ -256,7 +293,12 @@ export function CoursePlanner() {
     setBusy(true);
     setMessages((current) => [
       ...current,
-      { id: tempId, role: "user", content: text },
+      {
+        id: tempId,
+        role: "user",
+        content: text,
+        attachments: sentAttachments,
+      },
     ]);
     try {
       const response = await fetch("/api/planner/chat", {
@@ -275,6 +317,15 @@ export function CoursePlanner() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let refreshed = false;
+      const publishChange = (change: PlannerContentChange) => {
+        window.dispatchEvent(
+          new CustomEvent(plannerContentChanged, { detail: change }),
+        );
+        if (refreshed) return;
+        refreshed = true;
+        router.refresh();
+      };
       for (;;) {
         const chunk = await reader.read();
         if (chunk.done) break;
@@ -287,10 +338,17 @@ export function CoursePlanner() {
             type?: string;
             text?: string;
             error?: string;
+            change?: PlannerContentChange;
           };
           if (event.type === "status") setStatus(event.text ?? "");
           if (event.type === "error")
             setError(event.error ?? "Something went wrong.");
+          if (
+            event.type === "changed" &&
+            event.change?.courseId &&
+            event.change.action
+          )
+            publishChange(event.change);
           if (event.type === "reply" && event.text)
             setMessages((current) => [
               ...current,
@@ -319,6 +377,40 @@ export function CoursePlanner() {
       ? [{ id: modelId, name: modelId }, ...listedModels]
       : listedModels;
 
+  const modelField = (placement: "inline" | "below") => (
+    <label
+      className={
+        placement === "inline"
+          ? "flex min-w-0 max-w-xs shrink items-center gap-2 text-xs font-medium text-zinc-600"
+          : "mt-2 flex items-center gap-2 text-xs font-medium text-zinc-600"
+      }
+      htmlFor={`${titleId}-model`}
+    >
+      <span className="shrink-0">Model</span>
+      <select
+        id={`${titleId}-model`}
+        aria-label="Model for the next message"
+        className={
+          placement === "inline"
+            ? "h-8 w-40 min-w-0 max-w-full shrink rounded-lg border border-zinc-200 bg-white px-2 text-sm font-normal text-zinc-900"
+            : "h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-sm font-normal text-zinc-900"
+        }
+        value={
+          modelChoices.some((model) => model.id === modelId) ? modelId : ""
+        }
+        disabled={!modelChoices.length || modelSaving}
+        onChange={(event) => void changeModel(event.target.value)}
+      >
+        {!modelChoices.length && <option value="">Loading models…</option>}
+        {modelChoices.map((model) => (
+          <option key={model.id} value={model.id} title={model.id}>
+            {plannerModelLabel(model)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
   const shell = (mode: "panel" | "dialog") => (
     <div
       role="dialog"
@@ -331,10 +423,11 @@ export function CoursePlanner() {
       }
     >
       <header className="border-b px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <h2 id={titleId} className="min-w-0 truncate text-sm font-semibold">
+        <div className="flex flex-nowrap items-center gap-2">
+          <h2 id={titleId} className="shrink-0 text-sm font-semibold">
             Course planner
           </h2>
+          {mode === "dialog" ? modelField("inline") : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
@@ -393,57 +486,54 @@ export function CoursePlanner() {
             </button>
           </div>
         </div>
-        <label
-          className="mt-2 flex items-center gap-2 text-xs font-medium text-zinc-600"
-          htmlFor={`${titleId}-model`}
-        >
-          <span className="shrink-0">Model</span>
-          <select
-            id={`${titleId}-model`}
-            aria-label="Model for the next message"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-sm font-normal text-zinc-900"
-            value={
-              modelChoices.some((model) => model.id === modelId) ? modelId : ""
-            }
-            disabled={!modelChoices.length || modelSaving}
-            onChange={(event) => void changeModel(event.target.value)}
-          >
-            {!modelChoices.length && <option value="">Loading models…</option>}
-            {modelChoices.map((model) => (
-              <option key={model.id} value={model.id} title={model.id}>
-                {plannerModelLabel(model)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {mode === "panel" ? modelField("below") : null}
       </header>
       <div
         ref={scroller}
         className="flex-1 space-y-3 overflow-y-auto px-3 py-3"
       >
-        {messages.length === 0 && (
-          <p className="text-sm text-zinc-500">
-            Ask for a lesson, a chapter, or a change to the course on this page.
-          </p>
-        )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={
-              message.role === "user"
-                ? "ml-8 rounded-lg bg-teal-700 px-3 py-2 text-white"
-                : "mr-8 rounded-lg bg-zinc-100 px-3 py-2"
-            }
-          >
-            {message.role === "user" ? (
-              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                {message.content}
-              </p>
-            ) : (
-              <AssistantMarkdown text={message.content} />
-            )}
-          </div>
-        ))}
+        <div className="mr-8 rounded-lg bg-zinc-100 px-3 py-2">
+          <p className="text-sm leading-relaxed">{plannerGreeting}</p>
+        </div>
+        {messages.map((message) => {
+          const userMessage =
+            message.role === "user" ? visibleUserMessage(message) : null;
+          return (
+            <div
+              key={message.id}
+              className={
+                message.role === "user"
+                  ? "ml-8 rounded-lg bg-teal-700 px-3 py-2 text-white"
+                  : "mr-8 rounded-lg bg-zinc-100 px-3 py-2"
+              }
+            >
+              {userMessage ? (
+                <>
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                    {userMessage.content}
+                  </p>
+                  {userMessage.attachments.length > 0 && (
+                    <ul
+                      className="mt-2 flex flex-wrap gap-1"
+                      aria-label="Attachments"
+                    >
+                      {userMessage.attachments.map((filename, index) => (
+                        <li
+                          key={`${filename}-${index}`}
+                          className="inline-flex max-w-full items-center rounded-full bg-white/15 px-2 py-0.5 text-xs text-white"
+                        >
+                          <span className="truncate">{filename}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <AssistantMarkdown text={message.content} />
+              )}
+            </div>
+          );
+        })}
         {status && (
           <p className="text-sm text-zinc-500" aria-live="polite">
             {status}

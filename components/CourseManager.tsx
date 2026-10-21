@@ -1,6 +1,10 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CourseOutline, type OutlineItem } from "./CourseOutline";
+import {
+  plannerContentChanged,
+  type PlannerContentChange,
+} from "@/lib/planner/events";
 type Item = OutlineItem;
 export function CourseManager({
   course,
@@ -24,6 +28,7 @@ export function CourseManager({
   const dragging = useRef(false);
   const saveGen = useRef(0);
   const tail = useRef(Promise.resolve());
+  const outlineRefreshPending = useRef(false);
   function show(message: string, error: boolean) {
     setStatus(message);
     setStatusError(error);
@@ -82,10 +87,7 @@ export function CourseManager({
   }
   function createChapter(title: string) {
     const id = crypto.randomUUID();
-    remember(
-      [...chaptersRef.current, { id, title }],
-      lessonsRef.current,
-    );
+    remember([...chaptersRef.current, { id, title }], lessonsRef.current);
     enqueue(async () => {
       try {
         const res = await fetch(base + "/chapters", {
@@ -104,7 +106,10 @@ export function CourseManager({
             lesson.chapter_id === id ? { ...lesson, chapter_id: null } : lesson,
           ),
         );
-        show(e instanceof Error ? e.message : "Could not add the chapter", true);
+        show(
+          e instanceof Error ? e.message : "Could not add the chapter",
+          true,
+        );
       }
     });
   }
@@ -177,7 +182,11 @@ export function CourseManager({
           "Could not reload the outline. Refresh the page to see the latest saved content.",
         );
       const c = await r.json();
-      if (dragging.current || seen !== saveGen.current) return;
+      if (dragging.current || seen !== saveGen.current) {
+        outlineRefreshPending.current = true;
+        return;
+      }
+      outlineRefreshPending.current = false;
       remember(c.chapters, c.lessons);
     } catch (e) {
       show(
@@ -188,6 +197,28 @@ export function CourseManager({
       );
     }
   }
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    if (dragging.current) {
+      outlineRefreshPending.current = true;
+      return;
+    }
+    chaptersRef.current = initialChapters;
+    lessonsRef.current = initialLessons;
+    setChapters(initialChapters);
+    setLessons(initialLessons);
+  }, [initialChapters, initialLessons]);
+  useEffect(() => {
+    function onPlannerChange(event: Event) {
+      const detail = (event as CustomEvent<PlannerContentChange>).detail;
+      if (!detail || String(detail.courseId) !== String(course.id)) return;
+      void refreshRef.current();
+    }
+    window.addEventListener(plannerContentChanged, onPlannerChange);
+    return () =>
+      window.removeEventListener(plannerContentChanged, onPlannerChange);
+  }, [course.id]);
   return (
     <>
       <p
@@ -209,6 +240,7 @@ export function CourseManager({
         createLesson={createLesson}
         setDragging={(active) => {
           dragging.current = active;
+          if (!active && outlineRefreshPending.current) void refresh();
         }}
       />
     </>
