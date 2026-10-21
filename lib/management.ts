@@ -2,6 +2,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { db, isSqlite } from "./db";
 import { requireCourse } from "./cms";
+import { syncPublishedCourse } from "./enrollment-sync";
 import { CmsError } from "./repository";
 export const CourseUpdate = z.object({
   title: z.string().min(1),
@@ -28,6 +29,7 @@ export async function updateCourse(courseId: string, input: unknown) {
     "UPDATE cms_courses SET title=$1,slug=$2,description=$3,status=$4,updated_at=CURRENT_TIMESTAMP WHERE id=$5",
     [p.title, p.slug, p.description, p.status, courseId],
   );
+  if (p.status === "published") await syncPublishedCourse(courseId);
 }
 async function lockCourse(c: import("./db").Queryable, courseId: string) {
   await c.query(

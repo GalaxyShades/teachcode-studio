@@ -1,3 +1,4 @@
+import { syncPublishedCourse } from "./enrollment-sync";
 import { PublicDraftSchema, CONTENT_API_VERSION } from "./public-contract";
 import crypto from "node:crypto";
 import { parseLessonMarkdown } from "./markdown";
@@ -456,7 +457,7 @@ export async function publishRevision(
       ),
     );
   if (errors.length) throw new CmsError(400, errors.join("\n"));
-  return db().transaction(async (c) => {
+  const published = await db().transaction(async (c) => {
     const result = await save(
         c,
         courseId,
@@ -498,6 +499,8 @@ export async function publishRevision(
     );
     return { ...result, revisionId: rid };
   });
+  await syncPublishedCourse(courseId);
+  return published;
 }
 export async function restoreRevision(
   courseId: string,
