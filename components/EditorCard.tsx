@@ -160,6 +160,10 @@ export function EditorCard({
     !open && (block.type !== "text" || !!block.markdown.trim());
   const headerControl =
     "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium";
+  const headerRest = highlighted
+    ? "text-zinc-600 hover:bg-[#d0dced] hover:text-zinc-800"
+    : "text-zinc-600 hover:bg-[#e8eef5] hover:text-zinc-800";
+  const headerSelected = "bg-[#d0dced] text-zinc-800 hover:bg-[#bccce3]";
   return (
     <article
       className={`rounded-xl border transition-colors ${highlighted ? `${open ? "border-teal-600 shadow-sm" : "border-zinc-200"} bg-[#e4ecf7]` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
@@ -186,7 +190,7 @@ export function EditorCard({
           {previewToggle ? (
             <button
               type="button"
-              className={`${headerControl} ${previewExpanded ? "bg-[#d0dced] text-zinc-800" : "text-zinc-600 hover:bg-zinc-100"}`}
+              className={`${headerControl} ${previewExpanded ? headerSelected : headerRest}`}
               aria-expanded={previewExpanded}
               data-preview-toggle
               onClick={() => onPreviewToggle?.()}
@@ -205,7 +209,7 @@ export function EditorCard({
           ) : null}
           <button
             type="button"
-            className={`${headerControl} ${open ? "bg-[#d0dced] text-zinc-800" : "text-zinc-600 hover:bg-zinc-100"}`}
+            className={`${headerControl} ${open ? headerSelected : headerRest}`}
             aria-expanded={open}
             data-card-toggle
             onClick={onToggle}
