@@ -10,6 +10,7 @@ const { DatabaseSync } = createRequire(import.meta.url)(
 ) as typeof import("node:sqlite");
 import crypto from "node:crypto";
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+import { cookies } from "next/headers";
 import { db, assertDatabase } from "../lib/db";
 import { migrate } from "../scripts/migrate";
 import { blockTypes, type LessonDraft } from "../lib/content";
@@ -23,6 +24,8 @@ import {
 } from "../lib/repository";
 import { verifyPassword, authenticate, sessionUser } from "../lib/auth";
 import { canAccess } from "../lib/cms";
+import { assignStaff } from "../lib/management";
+import { writeCourseAccess } from "../lib/management-access";
 const dir = mkdtempSync(join(tmpdir(), "teachcode-test-")),
   admin = "a",
   cid = "c",
@@ -78,7 +81,7 @@ describe("SQLite repository", () => {
     await assertDatabase();
     expect(
       (await db().query("SELECT * FROM cms_schema_migrations")).rowCount,
-    ).toBe(7);
+    ).toBe(8);
     expect(
       (await db().query("PRAGMA table_info(cms_openrouter_settings)")).rows.map(
         (row) => row.name,
@@ -371,5 +374,86 @@ describe("SQLite repository", () => {
     await db().query("UPDATE cms_courses SET status='published' WHERE id=$1", [
       cid,
     ]);
+  });
+  it("lets the owner share an editor and only an admin transfer ownership", async () => {
+    await db().query(
+      "INSERT INTO profiles VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING",
+      ["e", "e@hku.hk", "Editor", "staff", "x"],
+    );
+    expect(
+      (
+        await writeCourseAccess({
+          courseId: cid,
+          profileId: "s",
+          assignedBy: "a",
+          role: "owner",
+          assigned: true,
+        })
+      ).ok,
+    ).toBe(true);
+    const later = new Date(Date.now() + 3600_000).toISOString();
+    const now = new Date().toISOString();
+    await db().query(
+      "INSERT INTO auth_sessions(token,user_id,created_at,expires_at) VALUES($1,$2,$3,$4)",
+      ["owner-token", "s", now, later],
+    );
+    await db().query(
+      "INSERT INTO auth_sessions(token,user_id,created_at,expires_at) VALUES($1,$2,$3,$4)",
+      ["editor-token", "e", now, later],
+    );
+    vi.mocked(cookies).mockResolvedValue({
+      get: () => ({ value: "owner-token" }),
+    } as never);
+    await assignStaff(cid, { userId: "e", assigned: true, role: "editor" });
+    vi.mocked(cookies).mockResolvedValue({
+      get: () => ({ value: "editor-token" }),
+    } as never);
+    await expect(
+      assignStaff(cid, { userId: "s", assigned: true, role: "editor" }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      assignStaff(cid, { userId: "e", assigned: true, role: "owner" }),
+    ).rejects.toMatchObject({ status: 403 });
+    vi.mocked(cookies).mockResolvedValue({
+      get: () => ({ value: "missing" }),
+    } as never);
+    const transferred = await writeCourseAccess({
+      courseId: cid,
+      profileId: "e",
+      assignedBy: "a",
+      role: "owner",
+      assigned: true,
+    });
+    expect(transferred.ok).toBe(true);
+    const roles = (
+      await db().query(
+        "SELECT profile_id, access_role FROM cms_course_staff_assignments WHERE course_id=$1 ORDER BY profile_id",
+        [cid],
+      )
+    ).rows;
+    expect(roles).toEqual([
+      { profile_id: "e", access_role: "owner" },
+      { profile_id: "s", access_role: "editor" },
+    ]);
+    expect(
+      (
+        await writeCourseAccess({
+          courseId: cid,
+          profileId: "e",
+          assignedBy: "a",
+          role: "owner",
+          assigned: false,
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      await canAccess(cid, {
+        id: "s",
+        email: "s@hku.hk",
+        display_name: "s",
+        role: "staff",
+      }),
+    ).toBe(true);
+    vi.mocked(cookies).mockReset();
   });
 });

@@ -100,7 +100,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   });
   expect(replay.status()).toBe(401);
 });
-test("staff is assignment-scoped and cannot publish, create, reorder or assign", async ({
+test("course owner can share an editor, and cannot publish, create, or reorder", async ({
   request,
 }) => {
   expect(
@@ -131,10 +131,11 @@ test("staff is assignment-scoped and cannot publish, create, reorder or assign",
         data: {
           userId: "00000000-0000-4000-8000-000000000003",
           assigned: true,
+          role: "editor",
         },
       })
     ).status(),
-  ).toBe(403);
+  ).toBe(200);
   expect((await request.post(`/api/courses/${course}/lessons`)).status()).toBe(
     403,
   );

@@ -70,7 +70,7 @@ async function main() {
         [mid, cid],
       );
       await c.query(
-        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by,access_role) VALUES($1,$2,$3,'owner') ON CONFLICT DO NOTHING",
         [cid, `00000000-0000-4000-8000-00000000000${Number(i) + 1}`, admin],
       );
     }

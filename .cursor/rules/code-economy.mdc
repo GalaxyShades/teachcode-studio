@@ -1,0 +1,32 @@
+---
+description: Keep each change small. Extend what exists. Do not add a second way to do the same thing.
+alwaysApply: true
+---
+
+# Code economy
+
+Professional work is the smallest change that stays maintainable. Extra files, tables, and helpers are debt.
+
+## Before adding anything
+
+Name the existing module that already owns the behavior. If one exists, extend it.
+
+- New file: only when the current file would pass its soft cap or the concern is a different layer.
+- New table, endpoint, or role flag: only when the current column or route cannot say the same thing.
+- New helper: grep `lib/` and `components/` first. A second copy is a bug.
+
+## One concept, one representation
+
+Do not keep two ways to answer the same question. Course access is `access_role` (`owner` or `editor`). Do not also infer the owner from who created the row.
+
+- No `*V2` / `*New` helpers beside the original.
+- If this diff replaces a helper, migrate callers and delete the old export in the same change.
+- If the diff adds a second path that the first path already covers, stop and delete one.
+
+## Size
+
+Soft caps: React components ~400 lines, `lib/` modules ~500, any file ~800. Past the cap, extract in this change. Do not split a file you are not already editing.
+
+## Done
+
+No unused imports, files, or exports from this diff. Do not add a feature and a parallel implementation "for later".

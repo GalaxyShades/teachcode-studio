@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { db, isSqlite } from "./db";
 import { requireCourse } from "./cms";
 import { syncPublishedCourse } from "./enrollment-sync";
+import { writeCourseAccess } from "./management-access";
 import { CmsError } from "./repository";
 export const CourseUpdate = z.object({
   title: z.string().min(1),
@@ -212,23 +213,34 @@ export async function moveLesson(
 }
 export async function assignStaff(courseId: string, input: unknown) {
   const u = await requireCourse(courseId);
-  if (u.role !== "admin") throw new CmsError(403, "Only admins may assign staff");
-  const p = z.object({ userId: z.string(), assigned: z.boolean() }).parse(input);
-  await db().transaction(async (c) => {
-    await lockCourse(c, courseId);
-    const user = (
-      await c.query("SELECT role FROM profiles WHERE id=$1", [p.userId])
+  const p = z
+    .object({
+      userId: z.string(),
+      assigned: z.boolean(),
+      role: z.enum(["owner", "editor"]).optional(),
+    })
+    .parse(input);
+  const role = p.role ?? "editor";
+  if (u.role !== "admin") {
+    if (role !== "editor") {
+      throw new CmsError(403, "Only an admin can change the owner.");
+    }
+    const mine = (
+      await db().query<{ access_role: string }>(
+        "SELECT access_role FROM cms_course_staff_assignments WHERE course_id=$1 AND profile_id=$2",
+        [courseId, u.id],
+      )
     ).rows[0];
-    if (user?.role !== "staff") throw new CmsError(400, "Select a staff user");
-    if (p.assigned)
-      await c.query(
-        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
-        [courseId, p.userId, u.id],
-      );
-    else
-      await c.query(
-        "DELETE FROM cms_course_staff_assignments WHERE course_id=$1 AND profile_id=$2",
-        [courseId, p.userId],
-      );
+    if (mine?.access_role !== "owner") {
+      throw new CmsError(403, "Only the course owner may share editors.");
+    }
+  }
+  const result = await writeCourseAccess({
+    courseId,
+    profileId: p.userId,
+    assignedBy: u.id,
+    role,
+    assigned: p.assigned,
   });
+  if (!result.ok) throw new CmsError(result.status, result.error);
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { lessonFromPack } from "../lib/yaml-import";
 import {
+  courseAccessFromMembers,
   groupCoursesByOwner,
   managementDenial,
-  ownerFromAssignment,
 } from "../lib/management-access";
 
 describe("yaml lesson import", () => {
@@ -110,17 +110,22 @@ describe("management request", () => {
 });
 
 describe("course owner label", () => {
-  it("uses the assigned teacher instead of the admin who created the course", () => {
+  it("reads the owner role and lists editors", () => {
     expect(
-      ownerFromAssignment(
-        "admin",
-        [{ id: "staff", display_name: "Cheti", email: "cheti_staff@hku.hk" }],
-        { display_name: "Admin", email: "admin@hku.hk" },
-      ),
-    ).toEqual({ ownerName: "Cheti", ownerEmail: "cheti_staff@hku.hk" });
-    expect(
-      ownerFromAssignment("admin", [], { display_name: "Admin", email: "admin@hku.hk" }),
-    ).toEqual({ ownerName: "Admin", ownerEmail: "admin@hku.hk" });
+      courseAccessFromMembers([
+        { access_role: "editor", display_name: "Ada", email: "ada@hku.hk" },
+        { access_role: "owner", display_name: "Cheti", email: "cheti_staff@hku.hk" },
+      ]),
+    ).toEqual({
+      ownerName: "Cheti",
+      ownerEmail: "cheti_staff@hku.hk",
+      editors: [{ name: "Ada", email: "ada@hku.hk" }],
+    });
+    expect(courseAccessFromMembers([])).toEqual({
+      ownerName: "",
+      ownerEmail: "",
+      editors: [],
+    });
   });
 
   it("groups courses under the owner heading", () => {

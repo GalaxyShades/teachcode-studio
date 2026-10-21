@@ -77,7 +77,7 @@ async function ensureCourse(course: ImportCourse, authorId: string) {
     ).rows[0];
     if (author?.role === "staff") {
       await c.query(
-        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by,access_role) VALUES($1,$2,$3,'owner') ON CONFLICT DO NOTHING",
         [id, authorId, authorId],
       );
     }

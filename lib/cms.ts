@@ -72,7 +72,7 @@ export async function getCourse(id: string) {
     ).rows,
     staff: (
       await db().query(
-        "SELECT p.id,p.display_name,p.email FROM cms_course_staff_assignments a JOIN profiles p ON p.id=a.profile_id WHERE a.course_id=$1 ORDER BY p.display_name,p.email",
+        "SELECT p.id,p.display_name,p.email,a.access_role FROM cms_course_staff_assignments a JOIN profiles p ON p.id=a.profile_id WHERE a.course_id=$1 ORDER BY p.display_name,p.email",
         [id],
       )
     ).rows,
@@ -88,7 +88,8 @@ export async function requireAuthor() {
 
 /**
  * Admin or staff may create a course.
- * The signed-in teacher owns it. Admins assign other teachers from TeachCode.
+ * The signed-in teacher is the owner. An admin creator is not the owner;
+ * they assign one from TeachCode.
  */
 export async function createCourse(form: FormData) {
   const creator = await requireAuthor();
@@ -116,7 +117,7 @@ export async function createCourse(form: FormData) {
     );
     if (creator.role === "staff") {
       await c.query(
-        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+        "INSERT INTO cms_course_staff_assignments(course_id,profile_id,assigned_by,access_role) VALUES($1,$2,$3,'owner') ON CONFLICT DO NOTHING",
         [courseId, creator.id, creator.id],
       );
     }
