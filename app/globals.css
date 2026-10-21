@@ -119,7 +119,8 @@
 }
 
 .hljs-keyword,
-.hljs-built_in {
+.hljs-built_in,
+.hljs-type {
   color: #7dd3fc;
 }
 .hljs-string {
@@ -129,6 +130,20 @@
 .hljs-literal {
   color: #fcd34d;
 }
-.hljs-comment {
+.hljs-comment,
+.hljs-doctag {
   color: #a1a1aa;
+}
+.code-editor pre,
+.code-editor textarea,
+.code-editor code {
+  tab-size: 4;
+  scrollbar-gutter: stable;
+}
+.code-editor textarea {
+  caret-color: #fafafa;
+}
+.code-editor textarea::selection {
+  background: rgba(125, 211, 252, 0.35);
+  color: transparent;
 }

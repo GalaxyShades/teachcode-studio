@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { Block, BlockType } from "@/lib/content";
-import { Markdown } from "./BlockRenderer";
+import { BlockRenderer, Markdown } from "./BlockRenderer";
 export const cardNames: Record<BlockType, string> = {
   text: "Markdown text",
   task: "Task",
@@ -140,6 +140,8 @@ export function EditorCard({
   index,
   open,
   onToggle,
+  previewExpanded = false,
+  onPreviewToggle,
   highlighted = false,
   actions,
   children,
@@ -148,18 +150,19 @@ export function EditorCard({
   index: number;
   open: boolean;
   onToggle: () => void;
+  previewExpanded?: boolean;
+  onPreviewToggle?: () => void;
   highlighted?: boolean;
   actions: ReactNode;
   children: ReactNode;
 }) {
-  const [previewExpanded, setPreviewExpanded] = useState(false);
   const previewToggle =
-    !open && block.type === "text" && !!block.markdown.trim();
+    !open && (block.type !== "text" || !!block.markdown.trim());
   const headerControl =
     "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium";
   return (
     <article
-      className={`rounded-xl border transition-colors ${highlighted ? `${open ? "border-teal-600 shadow-sm" : "border-zinc-200"} bg-[#f4f8ff]` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
+      className={`rounded-xl border transition-colors ${highlighted ? `${open ? "border-teal-600 shadow-sm" : "border-zinc-200"} bg-[#e4ecf7]` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
       data-card-id={block.id}
     >
       <header
@@ -183,10 +186,10 @@ export function EditorCard({
           {previewToggle ? (
             <button
               type="button"
-              className={`${headerControl} ${previewExpanded ? "bg-teal-50 text-teal-800" : "text-zinc-600 hover:bg-zinc-100"}`}
+              className={`${headerControl} ${previewExpanded ? "bg-[#d0dced] text-zinc-800" : "text-zinc-600 hover:bg-zinc-100"}`}
               aria-expanded={previewExpanded}
               data-preview-toggle
-              onClick={() => setPreviewExpanded((shown) => !shown)}
+              onClick={() => onPreviewToggle?.()}
             >
               {previewExpanded ? (
                 <HeaderIcon>
@@ -202,7 +205,7 @@ export function EditorCard({
           ) : null}
           <button
             type="button"
-            className={`${headerControl} ${open ? "bg-teal-50 text-teal-800" : "text-zinc-600 hover:bg-zinc-100"}`}
+            className={`${headerControl} ${open ? "bg-[#d0dced] text-zinc-800" : "text-zinc-600 hover:bg-zinc-100"}`}
             aria-expanded={open}
             data-card-toggle
             onClick={onToggle}
@@ -228,22 +231,21 @@ export function EditorCard({
         <div className="cursor-auto border-t border-zinc-100 px-4 pb-4">
           {children}
         </div>
-      ) : block.type === "text" ? (
-        <div className="px-4 pb-4">
-          <TextPreview
-            markdown={block.markdown}
-            expanded={previewExpanded}
-          />
-        </div>
       ) : (
         <div className="px-4 pb-4">
-          <p className="line-clamp-2 text-sm leading-relaxed text-zinc-600">
-            {cardSummary(block)
-              .replace(/^#{1,6}\s+/gm, "")
-              .replace(/[*`]/g, "")
-              .replace(/\s+/g, " ")
-              .trim() || "No content yet"}
-          </p>
+          {block.type === "text" ? (
+            <TextPreview markdown={block.markdown} expanded={previewExpanded} />
+          ) : previewExpanded ? (
+            <BlockRenderer block={{ ...block, visible: true }} embedded />
+          ) : (
+            <p className="line-clamp-2 text-sm leading-relaxed text-zinc-600">
+              {cardSummary(block)
+                .replace(/^#{1,6}\s+/gm, "")
+                .replace(/[*`]/g, "")
+                .replace(/\s+/g, " ")
+                .trim() || "No content yet"}
+            </p>
+          )}
         </div>
       )}
     </article>

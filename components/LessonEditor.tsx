@@ -19,6 +19,7 @@ import {
 import { parseLessonMarkdown, serializeLessonMarkdown } from "@/lib/markdown";
 import { saveDraft, publishDraft, unpublishDraft } from "@/app/actions";
 import { BlockRenderer } from "./BlockRenderer";
+import { CodeEditor } from "./CodeEditor";
 import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
 import { VersionHistory } from "./VersionHistory";
@@ -225,8 +226,8 @@ function replaceRange(
   });
 }
 const markupButtonClass =
-  "inline-flex items-center whitespace-nowrap rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-xs leading-none text-zinc-600 hover:border-teal-600 hover:text-teal-800";
-const pressedButtonClass = "border-teal-700 bg-teal-100 text-teal-900";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-200/80 hover:text-zinc-900";
+const pressedButtonClass = "bg-teal-100 text-teal-900";
 const shortActions = [
   "bold",
   "code",
@@ -253,45 +254,121 @@ const markdownActions = [
   "rule",
 ] as const;
 type BarAction = (typeof markdownActions)[number];
-const actionButtons: Record<
-  BarAction,
-  { name: string; icon: string; word: string; look: string }
-> = {
-  heading: { name: "Heading", icon: "H", word: "heading", look: "font-bold" },
-  paragraph: { name: "Paragraph", icon: "¶", word: "paragraph", look: "" },
-  bold: { name: "Bold", icon: "B", word: "bold", look: "font-bold" },
-  italic: { name: "Italic", icon: "I", word: "italic", look: "italic" },
-  strike: {
-    name: "Strikethrough",
-    icon: "S",
-    word: "strike",
-    look: "line-through",
-  },
-  underline: {
-    name: "Underline",
-    icon: "U",
-    word: "underline",
-    look: "underline",
-  },
-  code: { name: "Code", icon: "`", word: "code", look: "font-mono" },
-  link: { name: "Link", icon: "↗", word: "link", look: "" },
-  bullet: { name: "Bullets", icon: "•", word: "bullet", look: "" },
-  numbered: {
-    name: "Numbered list",
-    icon: "1.",
-    word: "numbered",
-    look: "",
-  },
-  quote: { name: "Quote", icon: ">", word: "quote", look: "" },
-  table: { name: "Table", icon: "▦", word: "table", look: "" },
-  codeBlock: {
-    name: "Code block",
-    icon: "```",
-    word: "block",
-    look: "font-mono",
-  },
-  rule: { name: "Horizontal rule", icon: "—", word: "rule", look: "" },
+const actionNames: Record<BarAction, string> = {
+  heading: "Heading",
+  paragraph: "Paragraph",
+  bold: "Bold",
+  italic: "Italic",
+  strike: "Strikethrough",
+  underline: "Underline",
+  code: "Code",
+  link: "Link",
+  bullet: "Bullets",
+  numbered: "Numbered list",
+  quote: "Quote",
+  table: "Table",
+  codeBlock: "Code block",
+  rule: "Horizontal rule",
 };
+function FormatIcon({ action }: { action: BarAction }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {action === "heading" ? (
+        <>
+          <path d="M6 5v14" />
+          <path d="M18 5v14" />
+          <path d="M6 12h12" />
+        </>
+      ) : action === "paragraph" ? (
+        <>
+          <path d="M13 4v16" />
+          <path d="M17 4v16" />
+          <path d="M13 4H9.5a4 4 0 0 0 0 8H13" />
+        </>
+      ) : action === "bold" ? (
+        <>
+          <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" />
+          <path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z" />
+        </>
+      ) : action === "italic" ? (
+        <>
+          <path d="M19 4h-9" />
+          <path d="M14 20H5" />
+          <path d="m15 4-6 16" />
+        </>
+      ) : action === "strike" ? (
+        <>
+          <path d="M5 12h14" />
+          <path d="M16 7c-.6-1.5-2-2.5-4-2.5-2.2 0-4 1.4-4 3.2 0 2.4 2.2 3.2 5 3.8" />
+          <path d="M8 17c.6 1.5 2 2.5 4 2.5 2.2 0 4-1.4 4-3.2" />
+        </>
+      ) : action === "underline" ? (
+        <>
+          <path d="M6 4v6a6 6 0 0 0 12 0V4" />
+          <path d="M5 20h14" />
+        </>
+      ) : action === "link" ? (
+        <>
+          <path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.1" />
+          <path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1" />
+        </>
+      ) : action === "bullet" ? (
+        <>
+          <path d="M10 6h10" />
+          <path d="M10 12h10" />
+          <path d="M10 18h10" />
+          <path d="M4 6h.01" />
+          <path d="M4 12h.01" />
+          <path d="M4 18h.01" />
+        </>
+      ) : action === "numbered" ? (
+        <>
+          <path d="M11 6h9" />
+          <path d="M11 12h9" />
+          <path d="M11 18h9" />
+          <path d="M4 6h1v4" />
+          <path d="M4 10h2" />
+          <path d="M6 14H4.2c1.2.4 1.8 1.1 1.8 2s-.6 1.6-1.8 2H4" />
+        </>
+      ) : action === "quote" ? (
+        <>
+          <path d="M8 17c-2 0-3-1.4-3-3.5V7h5v6H8" />
+          <path d="M18 17c-2 0-3-1.4-3-3.5V7h5v6h-2" />
+        </>
+      ) : action === "table" ? (
+        <>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="1" />
+          <path d="M3.5 9.5h17" />
+          <path d="M3.5 14.5h17" />
+          <path d="M9.5 4.5v15" />
+          <path d="M14.5 4.5v15" />
+        </>
+      ) : action === "code" ? (
+        <>
+          <path d="m8 8-4 4 4 4" />
+          <path d="m16 8 4 4-4 4" />
+        </>
+      ) : action === "codeBlock" ? (
+        <>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+          <path d="m9 9-2.5 3L9 15" />
+          <path d="m15 9 2.5 3L15 15" />
+        </>
+      ) : (
+        <path d="M4 12h16" />
+      )}
+    </svg>
+  );
+}
 function FormattingToolbar({
   label,
   fieldRef,
@@ -303,6 +380,7 @@ function FormattingToolbar({
   onChange: (next: string) => void;
   variant?: "short" | "markdown";
 }) {
+  const tipId = useId();
   const [active, setActive] = useState(() => activeFormats("", 0, 0));
   const [linkEdit, setLinkEdit] = useState<{
     title: string;
@@ -492,33 +570,40 @@ function FormattingToolbar({
       <div
         role="toolbar"
         aria-label={`${label} formatting`}
-        className="flex flex-wrap items-center gap-1"
+        className="flex flex-nowrap items-center gap-1.5"
       >
         {actions.map((action) => {
-          const meta = actionButtons[action];
           const name =
             action === "code" && variant === "markdown"
               ? "Inline code"
-              : meta.name;
+              : actionNames[action];
           const pressed = pressedFor(action);
           const toggles = action !== "table";
+          const descriptionId = `${tipId}-${action}`;
           return (
-            <button
-              key={action}
-              type="button"
-              aria-label={name}
-              aria-pressed={toggles ? pressed : undefined}
-              aria-expanded={action === "link" ? linkEdit !== null : undefined}
-              className={`${markupButtonClass} ${pressed && toggles ? pressedButtonClass : ""}`}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => run(action)}
-            >
-              <span className={meta.look}>{meta.icon}</span>
-              <span className="font-sans font-normal not-italic no-underline">
-                {" "}
-                {meta.word}
+            <span key={action} className="group/tip relative inline-flex">
+              <button
+                type="button"
+                aria-label={name}
+                aria-describedby={descriptionId}
+                aria-pressed={toggles ? pressed : undefined}
+                aria-expanded={
+                  action === "link" ? linkEdit !== null : undefined
+                }
+                className={`${markupButtonClass} ${pressed && toggles ? pressedButtonClass : ""}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => run(action)}
+              >
+                <FormatIcon action={action} />
+              </button>
+              <span
+                id={descriptionId}
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1 text-xs font-normal normal-case leading-none text-white shadow-lg group-hover/tip:block group-focus-within/tip:block"
+              >
+                {name}
               </span>
-            </button>
+            </span>
           );
         })}
       </div>
@@ -697,11 +782,17 @@ function Fields({
   value,
   onChange,
   path = "field",
+  codeLanguage,
 }: {
   value: Record<string, any>;
   onChange: (v: any) => void;
   path?: string;
+  codeLanguage?: string;
 }) {
+  const language =
+    (typeof value.language === "string" && value.language) ||
+    codeLanguage ||
+    "python";
   return (
     <>
       {Object.entries(value)
@@ -740,6 +831,7 @@ function Fields({
                       <Fields
                         value={item}
                         path={`${id}.${i}`}
+                        codeLanguage={language}
                         onChange={(next) =>
                           set(v.map((x, j) => (j === i ? next : x)))
                         }
@@ -809,7 +901,12 @@ function Fields({
                 <legend>
                   <LabelWithHint label={label} hintKey={key} />
                 </legend>
-                <Fields path={id} value={v} onChange={set} />
+                <Fields
+                  path={id}
+                  value={v}
+                  codeLanguage={language}
+                  onChange={set}
+                />
                 <FieldError path={id} />
               </fieldset>
             );
@@ -889,11 +986,19 @@ function Fields({
                   value={v ?? ""}
                   onChange={(e) => set(e.target.value)}
                 />
+              ) : codeEditorKeys.has(key) ? (
+                <CodeEditor
+                  id={id}
+                  language={language}
+                  rows={15}
+                  value={v ?? ""}
+                  onChange={set}
+                />
               ) : (
                 <textarea
                   id={id}
-                  className={`field ${codeEditorKeys.has(key) ? "font-mono" : ""}`}
-                  rows={codeEditorKeys.has(key) ? 15 : 3}
+                  className="field"
+                  rows={3}
                   value={v ?? ""}
                   onChange={(e) => set(e.target.value)}
                 />
@@ -909,6 +1014,31 @@ function Fields({
         })}
     </>
   );
+}
+const codeExerciseOrder = ["instructions", "language", "starterCode"];
+function editorFields(block: Block) {
+  const entries = Object.entries(withOptionalFields(block)).filter(
+    ([key]) =>
+      !advancedKeys.has(key) &&
+      !(
+        key === "markdown" &&
+        block.type !== "text" &&
+        block.type !== "quick-reference"
+      ),
+  );
+  if (block.type !== "code-exercise") return Object.fromEntries(entries);
+  entries.sort((a, b) => {
+    const ai = codeExerciseOrder.indexOf(a[0]);
+    const bi = codeExerciseOrder.indexOf(b[0]);
+    return (
+      (ai === -1 ? codeExerciseOrder.length : ai) -
+      (bi === -1 ? codeExerciseOrder.length : bi)
+    );
+  });
+  return Object.fromEntries(entries);
+}
+function blockCodeLanguage(block: Block) {
+  return "language" in block ? block.language : undefined;
 }
 function withOptionalFields(b: Block): Block {
   return {
@@ -1041,6 +1171,10 @@ export default function LessonEditor({
   >(() => {});
   const openPinnedRef = useRef<(id: string | null) => void>(() => {});
   const autoOpenKey = useRef<string | null>(null);
+  const autoExpandedId = useRef<string | null>(null);
+  const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(
+    new Set(),
+  );
   const activeStepIndex = Math.max(
     0,
     draft.steps.findIndex((s) => s.id === activeStepId),
@@ -1393,18 +1527,27 @@ export default function LessonEditor({
   }, [showPreview, activeStepId, draft, tab]);
   openPinnedRef.current = (id) => {
     if (!id) return;
-    setCollapsed((previous) => {
-      if (!previous.has(id)) return previous;
+    const prior = autoExpandedId.current;
+    autoExpandedId.current = id;
+    setExpandedPreviews((previous) => {
+      if (prior === id && previous.has(id)) return previous;
       const next = new Set(previous);
-      next.delete(id);
+      if (prior && prior !== id) next.delete(prior);
+      next.add(id);
       return next;
     });
   };
-  function selectPair(
-    id: string,
-    source: "editor" | "preview",
-    expand = true,
-  ) {
+  function togglePreview(id: string) {
+    if (expandedPreviews.has(id) && autoExpandedId.current === id)
+      autoExpandedId.current = null;
+    setExpandedPreviews((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function selectPair(id: string, source: "editor" | "preview", expand = true) {
     setPinnedId(id);
     if (expand) openPinnedRef.current(id);
     revealPairRef.current(id, source);
@@ -1869,6 +2012,8 @@ export default function LessonEditor({
                                     }
                                     open={!collapsed.has(b.id)}
                                     onToggle={() => toggle(b.id)}
+                                    previewExpanded={expandedPreviews.has(b.id)}
+                                    onPreviewToggle={() => togglePreview(b.id)}
                                     actions={
                                       <>
                                         <button
@@ -1935,19 +2080,8 @@ export default function LessonEditor({
                                     }
                                   >
                                     <Fields
-                                      value={Object.fromEntries(
-                                        Object.entries(
-                                          withOptionalFields(b),
-                                        ).filter(
-                                          ([key]) =>
-                                            !advancedKeys.has(key) &&
-                                            !(
-                                              key === "markdown" &&
-                                              b.type !== "text" &&
-                                              b.type !== "quick-reference"
-                                            ),
-                                        ),
-                                      )}
+                                      value={editorFields(b)}
+                                      codeLanguage={blockCodeLanguage(b)}
                                       path={`steps.${si}.blocks.${bi}`}
                                       onChange={(next) =>
                                         blocks(
@@ -1958,40 +2092,41 @@ export default function LessonEditor({
                                         )
                                       }
                                     />
-                                    <details className="mt-4 border-t border-zinc-100 pt-3">
-                                      <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">
-                                        Additional settings
-                                      </summary>
-                                      <Fields
-                                        value={{
-                                          type: b.type,
-                                          ...Object.fromEntries(
-                                            Object.entries(
-                                              withOptionalFields(b),
-                                            ).filter(
-                                              ([key, value]) =>
-                                                advancedKeys.has(key) ||
-                                                (key === "markdown" &&
-                                                  b.type !== "text" &&
-                                                  b.type !==
-                                                    "quick-reference" &&
-                                                  !!value),
+                                    {b.type !== "text" && (
+                                      <details className="mt-4 border-t border-zinc-100 pt-3">
+                                        <summary className="cursor-pointer text-sm text-zinc-500 hover:text-zinc-900">
+                                          Additional settings
+                                        </summary>
+                                        <Fields
+                                          codeLanguage={blockCodeLanguage(b)}
+                                          value={{
+                                            type: b.type,
+                                            ...Object.fromEntries(
+                                              Object.entries(
+                                                withOptionalFields(b),
+                                              ).filter(
+                                                ([key, value]) =>
+                                                  advancedKeys.has(key) ||
+                                                  (key === "markdown" &&
+                                                    b.type !==
+                                                      "quick-reference" &&
+                                                    !!value),
+                                              ),
                                             ),
-                                          ),
-                                        }}
-                                        path={`steps.${si}.blocks.${bi}`}
-                                        onChange={(next) =>
-                                          blocks(
-                                            si,
-                                            s.blocks.map((x, i) =>
-                                              i === bi ? { ...b, ...next } : x,
-                                            ),
-                                          )
-                                        }
-                                      />
-                                      {"markdown" in b &&
-                                        b.type !== "text" &&
-                                        b.markdown && (
+                                          }}
+                                          path={`steps.${si}.blocks.${bi}`}
+                                          onChange={(next) =>
+                                            blocks(
+                                              si,
+                                              s.blocks.map((x, i) =>
+                                                i === bi
+                                                  ? { ...b, ...next }
+                                                  : x,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                        {"markdown" in b && b.markdown && (
                                           <button
                                             className="mt-3 text-sm text-teal-800 underline"
                                             onClick={() => {
@@ -2024,28 +2159,29 @@ export default function LessonEditor({
                                             card
                                           </button>
                                         )}
-                                      <label className="mt-3 flex gap-2 text-sm">
-                                        <input
-                                          type="checkbox"
-                                          checked={b.advanced ?? false}
-                                          onChange={(e) =>
-                                            blocks(
-                                              si,
-                                              s.blocks.map((x, i) =>
-                                                i === bi
-                                                  ? {
-                                                      ...x,
-                                                      advanced:
-                                                        e.target.checked,
-                                                    }
-                                                  : x,
-                                              ),
-                                            )
-                                          }
-                                        />
-                                        Mark as advanced
-                                      </label>
-                                    </details>
+                                        <label className="mt-3 flex gap-2 text-sm">
+                                          <input
+                                            type="checkbox"
+                                            checked={b.advanced ?? false}
+                                            onChange={(e) =>
+                                              blocks(
+                                                si,
+                                                s.blocks.map((x, i) =>
+                                                  i === bi
+                                                    ? {
+                                                        ...x,
+                                                        advanced:
+                                                          e.target.checked,
+                                                      }
+                                                    : x,
+                                                ),
+                                              )
+                                            }
+                                          />
+                                          Mark as advanced
+                                        </label>
+                                      </details>
+                                    )}
                                   </EditorCard>
                                 </div>
                               )}
@@ -2087,7 +2223,7 @@ export default function LessonEditor({
                         .filter((b) => b.visible)
                         .map((b) => (
                           <div
-                            className={`w-full rounded-xl border border-zinc-200 p-4 shadow-sm [outline:none] ${showPreview && pinnedId === b.id ? "bg-[#f4f8ff]" : "bg-white"}`}
+                            className={`w-full rounded-xl border border-zinc-200 p-4 shadow-sm [outline:none] ${showPreview && pinnedId === b.id ? "bg-[#e4ecf7]" : "bg-white"}`}
                             data-component-id={b.id}
                             key={b.id}
                             onClick={() => selectPair(b.id, "preview")}

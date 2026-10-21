@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { execute } from "@/lib/runtime";
+import { CodeEditor } from "./CodeEditor";
 function codeRows(code: string) {
   if (!code.trim()) return 1;
   return code.replace(/\n$/, "").split("\n").length;
@@ -58,12 +59,12 @@ export function CodeRunner({
   const figure = figures[figureIndex];
   return (
     <section className="rounded-lg border bg-zinc-950 p-3 text-zinc-100">
-      <textarea
-        aria-label={`${language} code`}
-        className="w-full bg-transparent font-mono text-sm"
-        rows={codeRows(starter)}
+      <CodeEditor
+        label={`${language} code`}
+        language={language}
+        rows={Math.max(codeRows(code), 4)}
         value={code}
-        onChange={(e) => setCode(e.target.value)}
+        onChange={setCode}
       />
       {execution === "server" ? (
         <p className="mt-4">
@@ -98,7 +99,7 @@ export function CodeRunner({
       )}
       <pre
         role="status"
-        className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-sm"
+        className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-zinc-950 p-3 font-mono text-sm text-zinc-100"
       >
         {out}
       </pre>
