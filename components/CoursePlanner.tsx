@@ -15,7 +15,6 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  attachments?: string[];
 };
 type Attachment = { id: string; filename: string };
 type PlannerModel = { id: string; name: string };
@@ -73,28 +72,16 @@ function linkLessonPaths(text: string) {
 }
 
 const plannerGreeting =
-  "Hello! You can ask me to add a lesson, add a chapter, or change the course you have open.";
+  "Hello! You can ask for a lesson, a chapter, or a change to the course on this page.";
 
 function presentMessages(rows: ChatMessage[]) {
   return rows.map((message) => {
     if (message.role !== "user") return message;
-    const parsed = readMessageAttachments(message.content);
     return {
       ...message,
-      content: parsed.content,
-      attachments: parsed.attachments,
+      content: readMessageAttachments(message.content).content,
     };
   });
-}
-
-function visibleUserMessage(message: ChatMessage) {
-  const parsed = readMessageAttachments(message.content);
-  return {
-    content: parsed.content,
-    attachments: message.attachments?.length
-      ? message.attachments
-      : parsed.attachments,
-  };
 }
 
 function AssistantMarkdown({ text }: { text: string }) {
@@ -285,7 +272,6 @@ export function CoursePlanner() {
     const text = draft.trim();
     if (!text || busy) return;
     const tempId = `local-${Date.now()}`;
-    const sentAttachments = attachments.map((file) => file.filename);
     setDraft("");
     setError("");
     setWarning("");
@@ -297,7 +283,6 @@ export function CoursePlanner() {
         id: tempId,
         role: "user",
         content: text,
-        attachments: sentAttachments,
       },
     ]);
     try {
@@ -381,7 +366,7 @@ export function CoursePlanner() {
     <label
       className={
         placement === "inline"
-          ? "flex min-w-0 max-w-xs shrink items-center gap-2 text-xs font-medium text-zinc-600"
+          ? "ml-auto flex min-w-0 max-w-xs shrink items-center gap-2 text-xs font-medium text-zinc-600"
           : "mt-2 flex items-center gap-2 text-xs font-medium text-zinc-600"
       }
       htmlFor={`${titleId}-model`}
@@ -428,7 +413,13 @@ export function CoursePlanner() {
             Course planner
           </h2>
           {mode === "dialog" ? modelField("inline") : null}
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+          <div
+            className={
+              mode === "dialog"
+                ? "flex shrink-0 items-center gap-1"
+                : "ml-auto flex shrink-0 items-center gap-1"
+            }
+          >
             <button
               type="button"
               className={plannerHeaderButton}
@@ -496,8 +487,10 @@ export function CoursePlanner() {
           <p className="text-sm leading-relaxed">{plannerGreeting}</p>
         </div>
         {messages.map((message) => {
-          const userMessage =
-            message.role === "user" ? visibleUserMessage(message) : null;
+          const userText =
+            message.role === "user"
+              ? readMessageAttachments(message.content).content
+              : null;
           return (
             <div
               key={message.id}
@@ -507,27 +500,10 @@ export function CoursePlanner() {
                   : "mr-8 rounded-lg bg-zinc-100 px-3 py-2"
               }
             >
-              {userMessage ? (
-                <>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                    {userMessage.content}
-                  </p>
-                  {userMessage.attachments.length > 0 && (
-                    <ul
-                      className="mt-2 flex flex-wrap gap-1"
-                      aria-label="Attachments"
-                    >
-                      {userMessage.attachments.map((filename, index) => (
-                        <li
-                          key={`${filename}-${index}`}
-                          className="inline-flex max-w-full items-center rounded-full bg-white/15 px-2 py-0.5 text-xs text-white"
-                        >
-                          <span className="truncate">{filename}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
+              {userText !== null ? (
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                  {userText}
+                </p>
               ) : (
                 <AssistantMarkdown text={message.content} />
               )}
