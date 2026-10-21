@@ -23,11 +23,7 @@ test("login and editor accessibility", async ({ page }) => {
         .analyze()
     ).violations,
   ).toEqual([]);
-  await page
-    .locator("[data-card-id]")
-    .first()
-    .getByRole("button", { name: "Edit", exact: true })
-    .click();
+  await page.locator("[data-card-id]").getByRole("button", { name: "Edit", exact: true }).first().click();
   expect(
     (
       await new AxeBuilder({ page })

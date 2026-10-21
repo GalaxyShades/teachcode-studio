@@ -68,14 +68,14 @@ test("published history restores only the draft and enforces permissions and con
     .getByRole("button", { name: "Restore version 4 to draft", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Snapshot 7", exact: true }),
+    page.getByRole("heading", { level: 1, name: "Snapshot 7", exact: true }),
   ).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await panel
     .getByRole("button", { name: "Restore version 4 to draft", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Snapshot 3", exact: true }),
+    page.getByRole("heading", { level: 1, name: "Snapshot 3", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("Restored to draft · Publish to make these changes public", {

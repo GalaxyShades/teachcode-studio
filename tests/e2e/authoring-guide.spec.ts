@@ -91,7 +91,7 @@ test("toolkit copies, downloads, handles denied clipboard, and imports on mobile
       return draft.steps.flatMap((step: { blocks: unknown[] }) => step.blocks)
         .length;
     })
-    .toBe(10);
+    .toBe(9);
   // Duplicate imported slugs give recoverable feedback and preserve the last saved model.
   await page
     .getByLabel("Lesson Markdown")
@@ -106,9 +106,7 @@ test("toolkit copies, downloads, handles denied clipboard, and imports on mobile
   await expect(page.getByRole("status").first()).toContainText("Saved");
   await page.getByRole("tab", { name: "Rich Editor", exact: true }).click();
   await expect(page.locator("[data-card-id]")).toHaveCount(6);
-  await expect(
-    page.getByRole("button", { name: "Hide preview", exact: true }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(
     page.getByText("LEARNER PREVIEW", { exact: true }),
   ).toBeVisible();

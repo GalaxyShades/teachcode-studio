@@ -1039,6 +1039,8 @@ export default function LessonEditor({
   const revealPairRef = useRef<
     (id: string, source: "editor" | "preview") => void
   >(() => {});
+  const openPinnedRef = useRef<(id: string | null) => void>(() => {});
+  const autoOpenKey = useRef<string | null>(null);
   const activeStepIndex = Math.max(
     0,
     draft.steps.findIndex((s) => s.id === activeStepId),
@@ -1314,6 +1316,7 @@ export default function LessonEditor({
       );
       pairedId = id;
       setPinnedId(id);
+      openPinnedRef.current(id);
       if (!node) return;
       const delta =
         node.getBoundingClientRect().top -
@@ -1373,6 +1376,11 @@ export default function LessonEditor({
     const initialId = wide.matches ? topmostId(editor) : null;
     pairedId = initialId;
     setPinnedId(initialId);
+    const openKey = `${activeStepId}:${tab}`;
+    if (initialId && autoOpenKey.current !== openKey) {
+      autoOpenKey.current = openKey;
+      openPinnedRef.current(initialId);
+    }
     return () => {
       revealPairRef.current = () => {};
       editor.removeEventListener("scroll", onEditor);
@@ -1383,8 +1391,22 @@ export default function LessonEditor({
       window.clearTimeout(pendingRecheck.preview);
     };
   }, [showPreview, activeStepId, draft, tab]);
-  function selectPair(id: string, source: "editor" | "preview") {
+  openPinnedRef.current = (id) => {
+    if (!id) return;
+    setCollapsed((previous) => {
+      if (!previous.has(id)) return previous;
+      const next = new Set(previous);
+      next.delete(id);
+      return next;
+    });
+  };
+  function selectPair(
+    id: string,
+    source: "editor" | "preview",
+    expand = true,
+  ) {
     setPinnedId(id);
+    if (expand) openPinnedRef.current(id);
     revealPairRef.current(id, source);
   }
   function parse(source: string) {
@@ -1826,9 +1848,17 @@ export default function LessonEditor({
                                   data-component-id={b.id}
                                   tabIndex={-1}
                                   className="[outline:none]"
-                                  onClick={() => selectPair(b.id, "editor")}
+                                  onClick={(event) => {
+                                    const target = event.target;
+                                    const keepClosed =
+                                      target instanceof Element &&
+                                      !!target.closest(
+                                        "[data-card-toggle], [data-preview-toggle], details",
+                                      );
+                                    selectPair(b.id, "editor", !keepClosed);
+                                  }}
                                   onFocusCapture={() =>
-                                    selectPair(b.id, "editor")
+                                    selectPair(b.id, "editor", false)
                                   }
                                 >
                                   <EditorCard
@@ -2040,6 +2070,8 @@ export default function LessonEditor({
               </section>
               <aside
                 ref={previewPaneRef}
+                tabIndex={0}
+                aria-label="Learner preview"
                 className={`min-w-0 lg:pr-2 ${mobile === "editor" ? "hidden" : ""} ${showPreview ? "lg:block lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" : "lg:hidden"}`}
               >
                 <p className="text-sm font-semibold text-teal-800">
@@ -2059,7 +2091,9 @@ export default function LessonEditor({
                             data-component-id={b.id}
                             key={b.id}
                             onClick={() => selectPair(b.id, "preview")}
-                            onFocusCapture={() => selectPair(b.id, "preview")}
+                            onFocusCapture={() =>
+                              selectPair(b.id, "preview", false)
+                            }
                           >
                             <BlockRenderer block={b} embedded />
                           </div>

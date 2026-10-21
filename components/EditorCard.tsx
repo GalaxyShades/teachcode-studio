@@ -102,25 +102,36 @@ export function ActionMenu({
     </details>
   );
 }
-function TextPreview({ markdown }: { markdown: string }) {
-  const [expanded, setExpanded] = useState(false);
+function HeaderIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+function TextPreview({
+  markdown,
+  expanded,
+}: {
+  markdown: string;
+  expanded: boolean;
+}) {
   if (!markdown.trim())
     return (
       <p className="text-sm leading-relaxed text-zinc-600">No content yet</p>
     );
   return (
-    <div>
-      <div className={expanded ? undefined : "max-h-36 overflow-hidden"}>
-        <Markdown>{markdown}</Markdown>
-      </div>
-      <button
-        type="button"
-        className="btn-secondary mt-2"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((open) => !open)}
-      >
-        {expanded ? "Collapse" : "Expand"}
-      </button>
+    <div className={expanded ? undefined : "max-h-36 overflow-hidden"}>
+      <Markdown>{markdown}</Markdown>
     </div>
   );
 }
@@ -141,6 +152,11 @@ export function EditorCard({
   actions: ReactNode;
   children: ReactNode;
 }) {
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const previewToggle =
+    !open && block.type === "text" && !!block.markdown.trim();
+  const headerControl =
+    "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium";
   return (
     <article
       className={`rounded-xl border transition-colors ${highlighted ? `${open ? "border-teal-600 shadow-sm" : "border-zinc-200"} bg-[#f4f8ff]` : open ? "border-teal-600 bg-white shadow-sm" : "border-zinc-200 bg-white hover:border-teal-400"}`}
@@ -163,16 +179,50 @@ export function EditorCard({
             {!block.visible ? " · Hidden" : ""}
           </p>
         </div>
-        <button
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${open ? "bg-teal-50 text-teal-800" : "text-zinc-600 hover:bg-zinc-100"}`}
-          aria-expanded={open}
-          onClick={onToggle}
-        >
-          {open ? "Done" : "Edit"}
-        </button>
-        <ActionMenu label={`Actions for card ${index + 1}`}>
-          {actions}
-        </ActionMenu>
+        <div className="flex shrink-0 items-center gap-1">
+          {previewToggle ? (
+            <button
+              type="button"
+              className={`${headerControl} ${previewExpanded ? "bg-teal-50 text-teal-800" : "text-zinc-600 hover:bg-zinc-100"}`}
+              aria-expanded={previewExpanded}
+              data-preview-toggle
+              onClick={() => setPreviewExpanded((shown) => !shown)}
+            >
+              {previewExpanded ? (
+                <HeaderIcon>
+                  <path d="m6 15 6-6 6 6" />
+                </HeaderIcon>
+              ) : (
+                <HeaderIcon>
+                  <path d="m6 9 6 6 6-6" />
+                </HeaderIcon>
+              )}
+              {previewExpanded ? "Collapse" : "Expand"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`${headerControl} ${open ? "bg-teal-50 text-teal-800" : "text-zinc-600 hover:bg-zinc-100"}`}
+            aria-expanded={open}
+            data-card-toggle
+            onClick={onToggle}
+          >
+            {open ? (
+              "Done"
+            ) : (
+              <>
+                <HeaderIcon>
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </HeaderIcon>
+                Edit
+              </>
+            )}
+          </button>
+          <ActionMenu label={`Actions for card ${index + 1}`}>
+            {actions}
+          </ActionMenu>
+        </div>
       </header>
       {open ? (
         <div className="cursor-auto border-t border-zinc-100 px-4 pb-4">
@@ -180,7 +230,10 @@ export function EditorCard({
         </div>
       ) : block.type === "text" ? (
         <div className="px-4 pb-4">
-          <TextPreview markdown={block.markdown} />
+          <TextPreview
+            markdown={block.markdown}
+            expanded={previewExpanded}
+          />
         </div>
       ) : (
         <div className="px-4 pb-4">

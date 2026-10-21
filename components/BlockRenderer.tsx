@@ -19,6 +19,19 @@ export function Markdown({ children }: { children: string }) {
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, { trust: false, strict: "ignore" }]]}
         urlTransform={markdownLinkHref}
+        components={{
+          input: ({ type, checked, disabled }) =>
+            type === "checkbox" ? (
+              <input
+                type="checkbox"
+                checked={Boolean(checked)}
+                disabled={disabled}
+                aria-label={checked ? "Completed item" : "Incomplete item"}
+              />
+            ) : (
+              <input type={type} checked={checked} disabled={disabled} />
+            ),
+        }}
       >
         {prepareLearnerMarkdown(children)}
       </ReactMarkdown>

@@ -177,10 +177,7 @@ function Surface({
         }
       }}
       onKeyDown={(e) => {
-        if (!disabled && e.target === e.currentTarget) {
-          e.stopPropagation();
-          listeners?.onKeyDown?.(e);
-        }
+        if (!disabled && e.target === e.currentTarget) listeners?.onKeyDown?.(e);
       }}
     >
       {children}
