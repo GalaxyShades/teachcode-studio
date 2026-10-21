@@ -114,9 +114,11 @@ export function BlockRenderer({
     case "worked-example":
       return (
         <section>
-          <h4 className="font-bold">
-            <InlineText text={block.title} />
-          </h4>
+          {block.title ? (
+            <h4 className="font-bold">
+              <InlineText text={block.title} />
+            </h4>
+          ) : null}
           {block.runnable ? (
             <div className="mt-4">
               <CodeRunner language={block.language} starter={block.code} />
@@ -163,9 +165,11 @@ export function BlockRenderer({
           ) : (
             <p>Image URL must use HTTPS or HTTP.</p>
           )}
-          <figcaption>
-            <InlineText text={block.caption} />
-          </figcaption>
+          {block.caption ? (
+            <figcaption>
+              <InlineText text={block.caption} />
+            </figcaption>
+          ) : null}
           <Markdown>{block.markdown}</Markdown>
         </figure>
       );

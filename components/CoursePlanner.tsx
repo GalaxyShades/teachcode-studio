@@ -155,6 +155,7 @@ export function CoursePlanner() {
 
   useEffect(() => {
     if (!open && !expanded) return;
+    composer.current?.setAttribute("writingsuggestions", "false");
     composer.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -563,7 +564,6 @@ export function CoursePlanner() {
           value={draft}
           disabled={busy}
           autoComplete="off"
-          writingsuggestions="false"
           data-gramm="false"
           data-gramm_editor="false"
           data-enable-grammarly="false"

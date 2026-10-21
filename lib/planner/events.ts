@@ -18,7 +18,12 @@ const writeActions = new Set<string>([
 
 export function plannerWriteChange(
   action: string,
-  result: { ok?: boolean; courseId?: unknown; lessonId?: unknown },
+  result: {
+    ok?: boolean;
+    courseId?: unknown;
+    lessonId?: unknown;
+    [key: string]: unknown;
+  },
 ): PlannerContentChange | null {
   if (result.ok !== true || !writeActions.has(action)) return null;
   if (typeof result.courseId !== "string" || !result.courseId) return null;
