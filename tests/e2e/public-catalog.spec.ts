@@ -92,12 +92,30 @@ test("student app reads published content without an author session or draft lea
     data: { email: "admin@hku.hk", password: "password" },
   });
   await request.delete(base + "/publish");
+  const afterUnpublish = await request.get(
+    `/api/v1/content/courses/${courseId}`,
+  );
+  expect(afterUnpublish.status()).toBe(200);
+  const published = await afterUnpublish.json();
+  const visible = [
+    ...published.chapters.flatMap(
+      (chapter: { lessons: { id: string }[] }) => chapter.lessons,
+    ),
+    ...published.unassignedLessons,
+  ];
+  expect(visible.some((lesson: { id: string }) => lesson.id === lessonId)).toBe(
+    false,
+  );
   expect(
-    (await request.get(`/api/v1/content/courses/${courseId}`)).status(),
+    (
+      await request.get(
+        `/api/v1/content/courses/${courseId}/lessons/${lessonId}`,
+      )
+    ).status(),
   ).toBe(404);
   expect(
     (await (await request.get("/api/v1/content/courses")).json()).some(
       (c: { id: string }) => c.id === courseId,
     ),
-  ).toBe(false);
+  ).toBe(true);
 });

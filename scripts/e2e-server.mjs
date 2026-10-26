@@ -9,6 +9,8 @@ const dir = mkdtempSync(join(tmpdir(), "teachcode-e2e-")),
     DATABASE_MODE: "sqlite",
     SQLITE_DATABASE_PATH: join(dir, "test.db"),
     NEXT_DIST_DIR: ".next-e2e",
+    APP_URL: "",
+    TEACHCODE_PUBLIC_URL: "",
   };
 const setup = spawnSync(process.execPath, ["scripts/init-local-sqlite.mjs"], {
   env,

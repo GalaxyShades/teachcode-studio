@@ -181,7 +181,9 @@ export function EditorCard({
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">{cardNames[block.type]}</h3>
-          <p className="text-xs text-zinc-500">
+          <p
+            className={`text-xs ${highlighted ? "text-zinc-600" : "text-zinc-500"}`}
+          >
             Card {index + 1}
             {!block.visible ? " · Hidden" : ""}
           </p>

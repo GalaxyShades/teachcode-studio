@@ -1,7 +1,7 @@
 import { z } from "zod";
 import crypto from "node:crypto";
 import { db, isSqlite } from "./db";
-import { requireCourse } from "./cms";
+import { requireAdmin, requireCourse } from "./cms";
 import { syncPublishedCourse } from "./enrollment-sync";
 import { writeCourseAccess } from "./management-access";
 import { CmsError } from "./repository";
@@ -40,7 +40,7 @@ async function lockCourse(c: import("./db").Queryable, courseId: string) {
   );
 }
 export async function saveOutline(courseId: string, input: unknown) {
-  await requireCourse(courseId);
+  await requireAdmin(courseId);
   const p = z
     .object({
       chapters: z.array(z.string()),

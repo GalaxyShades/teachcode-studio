@@ -95,7 +95,7 @@ test("readable editor routes survive saves, renaming and legacy links", async ({
   await page.goto(
     "/courses/python-foundations/lessons/component-reference/edit",
   );
-  await expect(page).toHaveURL("/login");
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test("concurrent new lessons receive short unique slugs", async ({

@@ -16,6 +16,7 @@ export default async function Edit({
     redirect(canonical);
   const courseId = course.id,
     lessonId = lesson.id;
+  const editor = await requireCourse(courseId);
   const { draft, courseAssistant, lessonAssistant } = await getDraft(
     courseId,
     lessonId,
@@ -28,7 +29,7 @@ export default async function Edit({
       initial={draft}
       initialCourseAssistant={courseAssistant}
       initialLessonAssistant={lessonAssistant}
-      canPublish={(await requireCourse(courseId)).role === "admin"}
+      canPublish={editor.role === "admin" || editor.role === "staff"}
     />
   );
 }

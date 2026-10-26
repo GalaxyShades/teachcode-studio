@@ -100,7 +100,7 @@ test("admin login, dashboard, normalized draft, publication, public preview and 
   });
   expect(replay.status()).toBe(401);
 });
-test("course owner can share an editor, and cannot publish, create, or reorder", async ({
+test("course owner can share an editor, create a lesson, and reorder, and cannot publish", async ({
   request,
 }) => {
   expect(
@@ -136,16 +136,19 @@ test("course owner can share an editor, and cannot publish, create, or reorder",
       })
     ).status(),
   ).toBe(200);
-  expect((await request.post(`/api/courses/${course}/lessons`)).status()).toBe(
-    403,
-  );
+  const created = await request.post(`/api/courses/${course}/lessons`);
+  expect(created.status()).toBe(201);
+  const lessonIds = (
+    await (await request.get(`/api/courses/${course}/lessons`)).json()
+  ).map((item: { id: string }) => item.id);
+  expect(lessonIds).toContain((await created.json()).id);
   expect(
     (
       await request.put(`/api/courses/${course}/reorder`, {
-        data: { kind: "lessons", ids: [lesson] },
+        data: { kind: "lessons", ids: lessonIds },
       })
     ).status(),
-  ).toBe(403);
+  ).toBe(200);
 });
 test("management APIs validate, assign and reorder within the course", async ({
   request,

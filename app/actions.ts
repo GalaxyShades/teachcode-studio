@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { login, logout, type LoginResult } from "@/lib/auth";
 import { teachcodePasswordHref } from "@/lib/teachcode-public";
-import { createCourse, createLesson, requireCourse } from "@/lib/cms";
+import { createCourse, createLesson, requireAdmin, requireCourse } from "@/lib/cms";
 import { persistDraft, publishRevision, CmsError } from "@/lib/repository";
 import { db } from "@/lib/db";
 import type { AssistantSettings, LessonDraft } from "@/lib/content";
@@ -67,7 +67,7 @@ export async function publishDraft(
   courseAssistant?: AssistantSettings,
 ) {
   try {
-    const u = await requireCourse(courseId);
+    const u = await requireAdmin(courseId);
     const result = await publishRevision(
       courseId,
       lessonId,
