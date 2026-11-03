@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { db, arrayValue, isSqlite } from "../db";
 import { emptyDraft } from "../cms";
-import { validateDraft, type LessonDraft } from "../content";
+import { validateDraft, type Block, type LessonDraft } from "../content";
 import { parseLessonMarkdown, type MarkdownError } from "../markdown";
 import { CmsError, writeRevision } from "../repository";
 
@@ -30,6 +30,89 @@ export function inspectLessonMarkdown(markdown: string) {
       errors: formatLessonErrors(parsed.errors, draftErrors),
     };
   return { ok: true as const, draft: parsed.draft };
+}
+
+const readableCardId = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const uuidCardId =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isReadableCardId(id: string) {
+  return readableCardId.test(id) && !uuidCardId.test(id);
+}
+
+function unusedReadableId(base: string, used: Set<string>) {
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
+/** Keep the card id. Choice ids minted as UUIDs become hyphenated words. */
+export function cardWithStableId(block: Block, id: string): Block {
+  if (block.type !== "mcq") return { ...block, id };
+  const used = new Set<string>();
+  const choices = block.choices.map((choice, index) => {
+    let choiceId = choice.id.trim().toLowerCase();
+    if (!isReadableCardId(choiceId) || used.has(choiceId))
+      choiceId = unusedReadableId(`${id}-choice-${index + 1}`, used);
+    used.add(choiceId);
+    return { ...choice, id: choiceId };
+  });
+  return { ...block, id, choices };
+}
+
+/** Readable ids match the authoring dialect. A missing or UUID id is assigned from the card type. */
+export function prepareInsertedCard(
+  block: Block,
+  usedIds: Set<string>,
+): { ok: true; block: Block } | { ok: false; error: string } {
+  const preferred = block.id.trim().toLowerCase();
+  if (isReadableCardId(preferred)) {
+    if (usedIds.has(preferred))
+      return {
+        ok: false,
+        error: `Card id "${preferred}" is already used in this lesson.`,
+      };
+    return { ok: true, block: cardWithStableId(block, preferred) };
+  }
+  return {
+    ok: true,
+    block: cardWithStableId(block, unusedReadableId(block.type, usedIds)),
+  };
+}
+
+const cardWrapperHeader = [
+  ':::lesson{title="Card" slug="card" description="One card." track="literacy" programmingLanguage="" tags="[]" schemaVersion=1}',
+  ":::",
+  "",
+  ':::step{id="card-step" title="Card"}',
+];
+
+/** One card directive, checked with the lesson card schema. A whole lesson is rejected. */
+export function parseCardMarkdown(markdown: string) {
+  const source = markdown.trim();
+  if (!source) return { ok: false as const, errors: ["Send one card."] };
+  if (/^:::lesson\b/.test(source))
+    return {
+      ok: false as const,
+      errors: ["Send one card, not a whole lesson."],
+    };
+  const wrapped = `${cardWrapperHeader.join("\n")}\n${source}\n:::`;
+  const parsed = parseLessonMarkdown(wrapped, emptyDraft());
+  const offset = cardWrapperHeader.length;
+  const errors = parsed.errors.map((error) =>
+    error.line > offset
+      ? `Line ${error.line - offset}: ${error.message}`
+      : error.message,
+  );
+  const blocks = parsed.draft?.steps.flatMap((step) => step.blocks) ?? [];
+  if (errors.length || blocks.length !== 1)
+    return {
+      ok: false as const,
+      errors: errors.length ? errors : ["Send exactly one card."],
+    };
+  return { ok: true as const, block: blocks[0] };
 }
 
 /**

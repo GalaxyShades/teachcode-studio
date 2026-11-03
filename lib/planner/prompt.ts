@@ -6,7 +6,9 @@ export const plannerExampleLesson = [
   ':::step{id="introduction" title="Introduction"}',
   ':::text{id="overview" visible=true}',
   ":::markdown",
-  "A variable names a value so later lines can use it.",
+  "## Variables",
+  "",
+  "A **variable** names a value so later lines can use it.",
   ":::",
   ":::",
   ':::worked-example{id="name-a-value" visible=true runnable=true}',
@@ -21,7 +23,7 @@ export const plannerExampleLesson = [
   "print(score)",
   ":::",
   ":::explanation",
-  "The name score holds 3. print displays that value.",
+  "The name `score` holds 3. `print` displays that value.",
   ":::",
   ":::expectedOutput",
   "3",
@@ -42,7 +44,7 @@ export const plannerExampleLesson = [
   "browser",
   ":::",
   ":::instructions",
-  "Set points to 5, then print it. Use the name points.",
+  "Set `points` to 5, then print it. Use the name `points`.",
   ":::",
   ":::checkScript",
   'assert points == 5, "Set points to 5."',
@@ -54,6 +56,18 @@ export const plannerExampleLesson = [
   ":::",
   "",
 ].join("\n");
+
+/**
+ * Learner-facing Markdown rules. The same text is pasted into
+ * content/ai-authoring-prompt.md. Tests require the two copies to match.
+ */
+export const markdownFieldPrompt = `Write Markdown in these learner-facing fields. Do not leave them as plain prose.
+
+These fields render headings, bold, italic, lists, inline code, and links: \`text\` \`markdown\`, \`task\` \`context\`, \`quick-reference\` \`markdown\`, \`worked-example\` \`explanation\`, \`figure\` \`markdown\`, \`mcq\` \`question\`, and \`mcq\` \`explanation\`.
+
+These fields render bold, strikethrough, underline, lists, inline code, and links, and do not render headings: \`task\` \`statement\`, \`code-exercise\` \`instructions\`, \`figure\` \`caption\`, each \`choice\` option, \`reflection\` \`prompt\`, and \`data-asset\` \`description\`. Use \`**bold**\`, \`~~strikethrough~~\`, \`++underline++\`, inline code such as \`print\`, a \`-\` or \`1.\` list, and \`[label](https://...)\`. \`++text++\` renders as underline. Do not use a heading, table, or fenced code block in these fields.
+
+\`expectedOutput\`, image \`alt\`, and each function \`summary\` stay plain text. They do not render Markdown. \`starterCode\`, \`solution\`, \`checkScript\`, and worked-example \`code\` stay source code, not Markdown prose. Do not wrap the lesson in a code fence.`;
 
 export function plannerSystemPrompt() {
   return `You are the course planner inside TeachCode Content Studio. You talk with a teacher and you may change draft lessons while you talk.
@@ -70,9 +84,13 @@ Creating a chapter can mean an empty chapter with no lessons, or a chapter plus 
 
 ## How you write a lesson
 
-Put lesson Markdown only in tool arguments. Do not paste a lesson into the chat, and do not wrap a lesson in a code fence. After a lesson is saved, reply with a short summary and the lesson link the tool returned.
+Put lesson Markdown and card Markdown only in tool arguments. Do not paste a lesson or a card into the chat, and do not wrap either in a code fence. After a lesson is saved, reply with a short summary and the lesson link the tool returned.
 
-Before create_lesson or update_lesson, call validate_lesson with the full lesson Markdown. Then pass that same Markdown string and the validationToken to the write. The server rejects a write when the token is missing or belongs to different Markdown, even if the text would have been valid. On each update, call read_lesson again in this turn first so a newer save from the lesson editor is not overwritten.
+When the teacher asks to change, add, or remove one card, call read_lesson in this turn first so you have the card id and the step id. Then call update_card, insert_card, or delete_card. Each tool loads the current draft on the server and changes only that card. Do not resend the rest of the lesson, and do not call update_lesson for a one-card change.
+
+update_card replaces one existing card. Pass that card's id from read_lesson; the server keeps it, including an id the lesson editor already assigned. insert_card adds one card at a step id and a 0-based position (use the step's card count to append). Give the new card a lowercase hyphenated id. delete_card removes one card by id. Pass one card's Markdown for update_card and insert_card, not a whole lesson. These tools do not take a validationToken. The server validates the card and rejects an unknown id. Call read_lesson again before a card edit so a newer save from the lesson editor is not overwritten.
+
+Use update_lesson only when the teacher wants a broad rewrite of the lesson. Before create_lesson or update_lesson, call validate_lesson with the full lesson Markdown. Then pass that same Markdown string and the validationToken to the write. The server rejects a write when the token is missing or belongs to different Markdown, even if the text would have been valid. On each update_lesson, call read_lesson again in this turn first so a newer save from the lesson editor is not overwritten.
 
 This is TeachCode. Unless the teacher explicitly asks for a non-programming literacy lesson, every lesson you create or update is a programming lesson on the course track (Python or R). A text card, a reflection, and a multiple-choice question are not enough. Each programming lesson must include both of these cards, using the dialect below:
 
@@ -116,6 +134,8 @@ Allowed cards and their fields:
 - \`code-exercise\`: \`language\`, \`starterCode\`, \`solution\`, \`execution\`, \`instructions\`, \`checkScript\`, \`expectedOutput\`. \`execution\` is \`browser\`. \`starterCode\` and \`solution\` are source, and both must be non-empty on a programming lesson. \`checkScript\` may \`assert\` a variable the instructions named. Do not put the solution in \`instructions\`.
 - \`reflection\`: \`prompt\`, and \`rubric\` with \`keyIdeas\`, \`misconceptions\`, and \`variants\`
 - \`data-asset\`: \`url\`, \`filename\`, \`description\`
+
+${markdownFieldPrompt}
 
 Choices look like this, inside the mcq:
 

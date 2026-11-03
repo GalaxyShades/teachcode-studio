@@ -1,5 +1,11 @@
 "use client";
-import { useState, useId } from "react";
+import {
+  createContext,
+  useContext,
+  useId,
+  useState,
+  type ReactNode,
+} from "react";
 type Version = {
   id: string;
   revision_number: number;
@@ -7,16 +13,24 @@ type Version = {
   title: string;
   editor: string;
 };
+type HistoryContextValue = {
+  open: boolean;
+  loading: boolean;
+  busy: boolean;
+  panelId: string;
+  toggle: () => void;
+};
+const HistoryContext = createContext<HistoryContextValue | null>(null);
 export function VersionHistory({
   endpoint,
-  status,
   busy,
   onRestore,
+  children,
 }: {
   endpoint: string;
-  status: string;
   busy: boolean;
   onRestore: (id: string) => Promise<void>;
+  children: ReactNode;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(false),
@@ -44,43 +58,14 @@ export function VersionHistory({
       setLoading(false);
     }
   }
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) void load();
+  }
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <p
-          role="status"
-          aria-live="polite"
-          className="min-w-0 break-words text-sm text-zinc-600"
-        >
-          {status}
-        </p>
-        <button
-          type="button"
-          className="btn gap-1.5 px-1 text-zinc-600 hover:bg-zinc-100 hover:text-teal-900"
-          disabled={busy || loading}
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => {
-            setOpen(!open);
-            if (!open) void load();
-          }}
-        >
-          <svg
-            aria-hidden="true"
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-          Version history
-        </button>
-      </div>
+    <HistoryContext.Provider value={{ open, loading, busy, panelId, toggle }}>
+      {children}
       {open && (
         <section
           id={panelId}
@@ -112,8 +97,8 @@ export function VersionHistory({
           )}
           {history?.versions.length === 0 && (
             <p className="mt-3 text-sm">
-              No published versions yet. Publish this lesson to create its
-              first snapshot.
+              No published versions yet. Publish this lesson to create its first
+              snapshot.
             </p>
           )}
           <ol className="mt-3 space-y-3">
@@ -163,6 +148,22 @@ export function VersionHistory({
           </ol>
         </section>
       )}
-    </div>
+    </HistoryContext.Provider>
+  );
+}
+export function VersionHistoryMenuItem() {
+  const history = useContext(HistoryContext);
+  if (!history) return null;
+  return (
+    <button
+      type="button"
+      className="btn-secondary"
+      disabled={history.busy || history.loading}
+      aria-expanded={history.open}
+      aria-controls={history.panelId}
+      onClick={history.toggle}
+    >
+      Version history
+    </button>
   );
 }

@@ -1,5 +1,95 @@
 /* Browser-only demo execution. This worker is not a security sandbox. */
 let python, webR;
+// Pyodide's urllib has no HTTPS handler. pandas.read_csv calls urlopen, so
+// route HTTP(S) through the browser. GitHub blob/raw pages omit CORS headers;
+// the file itself is served from raw.githubusercontent.com.
+const browserHttpPatch = `
+import re
+import urllib.error
+import urllib.request
+from js import Uint8Array, XMLHttpRequest
+
+_original_urlopen = urllib.request.urlopen
+_github_raw = re.compile(
+    r"^https://github\\.com/([^/]+)/([^/]+)/(?:raw|blob)/(.+)$"
+)
+
+def _browser_fetch_url(url):
+    match = _github_raw.match(url)
+    if not match:
+        return url
+    owner, repo, rest = match.groups()
+    return f"https://raw.githubusercontent.com/{owner}/{repo}/{rest}"
+
+class _BrowserHeaders:
+    def __init__(self, xhr):
+        self._xhr = xhr
+
+    def get(self, name, default=None):
+        value = self._xhr.getResponseHeader(name)
+        if value is None or value == "":
+            return default
+        return value
+
+class _BrowserResponse:
+    def __init__(self, body, xhr):
+        self.headers = _BrowserHeaders(xhr)
+        self._body = body
+
+    def read(self, size=-1):
+        if size is None or size < 0:
+            data, self._body = self._body, b""
+            return data
+        data, self._body = self._body[:size], self._body[size:]
+        return data
+
+    def close(self):
+        self._body = b""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False
+
+def _browser_urlopen(url, data=None, timeout=None, *args, **kwargs):
+    target = url.full_url if isinstance(url, urllib.request.Request) else url
+    if (
+        data is not None
+        or not isinstance(target, str)
+        or not target.startswith(("http://", "https://"))
+    ):
+        return _original_urlopen(url, data, timeout, *args, **kwargs)
+    target = _browser_fetch_url(target)
+    xhr = XMLHttpRequest.new()
+    xhr.open("GET", target, False)
+    if isinstance(timeout, (int, float)) and timeout > 0:
+        xhr.timeout = int(timeout * 1000)
+    if isinstance(url, urllib.request.Request):
+        for key, value in url.header_items():
+            try:
+                xhr.setRequestHeader(key, value)
+            except Exception:
+                pass
+    xhr.responseType = "arraybuffer"
+    try:
+        xhr.send()
+    except Exception as exc:
+        raise urllib.error.URLError(f"Could not fetch {target}: {exc}") from None
+    if xhr.status == 0:
+        raise urllib.error.URLError(
+            f"Could not fetch {target}. The host may be blocking browser access."
+        )
+    if xhr.status < 200 or xhr.status >= 300:
+        raise urllib.error.HTTPError(
+            target, xhr.status, str(xhr.statusText), None, None
+        )
+    body = b"" if xhr.response is None else bytes(Uint8Array.new(xhr.response).to_py())
+    return _BrowserResponse(body, xhr)
+
+urllib.request.urlopen = _browser_urlopen
+`;
 const builtinPackages = [
   "numpy",
   "matplotlib",
@@ -55,8 +145,19 @@ async function ensureSciencePackages(id) {
       await python.runPythonAsync(`
 import matplotlib
 matplotlib.use("Agg")
-import io
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    message=r"FigureCanvasAgg is non-interactive",
+)
 import matplotlib.pyplot as plt
+
+def _teachcode_show(*_args, **_kwargs):
+    return None
+
+matplotlib.pyplot.show = _teachcode_show
+import io
 plt.figure()
 plt.plot([0, 1])
 plt.savefig(io.BytesIO(), format="png")
@@ -108,15 +209,16 @@ self.onmessage = async ({ data }) => {
     output = (output + text).slice(0, limit);
   }
   try {
-    self.postMessage({ id, status: "Loading runtime…" });
     if (language === "python") {
       if (!python) {
+        self.postMessage({ id, status: "Loading runtime…" });
         importScripts(
           "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js",
         );
         python = await loadPyodide({
           indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/",
         });
+        await python.runPythonAsync(browserHttpPatch);
       }
       await ensureSciencePackages(id);
       const packageError = missingPackageMessage(code);
@@ -155,6 +257,7 @@ self.onmessage = async ({ data }) => {
       return;
     } else {
       if (!webR) {
+        self.postMessage({ id, status: "Loading runtime…" });
         const { WebR } =
           await import("https://webr.r-wasm.org/v0.4.2/webr.mjs");
         webR = new WebR({ channelType: 3 });

@@ -8,6 +8,7 @@ import {
   useContext,
 } from "react";
 import { flushSync } from "react-dom";
+import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   defaults,
@@ -23,10 +24,11 @@ import { BlockRenderer } from "./BlockRenderer";
 import { CodeEditor } from "./CodeEditor";
 import { SortableList } from "./SortableList";
 import { EditorCard, ActionMenu, cardNames, cardIcons } from "./EditorCard";
-import { VersionHistory } from "./VersionHistory";
+import { VersionHistory, VersionHistoryMenuItem } from "./VersionHistory";
 import { coursePath, lessonPath } from "@/lib/paths";
 import {
   plannerContentChanged,
+  plannerReloadsLesson,
   type PlannerContentChange,
 } from "@/lib/planner/events";
 import {
@@ -1105,6 +1107,61 @@ function AssistantForm({
     </div>
   );
 }
+function quietSaveStatus(status: string) {
+  return (
+    status === "Saved" ||
+    status === "Unsaved changes" ||
+    status === "Saving…" ||
+    status === "Publishing…" ||
+    status.startsWith("Saved ") ||
+    status.startsWith("Published · ")
+  );
+}
+function draftNeedsSave(status: string) {
+  return (
+    status === "Unsaved changes" ||
+    status === "Saving…" ||
+    status === "Publishing…" ||
+    status.startsWith("Save failed")
+  );
+}
+function SaveStatus({ status }: { status: string }) {
+  const quiet = quietSaveStatus(status);
+  const unsaved = draftNeedsSave(status);
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      title={status}
+      className={`inline-flex items-center gap-1.5 text-sm text-zinc-600 ${quiet ? "h-9 w-9 justify-center" : ""}`}
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className={`h-4 w-4 shrink-0 ${unsaved ? "text-zinc-600" : "text-teal-700"}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {unsaved ? (
+          <>
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+          </>
+        ) : (
+          <>
+            <circle cx="12" cy="12" r="8" />
+            <path d="m8.5 12.5 2.2 2.2 4.8-5" />
+          </>
+        )}
+      </svg>
+      <span className={quiet ? "sr-only" : undefined}>{status}</span>
+    </p>
+  );
+}
 export default function LessonEditor({
   courseId,
   courseSlug,
@@ -1360,11 +1417,7 @@ export default function LessonEditor({
   useEffect(() => {
     function onPlannerChange(event: Event) {
       const detail = (event as CustomEvent<PlannerContentChange>).detail;
-      if (
-        !detail ||
-        (detail.action !== "update_lesson" && detail.action !== "create_lesson")
-      )
-        return;
+      if (!detail || !plannerReloadsLesson(detail.action)) return;
       if (String(detail.courseId) !== String(courseId)) return;
       if (!detail.lessonId || String(detail.lessonId) !== String(lessonId))
         return;
@@ -1479,7 +1532,8 @@ export default function LessonEditor({
       );
       if (!node) return;
       const delta =
-        node.getBoundingClientRect().top - targetPane.getBoundingClientRect().top;
+        node.getBoundingClientRect().top -
+        targetPane.getBoundingClientRect().top;
       if (Math.abs(delta) <= 2) return;
       const target = source === "editor" ? "preview" : "editor";
       slidePane(targetPane, target, targetPane.scrollTop + delta);
@@ -1508,7 +1562,8 @@ export default function LessonEditor({
       );
       if (!node) return;
       const delta =
-        node.getBoundingClientRect().top - targetPane.getBoundingClientRect().top;
+        node.getBoundingClientRect().top -
+        targetPane.getBoundingClientRect().top;
       if (Math.abs(delta) <= 2) return;
       slidePane(targetPane, targetSide, targetPane.scrollTop + delta);
     };
@@ -1653,26 +1708,31 @@ export default function LessonEditor({
           <header
             className={`mx-auto mb-5 w-full shrink-0 text-left ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
           >
-            <a
-              href={coursePath({ id: courseId, slug: courseSlug })}
-              className="text-teal-800 underline"
+            <VersionHistory
+              endpoint={`/api/courses/${courseId}/lessons/${lessonId}/history`}
+              busy={busy}
+              onRestore={restore}
             >
-              ← Course
-            </a>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-              <h1 className="min-w-0 basis-full break-words text-2xl font-bold sm:flex-1 sm:basis-0">
-                {draft.title}
-              </h1>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() => save()}
-                >
-                  Save draft
-                </button>
-                {canPublish && (
-                  <>
+              <Link
+                href={coursePath({ id: courseId, slug: courseSlug })}
+                className="text-teal-800 underline"
+              >
+                ← Course
+              </Link>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+                <h1 className="min-w-0 basis-full break-words text-2xl font-bold sm:flex-1 sm:basis-0">
+                  {draft.title}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <SaveStatus status={status} />
+                  <button
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={() => save()}
+                  >
+                    Save draft
+                  </button>
+                  {canPublish && (
                     <button
                       disabled={busy || !!errors.length}
                       className="btn-primary"
@@ -1680,44 +1740,43 @@ export default function LessonEditor({
                     >
                       Publish
                     </button>
-                    <ActionMenu label="Lesson actions">
-                      <button
-                        className="btn-secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          setRemove(() => async () => {
-                            await unpublishDraft(courseId, lessonId);
-                            window.location.reload();
-                          })
-                        }
-                      >
-                        Unpublish
-                      </button>
-                      <button
-                        className="btn-secondary"
-                        onClick={() =>
-                          setRemove(() => async () => {
-                            await unpublishDraft(courseId, lessonId, true);
-                            window.location.href = coursePath({
-                              id: courseId,
-                              slug: courseSlug,
-                            });
-                          })
-                        }
-                      >
-                        Archive
-                      </button>
-                    </ActionMenu>
-                  </>
-                )}
+                  )}
+                  <ActionMenu label="Lesson actions">
+                    <VersionHistoryMenuItem />
+                    {canPublish && (
+                      <>
+                        <button
+                          className="btn-secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            setRemove(() => async () => {
+                              await unpublishDraft(courseId, lessonId);
+                              window.location.reload();
+                            })
+                          }
+                        >
+                          Unpublish
+                        </button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() =>
+                            setRemove(() => async () => {
+                              await unpublishDraft(courseId, lessonId, true);
+                              window.location.href = coursePath({
+                                id: courseId,
+                                slug: courseSlug,
+                              });
+                            })
+                          }
+                        >
+                          Archive
+                        </button>
+                      </>
+                    )}
+                  </ActionMenu>
+                </div>
               </div>
-            </div>
-            <VersionHistory
-              status={status}
-              endpoint={`/api/courses/${courseId}/lessons/${lessonId}/history`}
-              busy={busy}
-              onRestore={restore}
-            />
+            </VersionHistory>
           </header>
           <nav
             className={`relative z-40 mx-auto mb-5 flex w-full shrink-0 flex-wrap items-end gap-x-4 gap-y-2 ${showPreview ? "max-w-7xl" : "max-w-4xl"}`}
@@ -1775,36 +1834,36 @@ export default function LessonEditor({
                 {showPreview ? "Hide preview" : "Show preview"}
               </button>
               <ActionMenu label="More" text="More" className="z-40">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => importMarkdownRef.current?.click()}
-                  >
-                    Import Markdown
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => {
-                      const url = URL.createObjectURL(
-                        new Blob(
-                          [
-                            parseErrors.length
-                              ? markdown
-                              : serializeLessonMarkdown(latest.current),
-                          ],
-                          { type: "text/markdown" },
-                        ),
-                      );
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `${draft.slug}.md`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                  >
-                    Export Markdown
-                  </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => importMarkdownRef.current?.click()}
+                >
+                  Import Markdown
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    const url = URL.createObjectURL(
+                      new Blob(
+                        [
+                          parseErrors.length
+                            ? markdown
+                            : serializeLessonMarkdown(latest.current),
+                        ],
+                        { type: "text/markdown" },
+                      ),
+                    );
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${draft.slug}.md`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export Markdown
+                </button>
               </ActionMenu>
             </div>
             <input

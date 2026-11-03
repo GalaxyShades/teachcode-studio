@@ -3,6 +3,7 @@ import type { User } from "../auth";
 import { canAccess, coursesForUser } from "../cms";
 import { db } from "../db";
 import { lessonPath } from "../paths";
+import { validateDraft, type LessonDraft } from "../content";
 import { serializeLessonMarkdown } from "../markdown";
 import { editChapter, moveLesson } from "../management";
 import { loadRevision, persistDraft, CmsError } from "../repository";
@@ -11,7 +12,13 @@ import {
   validationTokenMatches,
   type ValidationGate,
 } from "./gate";
-import { insertPlannerLesson, inspectLessonMarkdown } from "./lesson-write";
+import {
+  cardWithStableId,
+  insertPlannerLesson,
+  inspectLessonMarkdown,
+  parseCardMarkdown,
+  prepareInsertedCard,
+} from "./lesson-write";
 import { attachmentText } from "./store";
 
 export type PlannerToolContext = {
@@ -25,6 +32,7 @@ export type PlannerToolContext = {
 const courseKey = z.string().trim().min(1);
 const markdownArg = z.string().min(1);
 const tokenArg = z.string().trim().min(1);
+const indexArg = z.number().int().nonnegative();
 
 export const plannerToolSchemas = [
   {
@@ -41,7 +49,7 @@ export const plannerToolSchemas = [
     function: {
       name: "read_lesson",
       description:
-        "Read one lesson's current draft as Markdown. Call this again before update_lesson.",
+        "Read one lesson's current draft as Markdown, including step and card ids. Call this again before update_lesson, update_card, insert_card, or delete_card.",
       parameters: {
         type: "object",
         properties: {
@@ -112,7 +120,7 @@ export const plannerToolSchemas = [
     function: {
       name: "update_lesson",
       description:
-        "Replace a draft lesson. Requires a matching validationToken and a read_lesson in this turn. Saves through the version check so a newer editor save is kept.",
+        "Replace a whole draft lesson. Requires a matching validationToken and a read_lesson in this turn. Saves through the version check so a newer editor save is kept. For one card, use update_card, insert_card, or delete_card instead.",
       parameters: {
         type: "object",
         properties: {
@@ -122,6 +130,82 @@ export const plannerToolSchemas = [
           validationToken: { type: "string" },
         },
         required: ["courseId", "lessonId", "markdown", "validationToken"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_card",
+      description:
+        "Replace one card in a draft lesson by its id. Keeps that id and does not change any other card. Call read_lesson in this turn first. Pass one card's Markdown, not the whole lesson. The server loads the draft, validates the card, and saves through the version check. Use update_lesson only for a broad rewrite.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          cardId: {
+            type: "string",
+            description: "Id of the existing card, copied from read_lesson.",
+          },
+          markdown: {
+            type: "string",
+            description:
+              "The replacement card only, starting with its ::: directive. Not a whole lesson and not a code fence.",
+          },
+        },
+        required: ["courseId", "lessonId", "cardId", "markdown"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "insert_card",
+      description:
+        "Insert one new card into a step at a 0-based position. Call read_lesson in this turn first. Pass one card's Markdown. A lowercase hyphenated id is kept when it is free; otherwise the server assigns one. Does not change other cards. Use the step's card count as the position to append.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          stepId: {
+            type: "string",
+            description: "Step id copied from read_lesson.",
+          },
+          position: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "0-based index in that step. The step's current card count appends the card.",
+          },
+          markdown: {
+            type: "string",
+            description:
+              "The new card only, starting with its ::: directive. Not a whole lesson and not a code fence.",
+          },
+        },
+        required: ["courseId", "lessonId", "stepId", "position", "markdown"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_card",
+      description:
+        "Delete one card by its id. Call read_lesson in this turn first. Does not change any other card. Saves through the version check.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          cardId: {
+            type: "string",
+            description: "Id of the card to remove, copied from read_lesson.",
+          },
+        },
+        required: ["courseId", "lessonId", "cardId"],
       },
     },
   },
@@ -268,6 +352,42 @@ export async function runPlannerTool(
               lessonId: courseKey,
               markdown: markdownArg,
               validationToken: tokenArg,
+            })
+            .parse(args),
+          ctx,
+        );
+      case "update_card":
+        return await updateCard(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              cardId: courseKey,
+              markdown: markdownArg,
+            })
+            .parse(args),
+          ctx,
+        );
+      case "insert_card":
+        return await insertCard(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              stepId: courseKey,
+              position: indexArg,
+              markdown: markdownArg,
+            })
+            .parse(args),
+          ctx,
+        );
+      case "delete_card":
+        return await deleteCard(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              cardId: courseKey,
             })
             .parse(args),
           ctx,
@@ -467,6 +587,174 @@ async function updateLesson(
       );
     throw error;
   }
+}
+
+type CardRevision =
+  | { ok: true; draft: LessonDraft; cardId: string }
+  | { ok: false; error: string; errors?: string[] };
+
+function lessonHasCard(draft: LessonDraft, cardId: string) {
+  return draft.steps.some((step) =>
+    step.blocks.some((block) => block.id === cardId),
+  );
+}
+
+function rejectedCard(errors: string[]): CardRevision {
+  if (
+    errors.length === 1 &&
+    /send (exactly )?one card|not a whole lesson/i.test(errors[0])
+  )
+    return { ok: false, error: errors[0] };
+  return { ok: false, error: "That card is not valid.", errors };
+}
+
+function blockIds(draft: LessonDraft) {
+  return new Set(
+    draft.steps.flatMap((step) => step.blocks.map((block) => block.id)),
+  );
+}
+
+/**
+ * Load the current draft, change one card in memory, and save through the
+ * same version check as update_lesson. Other cards are copied through unchanged.
+ */
+async function reviseLessonCard(
+  args: { courseId: string; lessonId: string },
+  ctx: PlannerToolContext,
+  edit: (draft: LessonDraft) => CardRevision,
+) {
+  const course = await accessibleCourse(args.courseId, ctx.user);
+  if (!course) return fail("You do not have access to that course.");
+  const lesson = await findLesson(course.id, args.lessonId);
+  if (!lesson?.draft_revision_id) return fail("Lesson not found");
+  const seen = ctx.seenVersions.get(lesson.id);
+  if (seen === undefined)
+    return fail(
+      "Read this lesson with read_lesson in this turn before updating it. That keeps a newer editor save from being overwritten.",
+    );
+  const edited = edit(
+    await loadRevision(db(), lesson, lesson.draft_revision_id),
+  );
+  if (!edited.ok)
+    return fail(edited.error, edited.errors ? { errors: edited.errors } : {});
+  const errors = validateDraft(edited.draft);
+  if (errors.length) return fail("That card is not valid.", { errors });
+  const next: LessonDraft = {
+    ...edited.draft,
+    version: seen,
+    sourceMarkdown: serializeLessonMarkdown(edited.draft),
+  };
+  try {
+    const saved = await persistDraft(course.id, lesson.id, next, ctx.user.id);
+    ctx.seenVersions.set(lesson.id, saved.version);
+    return {
+      ok: true,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: next.title,
+      slug: next.slug,
+      version: saved.version,
+      cardId: edited.cardId,
+      href: lessonHref(course, { slug: next.slug }),
+    };
+  } catch (error) {
+    if (error instanceof CmsError && error.status === 409)
+      return fail(
+        `${error.message} Call read_lesson before editing a card again.`,
+      );
+    throw error;
+  }
+}
+
+async function updateCard(
+  args: {
+    courseId: string;
+    lessonId: string;
+    cardId: string;
+    markdown: string;
+  },
+  ctx: PlannerToolContext,
+) {
+  return reviseLessonCard(args, ctx, (draft) => {
+    if (!lessonHasCard(draft, args.cardId))
+      return { ok: false, error: "Unknown card id." };
+    const parsed = parseCardMarkdown(args.markdown);
+    if (!parsed.ok) return rejectedCard(parsed.errors);
+    return {
+      ok: true,
+      cardId: args.cardId,
+      draft: {
+        ...draft,
+        steps: draft.steps.map((step) => ({
+          ...step,
+          blocks: step.blocks.map((block) =>
+            block.id === args.cardId
+              ? cardWithStableId(parsed.block, args.cardId)
+              : block,
+          ),
+        })),
+      },
+    };
+  });
+}
+
+async function insertCard(
+  args: {
+    courseId: string;
+    lessonId: string;
+    stepId: string;
+    position: number;
+    markdown: string;
+  },
+  ctx: PlannerToolContext,
+) {
+  return reviseLessonCard(args, ctx, (draft) => {
+    const step = draft.steps.find((item) => item.id === args.stepId);
+    if (!step) return { ok: false, error: "Unknown step id." };
+    if (args.position > step.blocks.length)
+      return {
+        ok: false,
+        error: `That position is outside this step. The step has ${step.blocks.length} cards; use 0 through ${step.blocks.length}.`,
+      };
+    const parsed = parseCardMarkdown(args.markdown);
+    if (!parsed.ok) return rejectedCard(parsed.errors);
+    const prepared = prepareInsertedCard(parsed.block, blockIds(draft));
+    if (!prepared.ok) return prepared;
+    return {
+      ok: true,
+      cardId: prepared.block.id,
+      draft: {
+        ...draft,
+        steps: draft.steps.map((item) => {
+          if (item.id !== args.stepId) return item;
+          const blocks = [...item.blocks];
+          blocks.splice(args.position, 0, prepared.block);
+          return { ...item, blocks };
+        }),
+      },
+    };
+  });
+}
+
+async function deleteCard(
+  args: { courseId: string; lessonId: string; cardId: string },
+  ctx: PlannerToolContext,
+) {
+  return reviseLessonCard(args, ctx, (draft) => {
+    if (!lessonHasCard(draft, args.cardId))
+      return { ok: false, error: "Unknown card id." };
+    return {
+      ok: true,
+      cardId: args.cardId,
+      draft: {
+        ...draft,
+        steps: draft.steps.map((step) => ({
+          ...step,
+          blocks: step.blocks.filter((block) => block.id !== args.cardId),
+        })),
+      },
+    };
+  });
 }
 
 async function createChapter(

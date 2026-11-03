@@ -42,7 +42,13 @@ Choices sit inside `:::choices`. Each option is `:::choice{id="..." correct=true
 
 `language` is `python` or `r`. `execution` is `browser`. `multiple=false` needs exactly one `correct=true`. `multiple=true` needs at least one correct choice. Every quiz needs at least two choices.
 
-In short learner-facing fields, `++text++` renders as underline.
+Write Markdown in these learner-facing fields. Do not leave them as plain prose.
+
+These fields render headings, bold, italic, lists, inline code, and links: `text` `markdown`, `task` `context`, `quick-reference` `markdown`, `worked-example` `explanation`, `figure` `markdown`, `mcq` `question`, and `mcq` `explanation`.
+
+These fields render bold, strikethrough, underline, lists, inline code, and links, and do not render headings: `task` `statement`, `code-exercise` `instructions`, `figure` `caption`, each `choice` option, `reflection` `prompt`, and `data-asset` `description`. Use `**bold**`, `~~strikethrough~~`, `++underline++`, inline code such as `print`, a `-` or `1.` list, and `[label](https://...)`. `++text++` renders as underline. Do not use a heading, table, or fenced code block in these fields.
+
+`expectedOutput`, image `alt`, and each function `summary` stay plain text. They do not render Markdown. `starterCode`, `solution`, `checkScript`, and worked-example `code` stay source code, not Markdown prose. Do not wrap the lesson in a code fence.
 
 ## Required attributes
 
@@ -60,7 +66,7 @@ Step: `id` and `title` only. A step has no type.
 
 Match the source language. Python lessons use `track="Python"`, `programmingLanguage="Python"`, and `language` `python`. R lessons use `R` / `r`. Literacy lessons use `track="literacy"` and `programmingLanguage=""`.
 
-Code runs in the browser with the standard library. No network, package install, or file access. Server execution is not available.
+Code runs in the browser. pandas and urllib can read http and https URLs. Do not install packages or open local files. Server execution is not available.
 
 ## Lesson plan
 
@@ -103,7 +109,9 @@ Copy the lesson below. Do not wrap it in a fence. Replace every SAMPLE string, a
 :::step{id="learn" title="SAMPLE learn"}
 :::text{id="explain-text" visible=true}
 :::markdown
-SAMPLE explanation in a few sentences.
+## SAMPLE heading
+
+SAMPLE **explanation** in a few sentences. Use `inline code` for a function or variable name.
 
 SAMPLE sentence if the source says an AI tutor may be used for hints only.
 :::
@@ -131,7 +139,7 @@ course = "Python"
 print(course)
 :::
 :::explanation
-SAMPLE what the two lines do. Use different names and values from the exercise solution.
+SAMPLE what the two lines do. The second line calls `print`. Use different names and values from the exercise solution.
 :::
 :::expectedOutput
 Python
@@ -155,7 +163,7 @@ print(greeting)
 browser
 :::
 :::instructions
-SAMPLE what to create and print. Do not paste the solution code here.
+SAMPLE what to create and print. Name the variable in `inline code`. Do not paste the solution code here.
 :::
 :::checkScript
 assert greeting == "Hello"

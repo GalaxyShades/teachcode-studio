@@ -1,6 +1,6 @@
 # Execution and deployment boundaries
 
-The Next.js server never executes learner Python or R. Browser-only demo execution uses a dedicated worker, a cached runtime per language, a fresh evaluation namespace for each run, a 60-second loading timeout, a 10-second execution timeout, cancellation through worker termination, and 32 KiB displayed output limits. Server execution cards display an unsupported message. Reset restores authored starter code. Runtime downloads can fail offline; the runner reports the error and allows retry.
+The Next.js server never executes learner Python or R. Browser-only demo execution uses a dedicated worker, a cached runtime per language that stays loaded across client-side navigations for the life of the open site, a fresh evaluation namespace for each run, a 180-second loading timeout, a 10-second execution timeout, cancellation and timeouts through worker termination, and 32 KiB displayed output limits. Leaving a page does not terminate a healthy worker. A full browser reload starts cold. Server execution cards display an unsupported message. Reset restores authored starter code. Runtime downloads can fail offline; the runner reports the error and allows retry.
 
 Python uses Pyodide 0.27.2. R uses WebR 0.4.2 with its PostMessage worker transport and captures console streams and conditions. See the upstream [Pyodide stream APIs](https://pyodide.org/en/stable/usage/streams.html) and [WebR capture examples](https://docs.r-wasm.org/webr/v0.4.2/examples.html).
 

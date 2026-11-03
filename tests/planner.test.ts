@@ -27,6 +27,7 @@ import {
   issueValidationToken,
 } from "../lib/planner/gate";
 import {
+  markdownFieldPrompt,
   plannerExampleLesson,
   plannerSystemPrompt,
 } from "../lib/planner/prompt";
@@ -47,7 +48,10 @@ import {
   messageWithAttachments,
   readMessageAttachments,
 } from "../lib/planner/message-text";
-import { plannerWriteChange } from "../lib/planner/events";
+import {
+  plannerReloadsLesson,
+  plannerWriteChange,
+} from "../lib/planner/events";
 import {
   DELETE as removeAttachment,
   POST as upload,
@@ -94,6 +98,78 @@ function context(user: User, threadId = "detached-thread"): PlannerToolContext {
     gate: createValidationGate(),
     seenVersions: new Map(),
   };
+}
+
+function textCard(id: string | undefined, body: string) {
+  const attrs = id ? `id="${id}" visible=true` : "visible=true";
+  return [`:::text{${attrs}}`, ":::markdown", body, ":::", ":::"].join("\n");
+}
+
+function cardsLesson(slug: string) {
+  const draft: LessonDraft = {
+    title: "Card lesson",
+    slug,
+    description: "First-year students practise one idea.",
+    track: "Python",
+    programmingLanguage: "Python",
+    tags: ["sample"],
+    version: 0,
+    steps: [
+      {
+        id: "intro",
+        title: "Introduction",
+        blocks: [
+          {
+            ...defaults.text(),
+            id: "keep-me",
+            markdown: "KEEP THIS SENTENCE",
+          },
+          {
+            ...defaults.text(),
+            id: "change-me",
+            markdown: "OLD CARD",
+          },
+        ],
+      },
+      {
+        id: "next-step",
+        title: "Next",
+        blocks: [
+          {
+            ...defaults.text(),
+            id: "22222222-2222-4222-8222-222222222222",
+            markdown: "OTHER STEP SENTENCE",
+          },
+        ],
+      },
+    ],
+  };
+  return serializeLessonMarkdown(draft);
+}
+
+async function createCardsLesson(slug: string) {
+  const ctx = context(staffUser);
+  const markdown = cardsLesson(slug);
+  const validated = await runPlannerTool("validate_lesson", { markdown }, ctx);
+  expect(validated.ok).toBe(true);
+  const created = await runPlannerTool(
+    "create_lesson",
+    {
+      courseId: courseA,
+      markdown,
+      validationToken: validated.validationToken,
+    },
+    ctx,
+  );
+  expect(created.ok).toBe(true);
+  const lessonId = String(created.lessonId);
+  const read = await runPlannerTool(
+    "read_lesson",
+    { courseId: courseA, lessonId },
+    ctx,
+  );
+  expect(read.ok).toBe(true);
+  return { ctx, lessonId, before: await draftOf(lessonId) };
 }
 
 function lessonMarkdown(title: string, slug: string, body = "A short lesson.") {
@@ -323,6 +399,33 @@ describe("planner prompt", () => {
       expect(exercise.starterCode.trim().length).toBeGreaterThan(0);
       expect(exercise.solution?.trim().length).toBeGreaterThan(0);
     }
+  });
+
+  it("tells the model to edit one card without rewriting the lesson", () => {
+    const prompt = plannerSystemPrompt();
+    expect(prompt).toContain(markdownFieldPrompt);
+    expect(prompt).toContain(
+      "When the teacher asks to change, add, or remove one card, call read_lesson in this turn first so you have the card id and the step id.",
+    );
+    expect(prompt).toContain(
+      "Use update_lesson only when the teacher wants a broad rewrite of the lesson.",
+    );
+    expect(prompt).toContain("update_card");
+    expect(prompt).toContain("insert_card");
+    expect(prompt).toContain("delete_card");
+    const names = plannerToolSchemas.map((tool) => tool.function.name);
+    expect(names).toEqual(
+      expect.arrayContaining(["update_card", "insert_card", "delete_card"]),
+    );
+    const updateCard = plannerToolSchemas.find(
+      (tool) => tool.function.name === "update_card",
+    );
+    expect(JSON.stringify(updateCard)).toContain('"cardId"');
+    expect(JSON.stringify(updateCard)).not.toContain("validationToken");
+    expect(plannerReloadsLesson("update_card")).toBe(true);
+    expect(plannerReloadsLesson("insert_card")).toBe(true);
+    expect(plannerReloadsLesson("delete_card")).toBe(true);
+    expect(plannerReloadsLesson("read_lesson")).toBe(false);
   });
 
   it("keeps GLM ids out of the selectable list and falls back to Qwen", () => {
@@ -692,6 +795,317 @@ describe("planner access", () => {
     expect((await lessonRow(courseA, "placed-lesson")).chapter_id).toBe(
       nextChapter.chapterId,
     );
+  });
+});
+
+describe("planner card edits", () => {
+  it("updates one card and leaves the others intact", async () => {
+    const { ctx, lessonId, before } =
+      await createCardsLesson("card-update-lesson");
+    const cold = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        markdown: textCard("renamed-card", "NEW CARD TEXT"),
+      },
+      context(staffUser),
+    );
+    expect(cold.ok).toBe(false);
+    expect(cold.error).toMatch(/read_lesson/);
+    expect((await draftOf(lessonId)).steps).toEqual(before.steps);
+
+    const updated = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        markdown: textCard("renamed-card", "NEW CARD TEXT"),
+      },
+      ctx,
+    );
+    expect(updated.ok).toBe(true);
+    expect(updated.cardId).toBe("change-me");
+    expect(plannerWriteChange("update_card", updated)).toEqual({
+      action: "update_card",
+      courseId: courseA,
+      lessonId,
+    });
+    const after = await draftOf(lessonId);
+    expect(after.steps.map((step) => step.id)).toEqual(
+      before.steps.map((step) => step.id),
+    );
+    expect(after.steps[0].title).toBe(before.steps[0].title);
+    expect(after.steps[0].blocks.map((block) => block.id)).toEqual([
+      "keep-me",
+      "change-me",
+    ]);
+    expect(after.steps[0].blocks[0]).toEqual(before.steps[0].blocks[0]);
+    const changed = after.steps[0].blocks[1];
+    expect(changed.id).toBe("change-me");
+    expect(changed.type).toBe("text");
+    if (changed.type === "text") expect(changed.markdown).toBe("NEW CARD TEXT");
+    expect(after.steps[1]).toEqual(before.steps[1]);
+    expect(after.title).toBe(before.title);
+    expect(after.slug).toBe(before.slug);
+    expect(after.description).toBe(before.description);
+    expect(after.track).toBe(before.track);
+    expect(after.programmingLanguage).toBe(before.programmingLanguage);
+    expect(after.tags).toEqual(before.tags);
+    expect(Number(after.version)).toBe(Number(before.version) + 1);
+  });
+
+  it("rejects an unknown card id and a card that fails validation", async () => {
+    const { ctx, lessonId, before } =
+      await createCardsLesson("card-reject-lesson");
+    const missing = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "missing-card",
+        markdown: textCard("missing-card", "Nope"),
+      },
+      ctx,
+    );
+    expect(missing.ok).toBe(false);
+    expect(missing.error).toBe("Unknown card id.");
+    expect(plannerWriteChange("update_card", missing)).toBeNull();
+    const invalid = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        markdown: [
+          ':::mcq{id="change-me" visible=true multiple=false}',
+          ":::question",
+          "Pick one",
+          ":::",
+          ":::choices",
+          ':::choice{id="only" correct=true}',
+          "Only",
+          ":::",
+          ":::",
+          ":::explanation",
+          "Because",
+          ":::",
+          ":::",
+        ].join("\n"),
+      },
+      ctx,
+    );
+    expect(invalid.ok).toBe(false);
+    expect(invalid.error).toMatch(/not valid/);
+    const whole = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        markdown: cardsLesson("not-stored"),
+      },
+      ctx,
+    );
+    expect(whole.ok).toBe(false);
+    expect(whole.error).toMatch(/one card/);
+    expect((await draftOf(lessonId)).steps).toEqual(before.steps);
+    expect(Number((await draftOf(lessonId)).version)).toBe(
+      Number(before.version),
+    );
+  });
+
+  it("forbids staff from editing a card on an unassigned course", async () => {
+    const ctx = context(staffUser);
+    const before = await draftOf(lessonB);
+    const updated = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseB,
+        lessonId: lessonB,
+        cardId: "private-text",
+        markdown: textCard("private-text", "nope"),
+      },
+      ctx,
+    );
+    const inserted = await runPlannerTool(
+      "insert_card",
+      {
+        courseId: courseB,
+        lessonId: lessonB,
+        stepId: "private-step",
+        position: 0,
+        markdown: textCard("extra-card", "nope"),
+      },
+      ctx,
+    );
+    const deleted = await runPlannerTool(
+      "delete_card",
+      {
+        courseId: courseB,
+        lessonId: lessonB,
+        cardId: "private-text",
+      },
+      ctx,
+    );
+    for (const result of [updated, inserted, deleted]) {
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/access/i);
+    }
+    expect(await draftOf(lessonB)).toEqual(before);
+    expect(JSON.stringify(updated)).not.toContain("SECRET-OTHER-COURSE");
+  });
+
+  it("inserts one card at a position and deletes one card by id", async () => {
+    const { ctx, lessonId, before } =
+      await createCardsLesson("card-insert-lesson");
+    const collision = await runPlannerTool(
+      "insert_card",
+      {
+        courseId: courseA,
+        lessonId,
+        stepId: "intro",
+        position: 0,
+        markdown: textCard("keep-me", "duplicate"),
+      },
+      ctx,
+    );
+    expect(collision.ok).toBe(false);
+    expect(collision.error).toMatch(/already used/);
+    const outside = await runPlannerTool(
+      "insert_card",
+      {
+        courseId: courseA,
+        lessonId,
+        stepId: "intro",
+        position: 9,
+        markdown: textCard("added-note", "Between the cards."),
+      },
+      ctx,
+    );
+    expect(outside.ok).toBe(false);
+    expect((await draftOf(lessonId)).steps).toEqual(before.steps);
+
+    const inserted = await runPlannerTool(
+      "insert_card",
+      {
+        courseId: courseA,
+        lessonId,
+        stepId: "intro",
+        position: 1,
+        markdown: textCard("added-note", "Between the cards."),
+      },
+      ctx,
+    );
+    expect(inserted.ok).toBe(true);
+    expect(inserted.cardId).toBe("added-note");
+    expect(plannerWriteChange("insert_card", inserted)).toMatchObject({
+      action: "insert_card",
+      courseId: courseA,
+      lessonId,
+    });
+    const midway = await draftOf(lessonId);
+    expect(midway.steps[0].blocks.map((block) => block.id)).toEqual([
+      "keep-me",
+      "added-note",
+      "change-me",
+    ]);
+    expect(midway.steps[0].blocks[0]).toEqual(before.steps[0].blocks[0]);
+    expect(midway.steps[0].blocks[2]).toEqual(before.steps[0].blocks[1]);
+    expect(midway.steps[1]).toEqual(before.steps[1]);
+    const added = midway.steps[0].blocks[1];
+    expect(added.type).toBe("text");
+    if (added.type === "text")
+      expect(added.markdown).toBe("Between the cards.");
+
+    const generated = await runPlannerTool(
+      "insert_card",
+      {
+        courseId: courseA,
+        lessonId,
+        stepId: "next-step",
+        position: 1,
+        markdown: textCard(undefined, "A new note."),
+      },
+      ctx,
+    );
+    expect(generated.ok).toBe(true);
+    expect(generated.cardId).toBe("text");
+    expect(generated.cardId).not.toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    const withGenerated = await draftOf(lessonId);
+    expect(withGenerated.steps[0].blocks.map((block) => block.id)).toEqual([
+      "keep-me",
+      "added-note",
+      "change-me",
+    ]);
+    expect(withGenerated.steps[1].blocks.map((block) => block.id)).toEqual([
+      "22222222-2222-4222-8222-222222222222",
+      "text",
+    ]);
+    expect(withGenerated.steps[1].blocks[0]).toEqual(before.steps[1].blocks[0]);
+
+    const removed = await runPlannerTool(
+      "delete_card",
+      { courseId: courseA, lessonId, cardId: "added-note" },
+      ctx,
+    );
+    expect(removed.ok).toBe(true);
+    expect(plannerWriteChange("delete_card", removed)).toMatchObject({
+      action: "delete_card",
+      lessonId,
+    });
+    const removedGenerated = await runPlannerTool(
+      "delete_card",
+      { courseId: courseA, lessonId, cardId: "text" },
+      ctx,
+    );
+    expect(removedGenerated.ok).toBe(true);
+    const unknown = await runPlannerTool(
+      "delete_card",
+      { courseId: courseA, lessonId, cardId: "missing-card" },
+      ctx,
+    );
+    expect(unknown.ok).toBe(false);
+    expect(unknown.error).toBe("Unknown card id.");
+    expect((await draftOf(lessonId)).steps).toEqual(before.steps);
+  });
+
+  it("keeps a newer editor save when a card edit is stale", async () => {
+    const { ctx, lessonId } = await createCardsLesson("card-stale-lesson");
+    const lesson = (
+      await db().query("SELECT * FROM cms_lessons WHERE id=$1", [lessonId])
+    ).rows[0];
+    const current = await loadRevision(db(), lesson, lesson.draft_revision_id);
+    await persistDraft(
+      courseA,
+      lessonId,
+      {
+        ...current,
+        title: "Saved in the editor",
+        version: Number(lesson.version),
+      },
+      admin,
+    );
+    const stale = await runPlannerTool(
+      "update_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        markdown: textCard("change-me", "TOO LATE"),
+      },
+      ctx,
+    );
+    expect(stale.ok).toBe(false);
+    const kept = await draftOf(lessonId);
+    expect(kept.title).toBe("Saved in the editor");
+    const keptCard = kept.steps[0].blocks[1];
+    expect(keptCard.type).toBe("text");
+    if (keptCard.type === "text") expect(keptCard.markdown).toBe("OLD CARD");
   });
 });
 
