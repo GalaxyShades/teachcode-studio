@@ -68,9 +68,10 @@ export function CodeRunner({
       setOut(e instanceof Error ? e.message : String(e));
     } finally {
       cancel.current = undefined;
-      if (!mounted.current) return;
-      setBusy(false);
-      setStatus("");
+      if (mounted.current) {
+        setBusy(false);
+        setStatus("");
+      }
     }
   }
   const figure = figures[figureIndex];
