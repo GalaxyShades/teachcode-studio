@@ -3,10 +3,20 @@ import type { User } from "../auth";
 import { canAccess, coursesForUser } from "../cms";
 import { db } from "../db";
 import { lessonPath } from "../paths";
-import { validateDraft, type LessonDraft } from "../content";
+import {
+  BlockSchema,
+  validateDraft,
+  type Block,
+  type LessonDraft,
+} from "../content";
 import { serializeLessonMarkdown } from "../markdown";
 import { editChapter, moveLesson } from "../management";
-import { loadRevision, persistDraft, CmsError } from "../repository";
+import {
+  loadRevision,
+  persistDraft,
+  restoreRevision,
+  CmsError,
+} from "../repository";
 import {
   issueValidationToken,
   validationTokenMatches,
@@ -40,7 +50,7 @@ export const plannerToolSchemas = [
     function: {
       name: "list_courses",
       description:
-        "List courses this teacher can access, with chapter titles and lesson slugs. Does not include lesson bodies.",
+        "List courses this teacher can access, with chapter ids and titles and lesson ids and slugs. Does not include lesson bodies. Use a chapter id with rename_chapter.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -49,7 +59,7 @@ export const plannerToolSchemas = [
     function: {
       name: "read_lesson",
       description:
-        "Read one lesson's current draft as Markdown, including step and card ids. Call this again before update_lesson, update_card, insert_card, or delete_card.",
+        "Read one lesson's current draft as Markdown, including step and card ids, plus the published revision ids restore_draft accepts. Call this again before update_lesson, update_card, insert_card, delete_card, move_card, patch_card, update_lesson_details, or restore_draft.",
       parameters: {
         type: "object",
         properties: {
@@ -120,7 +130,7 @@ export const plannerToolSchemas = [
     function: {
       name: "update_lesson",
       description:
-        "Replace a whole draft lesson. Requires a matching validationToken and a read_lesson in this turn. Saves through the version check so a newer editor save is kept. For one card, use update_card, insert_card, or delete_card instead.",
+        "Replace a whole draft lesson. Requires a matching validationToken and a read_lesson in this turn. Saves through the version check so a newer editor save is kept. For one card, use update_card, insert_card, delete_card, move_card, or patch_card. For a title, slug, or description, use update_lesson_details. To put a published snapshot back, use restore_draft.",
       parameters: {
         type: "object",
         properties: {
@@ -212,6 +222,142 @@ export const plannerToolSchemas = [
   {
     type: "function",
     function: {
+      name: "move_card",
+      description:
+        "Move one existing card to a destination step and a 0-based position in that step, in one save. Call read_lesson in this turn first. Does not change the card's fields or any other card. Use this instead of update_lesson, update_card, or deleting and inserting the card. In the card's current step, the last position is one less than that step's card count. In a different step, that step's card count appends the card.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          cardId: {
+            type: "string",
+            description: "Id of the card to move, copied from read_lesson.",
+          },
+          stepId: {
+            type: "string",
+            description: "Destination step id copied from read_lesson.",
+          },
+          position: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "0-based index in the destination step after the move.",
+          },
+        },
+        required: ["courseId", "lessonId", "cardId", "stepId", "position"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "patch_card",
+      description:
+        "Change one or more named fields on one card, such as instructions or checkScript, without resending the card. Call read_lesson in this turn first. The fields object lists only the fields that change. The server keeps the card id and every omitted field. Use this instead of update_card or update_lesson when the rest of the card should stay. Rejects an unknown field.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          cardId: {
+            type: "string",
+            description: "Id of the existing card, copied from read_lesson.",
+          },
+          fields: {
+            type: "object",
+            description:
+              "Card fields to merge onto the existing card. Keys must be real fields of that card, such as instructions or checkScript. Do not send id, type, or the whole card.",
+            additionalProperties: true,
+          },
+        },
+        required: ["courseId", "lessonId", "cardId", "fields"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_lesson_details",
+      description:
+        "Change the lesson title, slug, and/or description without rewriting cards or steps. Pass only the details that change. A title change does not change the slug. Call read_lesson in this turn first. Use this instead of update_lesson. A slug is lowercase letters, digits, and hyphens. The lesson address becomes that slug; opening the lesson by its id still redirects to the current slug. Staff and admin access matches update_lesson.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          title: { type: "string", description: "New lesson title." },
+          slug: {
+            type: "string",
+            description:
+              "New readable slug: lowercase letters, digits, and hyphens. Omit to keep the current slug.",
+          },
+          description: { type: "string", description: "New lesson description." },
+        },
+        required: ["courseId", "lessonId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "restore_draft",
+      description:
+        "Replace the working draft with one published snapshot. Pass a revision id from read_lesson. This does not publish and does not unarchive. Call read_lesson in this turn first. Use this instead of update_lesson. Confirm with the teacher first: restoring replaces the current draft, including unpublished edits, and readers keep the current publication until someone publishes again. Assigned staff can restore, same as the lesson editor.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+          revisionId: {
+            type: "string",
+            description:
+              "Published revision id copied from read_lesson revisions. This is the id version history uses.",
+          },
+        },
+        required: ["courseId", "lessonId", "revisionId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_lesson",
+      description:
+        "Archive one lesson. This is the lesson editor's Archive action: the lesson row stays, its public copy is cleared, and it is not hard-deleted. Only an admin can do this. Confirm with the teacher before calling, because the editor asks before it changes public availability. Do not use this to remove a card.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          lessonId: { type: "string" },
+        },
+        required: ["courseId", "lessonId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "rename_chapter",
+      description:
+        "Rename one chapter. Pass the chapter id from list_courses and the new title. Does not add a chapter and does not move lessons. Staff can do this on courses assigned to them, same as the course outline. Call it once the teacher has given the title; the editor saves a chapter title without a second confirmation.",
+      parameters: {
+        type: "object",
+        properties: {
+          courseId: { type: "string" },
+          chapterId: {
+            type: "string",
+            description: "Chapter id copied from list_courses.",
+          },
+          title: { type: "string", description: "New chapter title." },
+        },
+        required: ["courseId", "chapterId", "title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_chapter",
       description:
         "Add a chapter to a course this teacher can access. Staff can do this on courses assigned to them. Creating a chapter can mean an empty chapter with no lessons, or a chapter plus lessons. If the teacher asked to create or add a chapter and has not already said which, ask a short clarifying question and do not call this tool, create_lesson, or move_lesson yet. After they answer, do only what they chose. If the same message already says empty or names the lessons, call this tool without asking again.",
@@ -269,9 +415,10 @@ async function findLesson(courseId: string, key: string) {
       title: string;
       version: number;
       draft_revision_id: string | null;
+      published_revision_id: string | null;
       chapter_id: string | null;
     }>(
-      "SELECT id, slug, title, version, draft_revision_id, chapter_id FROM cms_lessons WHERE course_id=$1 AND (CAST(id AS TEXT)=$2 OR slug=$2) ORDER BY CASE WHEN CAST(id AS TEXT)=$2 THEN 0 ELSE 1 END LIMIT 1",
+      "SELECT id, slug, title, version, draft_revision_id, published_revision_id, chapter_id FROM cms_lessons WHERE course_id=$1 AND (CAST(id AS TEXT)=$2 OR slug=$2) ORDER BY CASE WHEN CAST(id AS TEXT)=$2 THEN 0 ELSE 1 END LIMIT 1",
       [courseId, key],
     )
   ).rows[0];
@@ -392,6 +539,80 @@ export async function runPlannerTool(
             .parse(args),
           ctx,
         );
+      case "move_card":
+        return await moveCard(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              cardId: courseKey,
+              stepId: courseKey,
+              position: indexArg,
+            })
+            .parse(args),
+          ctx,
+        );
+      case "patch_card":
+        return await patchCard(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              cardId: courseKey,
+              fields: z
+                .record(z.unknown())
+                .refine((fields) => Object.keys(fields).length > 0, {
+                  message: "Name at least one card field to change.",
+                }),
+            })
+            .parse(args),
+          ctx,
+        );
+      case "update_lesson_details":
+        return await updateLessonDetails(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              title: z.string().trim().min(1).optional(),
+              slug: z.string().trim().min(1).optional(),
+              description: z.string().optional(),
+            })
+            .parse(args),
+          ctx,
+        );
+      case "restore_draft":
+        return await restoreDraft(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+              revisionId: courseKey,
+            })
+            .parse(args),
+          ctx,
+        );
+      case "delete_lesson":
+        return await deleteLesson(
+          z
+            .object({
+              courseId: courseKey,
+              lessonId: courseKey,
+            })
+            .parse(args),
+          ctx,
+        );
+      case "rename_chapter":
+        return await renameChapter(
+          z
+            .object({
+              courseId: courseKey,
+              chapterId: courseKey,
+              title: z.string().trim().min(1),
+            })
+            .parse(args),
+          ctx,
+        );
       case "create_chapter":
         return await createChapter(
           z
@@ -468,6 +689,20 @@ async function readLesson(
   const draft = await loadRevision(db(), lesson, lesson.draft_revision_id);
   const version = Number(lesson.version ?? 0);
   ctx.seenVersions.set(lesson.id, version);
+  const revisions = (
+    await db().query<{
+      id: string;
+      revision_number: number;
+      title: string;
+    }>(
+      "SELECT r.id, r.revision_number, m.title FROM cms_lesson_revisions r JOIN cms_revision_metadata m ON m.revision_id=r.id WHERE r.lesson_id=$1 AND r.state='published' ORDER BY r.revision_number DESC LIMIT 5",
+      [lesson.id],
+    )
+  ).rows.map((row) => ({
+    id: row.id,
+    revisionNumber: Number(row.revision_number),
+    title: row.title,
+  }));
   return {
     ok: true,
     courseId: course.id,
@@ -477,6 +712,8 @@ async function readLesson(
     version,
     href: lessonHref(course, draft),
     markdown: serializeLessonMarkdown(draft),
+    revisions,
+    publishedRevisionId: lesson.published_revision_id,
   };
 }
 
@@ -590,8 +827,21 @@ async function updateLesson(
 }
 
 type CardRevision =
-  | { ok: true; draft: LessonDraft; cardId: string }
+  | { ok: true; draft: LessonDraft; cardId?: string }
   | { ok: false; error: string; errors?: string[] };
+
+const readableSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function cardFieldNames(type: Block["type"]) {
+  const names = new Set<string>();
+  for (const option of BlockSchema.options) {
+    if (option.shape.type.value !== type) continue;
+    for (const key of Object.keys(option.shape)) {
+      if (key !== "id" && key !== "type") names.add(key);
+    }
+  }
+  return names;
+}
 
 function lessonHasCard(draft: LessonDraft, cardId: string) {
   return draft.steps.some((step) =>
@@ -615,13 +865,18 @@ function blockIds(draft: LessonDraft) {
 }
 
 /**
- * Load the current draft, change one card in memory, and save through the
- * same version check as update_lesson. Other cards are copied through unchanged.
+ * Load the current draft, edit it in memory, and save through the same
+ * version check as update_lesson. One check, one write. A rejected edit
+ * returns before that write.
  */
 async function reviseLessonCard(
   args: { courseId: string; lessonId: string },
   ctx: PlannerToolContext,
   edit: (draft: LessonDraft) => CardRevision,
+  messages: { invalid: string; stale: string } = {
+    invalid: "That card is not valid.",
+    stale: "Call read_lesson before editing a card again.",
+  },
 ) {
   const course = await accessibleCourse(args.courseId, ctx.user);
   if (!course) return fail("You do not have access to that course.");
@@ -638,7 +893,7 @@ async function reviseLessonCard(
   if (!edited.ok)
     return fail(edited.error, edited.errors ? { errors: edited.errors } : {});
   const errors = validateDraft(edited.draft);
-  if (errors.length) return fail("That card is not valid.", { errors });
+  if (errors.length) return fail(messages.invalid, { errors });
   const next: LessonDraft = {
     ...edited.draft,
     version: seen,
@@ -654,14 +909,15 @@ async function reviseLessonCard(
       title: next.title,
       slug: next.slug,
       version: saved.version,
-      cardId: edited.cardId,
+      ...(edited.cardId ? { cardId: edited.cardId } : {}),
       href: lessonHref(course, { slug: next.slug }),
     };
   } catch (error) {
-    if (error instanceof CmsError && error.status === 409)
-      return fail(
-        `${error.message} Call read_lesson before editing a card again.`,
-      );
+    if (error instanceof CmsError && error.status === 409) {
+      if (/^This lesson changed/.test(error.message))
+        return fail(`${error.message} ${messages.stale}`, { status: 409 });
+      return fail(error.message, { status: error.status });
+    }
     throw error;
   }
 }
@@ -755,6 +1011,233 @@ async function deleteCard(
       },
     };
   });
+}
+
+async function moveCard(
+  args: {
+    courseId: string;
+    lessonId: string;
+    cardId: string;
+    stepId: string;
+    position: number;
+  },
+  ctx: PlannerToolContext,
+) {
+  return reviseLessonCard(args, ctx, (draft) => {
+    const from = draft.steps.findIndex((step) =>
+      step.blocks.some((block) => block.id === args.cardId),
+    );
+    if (from < 0) return { ok: false, error: "Unknown card id." };
+    const to = draft.steps.findIndex((step) => step.id === args.stepId);
+    if (to < 0) return { ok: false, error: "Unknown step id." };
+    const blockIndex = draft.steps[from].blocks.findIndex(
+      (block) => block.id === args.cardId,
+    );
+    const destinationCount =
+      draft.steps[to].blocks.length - (from === to ? 1 : 0);
+    if (args.position > destinationCount) {
+      const count = draft.steps[to].blocks.length;
+      const last = destinationCount;
+      return {
+        ok: false,
+        error:
+          from === to
+            ? `That position is outside this step. This step has ${count} cards including this one. Use 0 through ${last}.`
+            : `That position is outside this step. This step has ${count} cards. Use 0 through ${last}.`,
+      };
+    }
+    const steps = draft.steps.map((step) => ({
+      ...step,
+      blocks: [...step.blocks],
+    }));
+    const [moved] = steps[from].blocks.splice(blockIndex, 1);
+    steps[to].blocks.splice(args.position, 0, moved);
+    return { ok: true, cardId: args.cardId, draft: { ...draft, steps } };
+  });
+}
+
+async function patchCard(
+  args: {
+    courseId: string;
+    lessonId: string;
+    cardId: string;
+    fields: Record<string, unknown>;
+  },
+  ctx: PlannerToolContext,
+) {
+  return reviseLessonCard(args, ctx, (draft) => {
+    const current = draft.steps
+      .flatMap((step) => step.blocks)
+      .find((block) => block.id === args.cardId);
+    if (!current) return { ok: false, error: "Unknown card id." };
+    const allowed = cardFieldNames(current.type);
+    const unknown = Object.keys(args.fields).filter((key) => !allowed.has(key));
+    if (unknown.length)
+      return {
+        ok: false,
+        error: `Unknown card field ${unknown.map((key) => `"${key}"`).join(", ")}.`,
+      };
+    const parsed = BlockSchema.safeParse({ ...current, ...args.fields });
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "That card is not valid.",
+        errors: parsed.error.issues.map(
+          (issue) =>
+            `${issue.path.join(".")}: ${issue.message}`.replace(/^: /, ""),
+        ),
+      };
+    if (parsed.data.id !== args.cardId)
+      return { ok: false, error: "Cannot change the card id." };
+    return {
+      ok: true,
+      cardId: args.cardId,
+      draft: {
+        ...draft,
+        steps: draft.steps.map((step) => ({
+          ...step,
+          blocks: step.blocks.map((block) =>
+            block.id === args.cardId ? parsed.data : block,
+          ),
+        })),
+      },
+    };
+  });
+}
+
+async function updateLessonDetails(
+  args: {
+    courseId: string;
+    lessonId: string;
+    title?: string;
+    slug?: string;
+    description?: string;
+  },
+  ctx: PlannerToolContext,
+) {
+  const changes: Partial<Pick<LessonDraft, "title" | "slug" | "description">> =
+    {};
+  if (args.title !== undefined) changes.title = args.title;
+  if (args.slug !== undefined) changes.slug = args.slug;
+  if (args.description !== undefined) changes.description = args.description;
+  if (!Object.keys(changes).length)
+    return fail("Name the title, slug, or description to change.");
+  if (args.slug !== undefined && !readableSlug.test(args.slug))
+    return fail(
+      "Slug must use lowercase letters, digits, and hyphens, and it cannot start or end with a hyphen.",
+    );
+  return reviseLessonCard(
+    args,
+    ctx,
+    (draft) => ({
+      ok: true,
+      draft: { ...draft, ...changes },
+    }),
+    {
+      invalid: "Those lesson details are not valid.",
+      stale: "Call read_lesson before updating the lesson details again.",
+    },
+  );
+}
+
+async function restoreDraft(
+  args: { courseId: string; lessonId: string; revisionId: string },
+  ctx: PlannerToolContext,
+) {
+  const course = await accessibleCourse(args.courseId, ctx.user);
+  if (!course) return fail("You do not have access to that course.");
+  const lesson = await findLesson(course.id, args.lessonId);
+  if (!lesson?.draft_revision_id) return fail("Lesson not found");
+  const seen = ctx.seenVersions.get(lesson.id);
+  if (seen === undefined)
+    return fail(
+      "Read this lesson with read_lesson in this turn before restoring it. That keeps a newer editor save from being overwritten.",
+    );
+  const revision = (
+    await db().query(
+      "SELECT id FROM cms_lesson_revisions WHERE id=$1 AND lesson_id=$2 AND state='published'",
+      [args.revisionId, lesson.id],
+    )
+  ).rows[0];
+  if (!revision)
+    return fail(
+      "This published version is no longer available. Refresh version history.",
+    );
+  try {
+    const saved = await restoreRevision(
+      course.id,
+      lesson.id,
+      args.revisionId,
+      seen,
+      ctx.user.id,
+    );
+    ctx.seenVersions.set(lesson.id, saved.version);
+    return {
+      ok: true,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: saved.draft.title,
+      slug: saved.draft.slug,
+      version: saved.version,
+      revisionId: args.revisionId,
+      href: lessonHref(course, { slug: saved.draft.slug }),
+    };
+  } catch (error) {
+    if (error instanceof CmsError && error.status === 409)
+      return fail(
+        `${error.message} Call read_lesson before restoring again.`,
+        { status: 409 },
+      );
+    if (error instanceof CmsError) return fail(error.message);
+    throw error;
+  }
+}
+
+async function deleteLesson(
+  args: { courseId: string; lessonId: string },
+  ctx: PlannerToolContext,
+) {
+  const course = await accessibleCourse(args.courseId, ctx.user);
+  if (!course) return fail("You do not have access to that course.");
+  if (ctx.user.role !== "admin")
+    return fail("Only admins may perform this action");
+  const lesson = await findLesson(course.id, args.lessonId);
+  if (!lesson) return fail("Lesson not found");
+  // Same write as unpublishDraft(..., true), which is the editor's Archive
+  // action and the lesson DELETE route. The row stays; it is not hard-deleted.
+  const archived = await db().query(
+    "UPDATE cms_lessons SET published_revision_id=NULL,status=$1,version=version+1 WHERE id=$2 AND course_id=$3",
+    ["archived", lesson.id, course.id],
+  );
+  if (!archived.rowCount) return fail("Lesson not found");
+  return {
+    ok: true,
+    courseId: course.id,
+    lessonId: lesson.id,
+    archived: true,
+  };
+}
+
+async function renameChapter(
+  args: { courseId: string; chapterId: string; title: string },
+  ctx: PlannerToolContext,
+) {
+  const course = await accessibleCourse(args.courseId, ctx.user);
+  if (!course) return fail("You do not have access to that course.");
+  const chapter = (
+    await db().query(
+      "SELECT id FROM cms_chapters WHERE id=$1 AND course_id=$2",
+      [args.chapterId, course.id],
+    )
+  ).rows[0];
+  if (!chapter) return fail("Chapter not found");
+  await editChapter(course.id, { id: args.chapterId, title: args.title });
+  return {
+    ok: true,
+    courseId: course.id,
+    chapterId: args.chapterId,
+    title: args.title,
+  };
 }
 
 async function createChapter(

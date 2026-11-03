@@ -35,6 +35,12 @@ const statusLine: Record<string, string> = {
   update_card: "Updating card…",
   insert_card: "Adding card…",
   delete_card: "Removing card…",
+  move_card: "Moving card…",
+  patch_card: "Updating card fields…",
+  update_lesson_details: "Updating lesson details…",
+  restore_draft: "Restoring draft…",
+  delete_lesson: "Archiving lesson…",
+  rename_chapter: "Renaming chapter…",
   create_chapter: "Creating chapter…",
   move_lesson: "Moving lesson…",
 };

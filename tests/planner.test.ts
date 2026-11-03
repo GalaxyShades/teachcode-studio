@@ -21,7 +21,12 @@ import { migrate } from "../scripts/migrate";
 import { defaults, validateDraft, type LessonDraft } from "../lib/content";
 import { emptyDraft } from "../lib/cms";
 import { parseLessonMarkdown, serializeLessonMarkdown } from "../lib/markdown";
-import { loadRevision, persistDraft, writeRevision } from "../lib/repository";
+import {
+  loadRevision,
+  persistDraft,
+  publishRevision,
+  writeRevision,
+} from "../lib/repository";
 import {
   createValidationGate,
   issueValidationToken,
@@ -103,6 +108,31 @@ function context(user: User, threadId = "detached-thread"): PlannerToolContext {
 function textCard(id: string | undefined, body: string) {
   const attrs = id ? `id="${id}" visible=true` : "visible=true";
   return [`:::text{${attrs}}`, ":::markdown", body, ":::", ":::"].join("\n");
+}
+
+function exerciseCard(id: string) {
+  return [
+    `:::code-exercise{id="${id}" visible=true}`,
+    ":::language",
+    "python",
+    ":::",
+    ":::starterCode",
+    "points = 0",
+    ":::",
+    ":::solution",
+    "points = 5",
+    ":::",
+    ":::execution",
+    "browser",
+    ":::",
+    ":::instructions",
+    "Set points to 5.",
+    ":::",
+    ":::checkScript",
+    'assert points == 5, "Set points to 5."',
+    ":::",
+    ":::",
+  ].join("\n");
 }
 
 function cardsLesson(slug: string) {
@@ -426,6 +456,50 @@ describe("planner prompt", () => {
     expect(plannerReloadsLesson("insert_card")).toBe(true);
     expect(plannerReloadsLesson("delete_card")).toBe(true);
     expect(plannerReloadsLesson("read_lesson")).toBe(false);
+  });
+
+  it("names the smaller edit tools and when to use them", () => {
+    const prompt = plannerSystemPrompt();
+    for (const name of [
+      "move_card",
+      "patch_card",
+      "update_lesson_details",
+      "restore_draft",
+      "delete_lesson",
+      "rename_chapter",
+    ]) {
+      expect(prompt).toContain(name);
+      expect(
+        plannerToolSchemas.some((tool) => tool.function.name === name),
+      ).toBe(true);
+    }
+    expect(prompt).toContain("Use move_card instead of update_lesson");
+    expect(prompt).toContain("Use patch_card instead of update_card");
+    expect(prompt).toContain(
+      "Use update_lesson_details instead of update_lesson",
+    );
+    expect(prompt).toContain("Use restore_draft instead of update_lesson");
+    expect(prompt).toContain("Use rename_chapter instead of create_chapter");
+    expect(prompt).toContain("A title change does not change the slug.");
+    expect(prompt).toContain("It does not publish and it does not unarchive.");
+    expect(prompt).toContain("it does not hard-delete it");
+    expect(plannerReloadsLesson("move_card")).toBe(true);
+    expect(plannerReloadsLesson("patch_card")).toBe(true);
+    expect(plannerReloadsLesson("update_lesson_details")).toBe(true);
+    expect(plannerReloadsLesson("restore_draft")).toBe(true);
+    expect(plannerReloadsLesson("delete_lesson")).toBe(false);
+    expect(plannerReloadsLesson("rename_chapter")).toBe(false);
+    const patch = plannerToolSchemas.find(
+      (tool) => tool.function.name === "patch_card",
+    );
+    expect(JSON.stringify(patch)).toContain('"fields"');
+    expect(JSON.stringify(patch)).not.toContain("validationToken");
+    const move = plannerToolSchemas.find(
+      (tool) => tool.function.name === "move_card",
+    );
+    expect(JSON.stringify(move)).toContain('"stepId"');
+    expect(JSON.stringify(move)).toContain('"position"');
+    expect(JSON.stringify(move)).not.toContain("validationToken");
   });
 
   it("keeps GLM ids out of the selectable list and falls back to Qwen", () => {
@@ -1106,6 +1180,717 @@ describe("planner card edits", () => {
     const keptCard = kept.steps[0].blocks[1];
     expect(keptCard.type).toBe("text");
     if (keptCard.type === "text") expect(keptCard.markdown).toBe("OLD CARD");
+  });
+});
+
+describe("planner structural edits", () => {
+  it("moves one card across steps without duplicating or dropping cards", async () => {
+    const { ctx, lessonId, before } = await createCardsLesson("card-move-lesson");
+    const within = await runPlannerTool(
+      "move_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        stepId: "intro",
+        position: 0,
+      },
+      ctx,
+    );
+    expect(within.ok).toBe(true);
+    const reordered = await draftOf(lessonId);
+    expect(reordered.steps[0].blocks.map((block) => block.id)).toEqual([
+      "change-me",
+      "keep-me",
+    ]);
+    expect(reordered.steps[0].blocks[0]).toEqual(before.steps[0].blocks[1]);
+    expect(reordered.steps[0].blocks[1]).toEqual(before.steps[0].blocks[0]);
+    expect(reordered.steps[1]).toEqual(before.steps[1]);
+    expect(reordered.steps.flatMap((step) => step.blocks)).toHaveLength(3);
+
+    const moved = await runPlannerTool(
+      "move_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        stepId: "next-step",
+        position: 0,
+      },
+      ctx,
+    );
+    expect(moved.ok).toBe(true);
+    expect(plannerWriteChange("move_card", moved)).toMatchObject({
+      action: "move_card",
+      courseId: courseA,
+      lessonId,
+    });
+    const after = await draftOf(lessonId);
+    expect(after.steps[0].blocks.map((block) => block.id)).toEqual(["keep-me"]);
+    expect(after.steps[0].blocks[0]).toEqual(before.steps[0].blocks[0]);
+    expect(after.steps[1].blocks.map((block) => block.id)).toEqual([
+      "change-me",
+      "22222222-2222-4222-8222-222222222222",
+    ]);
+    expect(after.steps[1].blocks[0]).toEqual(before.steps[0].blocks[1]);
+    expect(after.steps[1].blocks[1]).toEqual(before.steps[1].blocks[0]);
+    const ids = after.steps.flatMap((step) => step.blocks.map((block) => block.id));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(3);
+    expect(after.title).toBe(before.title);
+    expect(after.slug).toBe(before.slug);
+
+    const version = Number(after.version);
+    const missingCard = await runPlannerTool(
+      "move_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "missing-card",
+        stepId: "intro",
+        position: 0,
+      },
+      ctx,
+    );
+    expect(missingCard.ok).toBe(false);
+    expect(missingCard.error).toBe("Unknown card id.");
+    const missingStep = await runPlannerTool(
+      "move_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "keep-me",
+        stepId: "missing-step",
+        position: 0,
+      },
+      ctx,
+    );
+    expect(missingStep.ok).toBe(false);
+    expect(missingStep.error).toBe("Unknown step id.");
+    const kept = await draftOf(lessonId);
+    expect(Number(kept.version)).toBe(version);
+    expect(kept.steps).toEqual(after.steps);
+  });
+
+  it("returns 409 when a card move is stale", async () => {
+    const { ctx, lessonId } = await createCardsLesson("card-move-stale");
+    const lesson = (
+      await db().query("SELECT * FROM cms_lessons WHERE id=$1", [lessonId])
+    ).rows[0];
+    const current = await loadRevision(db(), lesson, lesson.draft_revision_id);
+    await persistDraft(
+      courseA,
+      lessonId,
+      {
+        ...current,
+        title: "Saved in the editor",
+        version: Number(lesson.version),
+      },
+      admin,
+    );
+    const stale = await runPlannerTool(
+      "move_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        stepId: "next-step",
+        position: 0,
+      },
+      ctx,
+    );
+    expect(stale.ok).toBe(false);
+    expect(stale.status).toBe(409);
+    const kept = await draftOf(lessonId);
+    expect(kept.title).toBe("Saved in the editor");
+    expect(kept.steps[0].blocks.map((block) => block.id)).toEqual([
+      "keep-me",
+      "change-me",
+    ]);
+  });
+
+  it("patches one card field and leaves the code intact", async () => {
+    const { ctx, lessonId, before } = await createCardsLesson(
+      "card-patch-lesson",
+    );
+    const inserted = await runPlannerTool(
+      "insert_card",
+      {
+        courseId: courseA,
+        lessonId,
+        stepId: "intro",
+        position: 1,
+        markdown: exerciseCard("score-exercise"),
+      },
+      ctx,
+    );
+    expect(inserted.ok).toBe(true);
+    const seeded = await draftOf(lessonId);
+    const exercise = seeded.steps[0].blocks[1];
+    expect(exercise.type).toBe("code-exercise");
+
+    const unknownField = await runPlannerTool(
+      "patch_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "score-exercise",
+        fields: { solutionNotes: "nope" },
+      },
+      ctx,
+    );
+    expect(unknownField.ok).toBe(false);
+    expect(unknownField.error).toMatch(/Unknown card field/);
+    const invalid = await runPlannerTool(
+      "patch_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "score-exercise",
+        fields: { language: "javascript" },
+      },
+      ctx,
+    );
+    expect(invalid.ok).toBe(false);
+    expect(invalid.error).toMatch(/not valid/);
+    const missing = await runPlannerTool(
+      "patch_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "missing-card",
+        fields: { instructions: "Nope" },
+      },
+      ctx,
+    );
+    expect(missing.ok).toBe(false);
+    expect(missing.error).toBe("Unknown card id.");
+    expect((await draftOf(lessonId)).steps).toEqual(seeded.steps);
+
+    const patched = await runPlannerTool(
+      "patch_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "score-exercise",
+        fields: { instructions: "Print the score after you set it." },
+      },
+      ctx,
+    );
+    expect(patched.ok).toBe(true);
+    expect(patched.cardId).toBe("score-exercise");
+    expect(plannerWriteChange("patch_card", patched)).toMatchObject({
+      action: "patch_card",
+      lessonId,
+    });
+    const after = await draftOf(lessonId);
+    expect(after.steps[0].blocks.map((block) => block.id)).toEqual([
+      "keep-me",
+      "score-exercise",
+      "change-me",
+    ]);
+    expect(after.steps[0].blocks[0]).toEqual(before.steps[0].blocks[0]);
+    expect(after.steps[0].blocks[2]).toEqual(before.steps[0].blocks[1]);
+    expect(after.steps[1]).toEqual(before.steps[1]);
+    const updated = after.steps[0].blocks[1];
+    expect(updated.type).toBe("code-exercise");
+    if (updated.type === "code-exercise" && exercise.type === "code-exercise") {
+      expect(updated.instructions).toBe("Print the score after you set it.");
+      expect(updated.starterCode).toBe(exercise.starterCode);
+      expect(updated.solution).toBe(exercise.solution);
+      expect(updated.checkScript).toBe(exercise.checkScript);
+      expect(updated.language).toBe(exercise.language);
+      expect(updated.execution).toBe("browser");
+      expect(updated.id).toBe("score-exercise");
+    }
+    expect(after.title).toBe(before.title);
+    expect(after.slug).toBe(before.slug);
+  });
+
+  it("returns 409 when a card patch is stale", async () => {
+    const { ctx, lessonId } = await createCardsLesson("card-patch-stale");
+    const lesson = (
+      await db().query("SELECT * FROM cms_lessons WHERE id=$1", [lessonId])
+    ).rows[0];
+    const current = await loadRevision(db(), lesson, lesson.draft_revision_id);
+    await persistDraft(
+      courseA,
+      lessonId,
+      {
+        ...current,
+        title: "Saved in the editor",
+        version: Number(lesson.version),
+      },
+      admin,
+    );
+    const stale = await runPlannerTool(
+      "patch_card",
+      {
+        courseId: courseA,
+        lessonId,
+        cardId: "change-me",
+        fields: { markdown: "TOO LATE" },
+      },
+      ctx,
+    );
+    expect(stale.ok).toBe(false);
+    expect(stale.status).toBe(409);
+    const kept = await draftOf(lessonId);
+    expect(kept.title).toBe("Saved in the editor");
+    const keptCard = kept.steps[0].blocks[1];
+    expect(keptCard.type).toBe("text");
+    if (keptCard.type === "text") expect(keptCard.markdown).toBe("OLD CARD");
+  });
+
+  it("changes a lesson title without rewriting card bodies", async () => {
+    const { ctx, lessonId, before } = await createCardsLesson(
+      "card-details-lesson",
+    );
+    const taken = await createCardsLesson("taken-details-lesson");
+    const invalid = await runPlannerTool(
+      "update_lesson_details",
+      {
+        courseId: courseA,
+        lessonId,
+        slug: "Not A Slug",
+      },
+      ctx,
+    );
+    expect(invalid.ok).toBe(false);
+    expect(invalid.error).toMatch(/slug/i);
+    expect((await draftOf(lessonId)).slug).toBe(before.slug);
+    expect(Number((await draftOf(lessonId)).version)).toBe(
+      Number(before.version),
+    );
+
+    const renamed = await runPlannerTool(
+      "update_lesson_details",
+      {
+        courseId: courseA,
+        lessonId,
+        title: "Renamed card lesson",
+      },
+      ctx,
+    );
+    expect(renamed.ok).toBe(true);
+    expect(plannerWriteChange("update_lesson_details", renamed)).toMatchObject({
+      action: "update_lesson_details",
+      courseId: courseA,
+      lessonId,
+    });
+    const titled = await draftOf(lessonId);
+    expect(titled.title).toBe("Renamed card lesson");
+    expect(titled.slug).toBe(before.slug);
+    expect(titled.description).toBe(before.description);
+    expect(titled.track).toBe(before.track);
+    expect(titled.programmingLanguage).toBe(before.programmingLanguage);
+    expect(titled.tags).toEqual(before.tags);
+    expect(titled.steps).toEqual(before.steps);
+    expect(renamed.href).toBe(
+      "/courses/assigned-course/lessons/card-details-lesson/edit",
+    );
+
+    const collision = await runPlannerTool(
+      "update_lesson_details",
+      {
+        courseId: courseA,
+        lessonId,
+        slug: "taken-details-lesson",
+      },
+      ctx,
+    );
+    expect(collision.ok).toBe(false);
+    expect(collision.error).toMatch(/slug/i);
+    expect((await draftOf(lessonId)).slug).toBe(before.slug);
+    expect((await draftOf(taken.lessonId)).steps).toEqual(taken.before.steps);
+
+    const reslugged = await runPlannerTool(
+      "update_lesson_details",
+      {
+        courseId: courseA,
+        lessonId,
+        slug: "renamed-card-lesson",
+      },
+      ctx,
+    );
+    expect(reslugged.ok).toBe(true);
+    expect(reslugged.href).toBe(
+      "/courses/assigned-course/lessons/renamed-card-lesson/edit",
+    );
+    const after = await draftOf(lessonId);
+    expect(after.slug).toBe("renamed-card-lesson");
+    expect(after.title).toBe("Renamed card lesson");
+    expect(after.description).toBe(before.description);
+    expect(after.steps).toEqual(before.steps);
+
+    await persistDraft(
+      courseA,
+      lessonId,
+      {
+        ...after,
+        title: "Saved in the editor",
+        version: Number(after.version),
+      },
+      admin,
+    );
+    const stale = await runPlannerTool(
+      "update_lesson_details",
+      {
+        courseId: courseA,
+        lessonId,
+        title: "Too late",
+      },
+      ctx,
+    );
+    expect(stale.ok).toBe(false);
+    expect(stale.status).toBe(409);
+    const kept = await draftOf(lessonId);
+    expect(kept.title).toBe("Saved in the editor");
+    expect(kept.steps).toEqual(before.steps);
+  });
+
+  it("restores a published snapshot onto the draft and does not publish", async () => {
+    const { ctx, lessonId, before } = await createCardsLesson(
+      "restore-draft-lesson",
+    );
+    const first = await publishRevision(
+      courseA,
+      lessonId,
+      { ...before, title: "Snapshot one", version: Number(before.version) },
+      admin,
+    );
+    let current = await draftOf(lessonId);
+    const second = await publishRevision(
+      courseA,
+      lessonId,
+      {
+        ...current,
+        title: "Snapshot two",
+        version: Number(current.version),
+        steps: current.steps.map((step) => ({
+          ...step,
+          blocks: step.blocks.map((block) =>
+            block.id === "change-me" && block.type === "text"
+              ? { ...block, markdown: "SECOND SNAPSHOT" }
+              : block,
+          ),
+        })),
+      },
+      admin,
+    );
+    current = await draftOf(lessonId);
+    await persistDraft(
+      courseA,
+      lessonId,
+      {
+        ...current,
+        title: "Working draft",
+        version: Number(current.version),
+        steps: current.steps.map((step) => ({
+          ...step,
+          blocks: step.blocks.map((block) =>
+            block.id === "change-me" && block.type === "text"
+              ? { ...block, markdown: "WORKING DRAFT" }
+              : block,
+          ),
+        })),
+      },
+      admin,
+    );
+    const cold = await runPlannerTool(
+      "restore_draft",
+      {
+        courseId: courseA,
+        lessonId,
+        revisionId: first.revisionId,
+      },
+      ctx,
+    );
+    expect(cold.ok).toBe(false);
+    expect((await draftOf(lessonId)).title).toBe("Working draft");
+
+    const read = await runPlannerTool(
+      "read_lesson",
+      { courseId: courseA, lessonId },
+      ctx,
+    );
+    expect(read.ok).toBe(true);
+    expect(read.revisions.map((revision: { id: string }) => revision.id)).toEqual([
+      second.revisionId,
+      first.revisionId,
+    ]);
+    const unknown = await runPlannerTool(
+      "restore_draft",
+      {
+        courseId: courseA,
+        lessonId,
+        revisionId: "missing-revision",
+      },
+      ctx,
+    );
+    expect(unknown.ok).toBe(false);
+    expect(unknown.error).toMatch(/no longer available/);
+    expect((await draftOf(lessonId)).title).toBe("Working draft");
+    const workingCard = (await draftOf(lessonId)).steps[0].blocks[1];
+    expect(workingCard.type).toBe("text");
+    if (workingCard.type === "text")
+      expect(workingCard.markdown).toBe("WORKING DRAFT");
+
+    const restored = await runPlannerTool(
+      "restore_draft",
+      {
+        courseId: courseA,
+        lessonId,
+        revisionId: first.revisionId,
+      },
+      ctx,
+    );
+    expect(restored.ok).toBe(true);
+    expect(restored.title).toBe("Snapshot one");
+    expect(plannerWriteChange("restore_draft", restored)).toMatchObject({
+      action: "restore_draft",
+      courseId: courseA,
+      lessonId,
+    });
+    const draft = await draftOf(lessonId);
+    expect(draft.title).toBe("Snapshot one");
+    const restoredCard = draft.steps[0].blocks[1];
+    expect(restoredCard.type).toBe("text");
+    if (restoredCard.type === "text")
+      expect(restoredCard.markdown).toBe("OLD CARD");
+    expect(draft.steps[0].blocks[0]).toEqual(before.steps[0].blocks[0]);
+    expect(draft.steps[1]).toEqual(before.steps[1]);
+    const row = (
+      await db().query("SELECT * FROM cms_lessons WHERE id=$1", [lessonId])
+    ).rows[0];
+    expect(row.status).toBe("published");
+    expect(row.published_revision_id).toBe(second.revisionId);
+    const published = await loadRevision(db(), row, second.revisionId);
+    expect(published.title).toBe("Snapshot two");
+    const publishedCard = published.steps[0].blocks[1];
+    expect(publishedCard.type).toBe("text");
+    if (publishedCard.type === "text")
+      expect(publishedCard.markdown).toBe("SECOND SNAPSHOT");
+    expect(
+      (
+        await db().query(
+          "SELECT id FROM cms_lesson_revisions WHERE lesson_id=$1 AND state='published'",
+          [lessonId],
+        )
+      ).rowCount,
+    ).toBe(2);
+
+    await persistDraft(
+      courseA,
+      lessonId,
+      {
+        ...draft,
+        title: "Saved in the editor",
+        version: Number(draft.version),
+      },
+      admin,
+    );
+    const stale = await runPlannerTool(
+      "restore_draft",
+      {
+        courseId: courseA,
+        lessonId,
+        revisionId: first.revisionId,
+      },
+      ctx,
+    );
+    expect(stale.ok).toBe(false);
+    expect(stale.status).toBe(409);
+    expect((await draftOf(lessonId)).title).toBe("Saved in the editor");
+
+    asUser(sessions.admin);
+    const archived = await runPlannerTool(
+      "delete_lesson",
+      { courseId: courseA, lessonId },
+      context(adminUser),
+    );
+    expect(archived.ok).toBe(true);
+    const staffCtx = context(staffUser);
+    const reread = await runPlannerTool(
+      "read_lesson",
+      { courseId: courseA, lessonId },
+      staffCtx,
+    );
+    expect(reread.ok).toBe(true);
+    const broughtBack = await runPlannerTool(
+      "restore_draft",
+      {
+        courseId: courseA,
+        lessonId,
+        revisionId: first.revisionId,
+      },
+      staffCtx,
+    );
+    expect(broughtBack.ok).toBe(true);
+    const afterArchive = (
+      await db().query(
+        "SELECT status, published_revision_id FROM cms_lessons WHERE id=$1",
+        [lessonId],
+      )
+    ).rows[0];
+    expect(afterArchive.status).toBe("archived");
+    expect(afterArchive.published_revision_id).toBeNull();
+    expect((await draftOf(lessonId)).title).toBe("Snapshot one");
+
+    const denied = await runPlannerTool(
+      "restore_draft",
+      {
+        courseId: courseB,
+        lessonId: lessonB,
+        revisionId: "missing-revision",
+      },
+      context(staffUser),
+    );
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toMatch(/access/i);
+    expect(JSON.stringify(denied)).not.toContain("SECRET-OTHER-COURSE");
+  });
+
+  it("archives a lesson and renames a chapter for an allowed user", async () => {
+    asUser(sessions.staff);
+    const staffCtx = context(staffUser);
+    const created = await runPlannerTool(
+      "create_chapter",
+      { courseId: courseA, title: "Old chapter" },
+      staffCtx,
+    );
+    expect(created.ok).toBe(true);
+    const renamed = await runPlannerTool(
+      "rename_chapter",
+      {
+        courseId: courseA,
+        chapterId: created.chapterId,
+        title: "New chapter",
+      },
+      staffCtx,
+    );
+    expect(renamed.ok).toBe(true);
+    expect(plannerWriteChange("rename_chapter", renamed)).toEqual({
+      action: "rename_chapter",
+      courseId: courseA,
+      lessonId: undefined,
+    });
+    expect(
+      (
+        await db().query("SELECT title FROM cms_chapters WHERE id=$1", [
+          created.chapterId,
+        ])
+      ).rows[0].title,
+    ).toBe("New chapter");
+
+    const { lessonId, before } = await createCardsLesson("archive-me-lesson");
+    const staffDelete = await runPlannerTool(
+      "delete_lesson",
+      { courseId: courseA, lessonId },
+      staffCtx,
+    );
+    expect(staffDelete.ok).toBe(false);
+    expect(staffDelete.error).toMatch(/admin/i);
+    expect(
+      (
+        await db().query("SELECT status FROM cms_lessons WHERE id=$1", [
+          lessonId,
+        ])
+      ).rows[0].status,
+    ).toBe("draft");
+    expect((await draftOf(lessonId)).steps).toEqual(before.steps);
+
+    asUser(sessions.admin);
+    const removed = await runPlannerTool(
+      "delete_lesson",
+      { courseId: courseA, lessonId },
+      context(adminUser),
+    );
+    expect(removed.ok).toBe(true);
+    expect(removed.archived).toBe(true);
+    expect(plannerWriteChange("delete_lesson", removed)).toMatchObject({
+      action: "delete_lesson",
+      courseId: courseA,
+      lessonId,
+    });
+    const row = (
+      await db().query(
+        "SELECT id, status, published_revision_id FROM cms_lessons WHERE id=$1",
+        [lessonId],
+      )
+    ).rows[0];
+    expect(row.status).toBe("archived");
+    expect(row.published_revision_id).toBeNull();
+    expect((await draftOf(lessonId)).steps).toEqual(before.steps);
+
+    const deniedRename = await runPlannerTool(
+      "rename_chapter",
+      {
+        courseId: courseB,
+        chapterId: created.chapterId,
+        title: "Stolen",
+      },
+      context(staffUser),
+    );
+    expect(deniedRename.ok).toBe(false);
+    expect(deniedRename.error).toMatch(/access/i);
+    const deniedDelete = await runPlannerTool(
+      "delete_lesson",
+      { courseId: courseB, lessonId: lessonB },
+      context(staffUser),
+    );
+    expect(deniedDelete.ok).toBe(false);
+    expect(deniedDelete.error).toMatch(/access/i);
+    expect(
+      (
+        await db().query("SELECT title FROM cms_chapters WHERE id=$1", [
+          created.chapterId,
+        ])
+      ).rows[0].title,
+    ).toBe("New chapter");
+    expect(
+      (
+        await db().query("SELECT status FROM cms_lessons WHERE id=$1", [
+          lessonB,
+        ])
+      ).rows[0].status,
+    ).not.toBe("archived");
+
+    asUser(sessions.admin);
+    const lessonsBefore = (
+      await db().query("SELECT id FROM cms_lessons WHERE course_id=$1", [
+        courseA,
+      ])
+    ).rowCount;
+    const missingLesson = await runPlannerTool(
+      "delete_lesson",
+      { courseId: courseA, lessonId: "missing-lesson" },
+      context(adminUser),
+    );
+    expect(missingLesson.ok).toBe(false);
+    expect(missingLesson.error).toBe("Lesson not found");
+    expect(
+      (
+        await db().query("SELECT id FROM cms_lessons WHERE course_id=$1", [
+          courseA,
+        ])
+      ).rowCount,
+    ).toBe(lessonsBefore);
+    const missingChapter = await runPlannerTool(
+      "rename_chapter",
+      {
+        courseId: courseA,
+        chapterId: "missing-chapter",
+        title: "Nope",
+      },
+      context(adminUser),
+    );
+    expect(missingChapter.ok).toBe(false);
+    expect(missingChapter.error).toBe("Chapter not found");
+    expect(
+      (await db().query("SELECT id FROM cms_chapters WHERE title=$1", ["Nope"]))
+        .rowCount,
+    ).toBe(0);
   });
 });
 

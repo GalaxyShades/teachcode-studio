@@ -6,6 +6,12 @@ export type PlannerWriteAction =
   | "update_card"
   | "insert_card"
   | "delete_card"
+  | "move_card"
+  | "patch_card"
+  | "update_lesson_details"
+  | "restore_draft"
+  | "delete_lesson"
+  | "rename_chapter"
   | "create_chapter"
   | "move_lesson";
 
@@ -21,6 +27,12 @@ const writeActions = new Set<string>([
   "update_card",
   "insert_card",
   "delete_card",
+  "move_card",
+  "patch_card",
+  "update_lesson_details",
+  "restore_draft",
+  "delete_lesson",
+  "rename_chapter",
   "create_chapter",
   "move_lesson",
 ]);
@@ -31,6 +43,10 @@ const lessonReloadActions = new Set<string>([
   "update_card",
   "insert_card",
   "delete_card",
+  "move_card",
+  "patch_card",
+  "update_lesson_details",
+  "restore_draft",
 ]);
 
 /** True when the open lesson editor should reload this lesson's draft. */
