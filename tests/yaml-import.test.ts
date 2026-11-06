@@ -43,6 +43,42 @@ describe("yaml lesson import", () => {
     expect(converted.assistant.suggestedQuestions).toContain("print");
   });
 
+  it("strips Markdown fences from worked-example code", () => {
+    const converted = lessonFromPack(
+      {
+        id: "comp1117-python-basics",
+        title: "Café Code Sprint",
+        description: "Start here.",
+        track: "python",
+        language: "python",
+        steps: [
+          {
+            id: "variables",
+            title: "Name the seat",
+            instruction: {
+              description: "Store a seat number.",
+              workedExamples: [
+                {
+                  code: "```python\nseat_number = 3\nprint(seat_number)\n```",
+                  note: "Assign then print.",
+                  runnable: true,
+                },
+              ],
+            },
+          },
+        ],
+      },
+      "https://codewithAI.hku.hk",
+    );
+    const example = converted.draft.steps[0].blocks.find(
+      (block) => block.type === "worked-example",
+    );
+    expect(example && example.type === "worked-example" && example.code).toBe(
+      "seat_number = 3\nprint(seat_number)",
+    );
+    expect(converted.errors).toEqual([]);
+  });
+
   it("turns a site-relative figure into an https URL", () => {
     const converted = lessonFromPack(
       {

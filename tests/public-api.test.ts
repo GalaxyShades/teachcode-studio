@@ -91,6 +91,22 @@ describe("content API contract", () => {
     expect(exercise).not.toHaveProperty("prompt");
     expect(exercise).not.toHaveProperty("ignoredIssues");
     expect(exercise).not.toHaveProperty("issuesToIgnore");
+    // publicDraft must not copy author-root assistants; publishedLesson attaches
+    // a sanitized top-level `assistant` from DB rows separately.
+    expect(output).not.toHaveProperty("assistant");
+    expect(output).not.toHaveProperty("courseAssistant");
+    expect(output).not.toHaveProperty("lessonAssistant");
+    const withAssistant = PublicLessonSchema.parse({
+      ...output,
+      assistant: {
+        suggestedQuestions: "What does print do?",
+        constraints: "Stay on print.",
+      },
+    });
+    expect(withAssistant.assistant).toEqual({
+      suggestedQuestions: "What does print do?",
+      constraints: "Stay on print.",
+    });
     const json = JSON.stringify(output);
     for (const field of [
       "PRIVATE",
@@ -109,7 +125,6 @@ describe("content API contract", () => {
       "additionalPenalties",
       "ignoredIssues",
       "issuesToIgnore",
-      "suggestedQuestions",
       "chips",
       "PRIVATE_PENALTY",
       "PRIVATE_IGNORE",

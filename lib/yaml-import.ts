@@ -5,6 +5,7 @@ import {
   type Block,
   type LessonDraft,
 } from "./content";
+import { unfence } from "./markdown";
 
 export type ImportCourse = {
   module: string;
@@ -187,7 +188,7 @@ function blocksForStep(
       visible: true,
       title: "",
       language,
-      code: example.code,
+      code: unfence(example.code.trim()),
       explanation: example.note || "",
       runnable: Boolean(example.runnable),
     });
@@ -242,17 +243,25 @@ function blocksForStep(
       .filter((value) => value.token)
       .map((value) => `${value.token} (${value.min}–${value.max})`)
       .join(", ");
+    const starter = step.code.starter || "";
+    const suitePlaceholder =
+      starter.trim() === "# Generated in the interactive suite.";
     blocks.push({
       id: `${stepId}-code`,
       type: "code-exercise",
       visible: true,
       language: step.code.language === "r" ? "r" : language,
-      starterCode: step.code.starter || "",
+      // Keep the placeholder when the student app will regenerate suite starters
+      // from lib/interactive-suites using the pack slug (lesson id).
+      starterCode: starter,
       solution: step.code.solution,
       execution: step.execution === "server" ? "server" : "browser",
       instructions: [
         instruction?.task?.trim() || "Write and run the code for this step.",
         personal ? `This step personalizes: ${personal}.` : "",
+        suitePlaceholder
+          ? "Starter values for this exercise are generated when you open the step in the student app."
+          : "",
       ]
         .filter(Boolean)
         .join("\n\n"),

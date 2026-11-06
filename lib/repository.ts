@@ -547,6 +547,13 @@ export async function restoreRevision(
   });
 }
 
+function publicAssistant(settings: AssistantSettings): AssistantSettings | undefined {
+  const suggestedQuestions = settings.suggestedQuestions.trim();
+  const constraints = settings.constraints.trim();
+  if (!suggestedQuestions && !constraints) return undefined;
+  return { suggestedQuestions, constraints };
+}
+
 export async function publishedLesson(courseId: string, lessonId: string) {
   return readSnapshot(async (c) => {
     // Keep the selected publication available while loading its content.
@@ -557,12 +564,28 @@ export async function publishedLesson(courseId: string, lessonId: string) {
       )
     ).rows[0];
     if (!l) throw new CmsError(404, "Published lesson not found");
+    const revisionId = l.published_revision_id as string;
+    const lessonAssistant = await readAssistant(
+      c,
+      "cms_lesson_assistants",
+      "revision_id",
+      revisionId,
+    );
+    const courseAssistant = await readAssistant(
+      c,
+      "cms_course_assistants",
+      "course_id",
+      courseId,
+    );
+    const assistant =
+      publicAssistant(lessonAssistant) ?? publicAssistant(courseAssistant);
     return {
       apiVersion: CONTENT_API_VERSION,
-      ...publicDraft(await loadRevision(c, l, l.published_revision_id)),
+      ...publicDraft(await loadRevision(c, l, revisionId)),
+      ...(assistant ? { assistant } : {}),
       courseId,
       lessonId,
-      revisionId: l.published_revision_id as string,
+      revisionId,
     };
   });
 }

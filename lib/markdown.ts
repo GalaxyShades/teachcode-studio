@@ -61,7 +61,8 @@ function attributes(raw: string, line: number, errors: MarkdownError[]) {
 const body = (n: Node) => n.body.join("\n");
 const textBody = (n: Node) =>
   n.attrs.format === "fenced" ? unfence(body(n)) : body(n);
-const unfence = (s: string) => {
+/** Strip a surrounding Markdown code fence from authored source. */
+export const unfence = (s: string) => {
   const m = /^(`{3,}|~{3,})[^\n]*\n([\s\S]*)\n\1$/.exec(s);
   return m ? m[2] : s;
 };

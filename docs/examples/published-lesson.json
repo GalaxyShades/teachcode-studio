@@ -31,6 +31,10 @@
       ]
     }
   ],
+  "assistant": {
+    "suggestedQuestions": "What does print do?\nWhen do I need quotes?",
+    "constraints": "Stay on print and strings for this lesson."
+  },
   "apiVersion": 1,
   "courseId": "a1000000-0000-4000-8000-000000000001",
   "lessonId": "a1000000-0000-4000-8000-000000000002",

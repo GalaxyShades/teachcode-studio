@@ -103,6 +103,12 @@ export const ContentBlockSchema = z.discriminatedUnion("type", [
   blocks[7].omit({ rubric: true }),
   blocks[8],
 ]);
+/** Non-secret tutor chips/constraints. Never includes check scripts or solutions. */
+export const PublicAssistantSchema = z.object({
+  suggestedQuestions: z.string(),
+  constraints: z.string(),
+});
+
 export const PublicLessonSchema = PublicDraftSchema.omit({
   sourceMarkdown: true,
 }).extend({
@@ -111,6 +117,7 @@ export const PublicLessonSchema = PublicDraftSchema.omit({
       z.object({ id, title: z.string(), blocks: z.array(ContentBlockSchema) }),
     )
     .min(1),
+  assistant: PublicAssistantSchema.optional(),
   apiVersion: z.literal(CONTENT_API_VERSION),
   courseId: id,
   lessonId: id,

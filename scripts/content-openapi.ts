@@ -19,6 +19,10 @@ export const lessonExample = PublicLessonSchema.parse({
   track: "Python",
   programmingLanguage: "Python",
   tags: ["beginner"],
+  assistant: {
+    suggestedQuestions: "What does print do?\nWhen do I need quotes?",
+    constraints: "Stay on print and strings for this lesson.",
+  },
   steps: [
     {
       id: "first-program",
