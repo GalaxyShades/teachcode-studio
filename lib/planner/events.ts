@@ -1,7 +1,19 @@
 export const plannerContentChanged = "planner-content-changed";
 
 export type PlannerWriteAction =
-  "create_lesson" | "update_lesson" | "create_chapter" | "move_lesson";
+  | "create_lesson"
+  | "update_lesson"
+  | "update_card"
+  | "insert_card"
+  | "delete_card"
+  | "move_card"
+  | "patch_card"
+  | "update_lesson_details"
+  | "restore_draft"
+  | "delete_lesson"
+  | "rename_chapter"
+  | "create_chapter"
+  | "move_lesson";
 
 export type PlannerContentChange = {
   action: PlannerWriteAction;
@@ -12,9 +24,35 @@ export type PlannerContentChange = {
 const writeActions = new Set<string>([
   "create_lesson",
   "update_lesson",
+  "update_card",
+  "insert_card",
+  "delete_card",
+  "move_card",
+  "patch_card",
+  "update_lesson_details",
+  "restore_draft",
+  "delete_lesson",
+  "rename_chapter",
   "create_chapter",
   "move_lesson",
 ]);
+
+const lessonReloadActions = new Set<string>([
+  "create_lesson",
+  "update_lesson",
+  "update_card",
+  "insert_card",
+  "delete_card",
+  "move_card",
+  "patch_card",
+  "update_lesson_details",
+  "restore_draft",
+]);
+
+/** True when the open lesson editor should reload this lesson's draft. */
+export function plannerReloadsLesson(action: string) {
+  return lessonReloadActions.has(action);
+}
 
 export function plannerWriteChange(
   action: string,

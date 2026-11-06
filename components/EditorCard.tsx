@@ -46,6 +46,24 @@ export function cardSummary(block: Block) {
       return block.filename;
   }
 }
+function placeMenu(anchor: HTMLElement, menu: HTMLElement) {
+  const rect = anchor.getBoundingClientRect();
+  const margin = 4;
+  const right = Math.max(8, window.innerWidth - rect.right);
+  menu.style.position = "fixed";
+  menu.style.margin = "0";
+  menu.style.left = "auto";
+  menu.style.right = `${right}px`;
+  const height = menu.offsetHeight;
+  const spaceBelow = window.innerHeight - rect.bottom - margin;
+  if (height > spaceBelow && rect.top > spaceBelow) {
+    menu.style.top = "auto";
+    menu.style.bottom = `${window.innerHeight - rect.top + margin}px`;
+  } else {
+    menu.style.bottom = "auto";
+    menu.style.top = `${rect.bottom + margin}px`;
+  }
+}
 export function ActionMenu({
   label,
   text,
@@ -58,48 +76,79 @@ export function ActionMenu({
   className?: string;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDetailsElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const close = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node))
-        ref.current?.removeAttribute("open");
+    const root = rootRef.current;
+    const details = detailsRef.current;
+    const menu = menuRef.current;
+    if (!root || !details || !menu) return;
+    const summary = () => details.querySelector("summary");
+    const sync = () => {
+      if (!details.open) {
+        if (menu.matches(":popover-open")) menu.hidePopover();
+        return;
+      }
+      const anchor = summary();
+      if (!anchor) return;
+      placeMenu(anchor, menu);
+      if (!menu.matches(":popover-open")) menu.showPopover();
+      placeMenu(anchor, menu);
     };
+    const close = (e: PointerEvent) => {
+      if (!root.contains(e.target as Node)) details.removeAttribute("open");
+    };
+    details.addEventListener("toggle", sync);
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    window.addEventListener("resize", sync);
+    window.addEventListener("scroll", sync, true);
+    return () => {
+      details.removeEventListener("toggle", sync);
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync, true);
+      if (menu.matches(":popover-open")) menu.hidePopover();
+    };
   }, []);
   return (
-    <details
-      ref={ref}
-      className={`group relative shrink-0 ${className ?? ""}`}
+    <div
+      ref={rootRef}
+      className={`relative shrink-0 ${className ?? ""}`}
       data-no-drag
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" && detailsRef.current?.open) {
           e.stopPropagation();
-          ref.current?.removeAttribute("open");
-          ref.current?.querySelector("summary")?.focus();
+          detailsRef.current.removeAttribute("open");
+          detailsRef.current.querySelector("summary")?.focus();
         }
       }}
     >
-      <summary
-        aria-label={label}
-        className={
-          text
-            ? "btn-secondary cursor-pointer list-none [&::-webkit-details-marker]:hidden"
-            : "flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 [&::-webkit-details-marker]:hidden"
-        }
-      >
-        {text ?? "⋯"}
-      </summary>
+      <details ref={detailsRef}>
+        <summary
+          role="button"
+          aria-label={label}
+          className={
+            text
+              ? "btn-secondary cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+              : "flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-lg text-zinc-600 hover:bg-zinc-100 [&::-webkit-details-marker]:hidden"
+          }
+        >
+          {text ?? "⋯"}
+        </summary>
+      </details>
       <div
-        className="absolute right-0 top-full z-30 mt-1 hidden w-56 rounded-xl border bg-white p-1.5 shadow-lg group-open:block [&>button]:w-full [&>button]:justify-start [&>button]:border-0 [&>button]:text-left"
+        ref={menuRef}
+        popover="manual"
+        className="w-56 rounded-xl border border-zinc-200 bg-white p-1.5 text-left text-sm font-normal text-zinc-900 shadow-lg [&>button]:w-full [&>button]:justify-start [&>button]:border-0 [&>button]:bg-transparent [&>button]:text-left"
         onClick={(e) => {
           if ((e.target as Element).closest("button"))
-            ref.current?.removeAttribute("open");
+            detailsRef.current?.removeAttribute("open");
         }}
       >
         {children}
       </div>
-    </details>
+    </div>
   );
 }
 function HeaderIcon({ children }: { children: ReactNode }) {

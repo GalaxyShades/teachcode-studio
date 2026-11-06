@@ -21,6 +21,9 @@ test("published history restores only the draft and enforces permissions and con
     (await (await page.request.get(base + "/draft")).json()).draft;
   await page.goto(`/courses/${course}/lessons/${lesson}/edit`);
   await page
+    .getByRole("button", { name: "Lesson actions", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Version history", exact: true })
     .click();
   await expect(
@@ -49,6 +52,9 @@ test("published history restores only the draft and enforces permissions and con
     ).status(),
   ).toBe(404);
   await page.reload();
+  await page
+    .getByRole("button", { name: "Lesson actions", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Version history", exact: true })
     .click();

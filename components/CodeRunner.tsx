@@ -26,13 +26,20 @@ export function CodeRunner({
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
     cancel = useRef<(() => void) | undefined>(undefined),
-    seenStarter = useRef(starter);
+    seenStarter = useRef(starter),
+    mounted = useRef(true);
   useEffect(() => {
     if (seenStarter.current === starter) return;
     seenStarter.current = starter;
     setCode(starter);
   }, [starter]);
-  useEffect(() => () => cancel.current?.(), []);
+  // Leaving the page unmounts this view. That must not cancel a healthy runtime.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useEffect(() => {
     setFigureIndex((index) =>
       figures.length === 0 ? 0 : Math.min(index, figures.length - 1),
@@ -43,17 +50,28 @@ export function CodeRunner({
     setOut("");
     setFigures([]);
     try {
-      const task = execute(language, code, setStatus, check);
+      const task = execute(
+        language,
+        code,
+        (next) => {
+          if (mounted.current) setStatus(next);
+        },
+        check,
+      );
       cancel.current = task.cancel;
       const result = await task.promise;
+      if (!mounted.current) return;
       setOut(result.output);
       setFigures(result.figures);
     } catch (e) {
+      if (!mounted.current) return;
       setOut(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
-      setStatus("");
       cancel.current = undefined;
+      if (mounted.current) {
+        setBusy(false);
+        setStatus("");
+      }
     }
   }
   const figure = figures[figureIndex];

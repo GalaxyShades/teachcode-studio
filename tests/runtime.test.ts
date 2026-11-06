@@ -35,6 +35,7 @@ describe("browser runtime controller", () => {
     expect(FakeWorker.last).toBe(worker);
     worker.send({ done: true, output: "2" });
     expect(await next.promise).toEqual({ output: "2", figures: [] });
+    expect(worker.terminated).toBe(false);
   });
   it("terminates infinite execution and allows a fresh runtime", async () => {
     vi.useFakeTimers();

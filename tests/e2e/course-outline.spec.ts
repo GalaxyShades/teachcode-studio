@@ -104,13 +104,17 @@ test("nested outline creates lessons and chapters, drags cards across groups, an
   await chapter(second).focus();
   await page.keyboard.press("Space");
   await expect(chapter(second)).toHaveAttribute("data-dragging", "true");
-  await page.keyboard.press("ArrowDown");
+  // The keyboard sensor measures droppables after the drag starts. An arrow
+  // that arrives before that measurement is ignored, so press until the card moves.
   await expect
-    .poll(() =>
-      chapter(second).evaluate(
+    .poll(async () => {
+      const moved = await chapter(second).evaluate(
         (el) => new DOMMatrix(getComputedStyle(el).transform).m42,
-      ),
-    )
+      );
+      if (moved > 0) return moved;
+      await page.keyboard.press("ArrowDown");
+      return 0;
+    })
     .toBeGreaterThan(0);
   await page.keyboard.press("Space");
   await expect

@@ -4,7 +4,11 @@ import { db } from "../db";
 import { completePlannerTurn, type PlannerModelMessage } from "../openrouter";
 import { plannerSystemPrompt } from "./prompt";
 import { readMessageAttachments } from "./message-text";
-import { plannerWriteChange, type PlannerContentChange } from "./events";
+import {
+  plannerReloadsLesson,
+  plannerWriteChange,
+  type PlannerContentChange,
+} from "./events";
 import {
   plannerToolSchemas,
   runPlannerTool,
@@ -28,6 +32,15 @@ const statusLine: Record<string, string> = {
   validate_lesson: "Validating lesson…",
   create_lesson: "Creating lesson…",
   update_lesson: "Updating lesson…",
+  update_card: "Updating card…",
+  insert_card: "Adding card…",
+  delete_card: "Removing card…",
+  move_card: "Moving card…",
+  patch_card: "Updating card fields…",
+  update_lesson_details: "Updating lesson details…",
+  restore_draft: "Restoring draft…",
+  delete_lesson: "Archiving lesson…",
+  rename_chapter: "Renaming chapter…",
   create_chapter: "Creating chapter…",
   move_lesson: "Moving lesson…",
 };
@@ -163,11 +176,7 @@ export async function* runPlannerLoop(options: {
         "title" in result && typeof result.title === "string"
           ? result.title
           : "lesson";
-      if (
-        result.ok === true &&
-        href &&
-        (call.name === "create_lesson" || call.name === "update_lesson")
-      )
+      if (result.ok === true && href && plannerReloadsLesson(call.name))
         links.push({ href, title });
       const change = plannerWriteChange(call.name, result);
       if (change) yield { type: "changed", change };
